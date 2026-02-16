@@ -2,6 +2,7 @@ const express = require("express");
 const { z } = require("zod");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const { handleRouteError } = require("./_helpers");
@@ -53,6 +54,16 @@ const LoginSchema = z.object({
 
 const PasswordChangeSchema = z.object({
   currentPassword: z.string().min(1),
+  newPassword: z.string().min(8)
+});
+
+const PasswordResetRequestSchema = z.object({
+  email: z.string().email()
+});
+
+const PasswordResetSchema = z.object({
+  email: z.string().email(),
+  token: z.string().min(1),
   newPassword: z.string().min(8)
 });
 
@@ -133,6 +144,46 @@ router.put("/password", requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update password");
+  }
+});
+
+router.post("/forgot", async (req, res) => {
+  try {
+    const parsed = PasswordResetRequestSchema.parse(req.body);
+    const user = await User.findOne({ email: parsed.email.toLowerCase() });
+    if (!user) return res.json({ ok: true });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    user.resetTokenHash = tokenHash;
+    user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save();
+
+    res.json({ ok: true, resetToken: token });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to request password reset");
+  }
+});
+
+router.post("/reset", async (req, res) => {
+  try {
+    const parsed = PasswordResetSchema.parse(req.body);
+    const tokenHash = crypto.createHash("sha256").update(parsed.token).digest("hex");
+    const user = await User.findOne({
+      email: parsed.email.toLowerCase(),
+      resetTokenHash: tokenHash,
+      resetTokenExpires: { $gt: new Date() }
+    });
+    if (!user) return res.status(400).json({ error: "Invalid or expired reset token" });
+
+    user.passwordHash = await bcrypt.hash(parsed.newPassword, 12);
+    user.resetTokenHash = undefined;
+    user.resetTokenExpires = undefined;
+    await user.save();
+
+    res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to reset password");
   }
 });
 

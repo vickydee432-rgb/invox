@@ -49,6 +49,9 @@ export default function LoginPage() {
             required
           />
         </label>
+        <div className="muted" style={{ textAlign: "right" }}>
+          <Link href="/forgot">Forgot password?</Link>
+        </div>
         {error ? <div className="muted">{error}</div> : null}
         <button className="button" type="submit" disabled={loading}>
           {loading ? "Logging in..." : "Login"}
