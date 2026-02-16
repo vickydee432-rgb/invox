@@ -1,6 +1,10 @@
 import { getToken } from "./auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const normalizedApiUrl = rawApiUrl.startsWith("http")
+  ? rawApiUrl
+  : `https://${rawApiUrl.replace(/^\/+/, "")}`;
+const API_URL = normalizedApiUrl.replace(/\/+$/, "");
 
 export async function apiFetch<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
