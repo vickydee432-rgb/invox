@@ -58,6 +58,12 @@ export default function SettingsPage() {
   const [swift, setSwift] = useState("");
   const [mobileMoney, setMobileMoney] = useState("");
   const [paymentInstructions, setPaymentInstructions] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -144,6 +150,35 @@ export default function SettingsPage() {
     }
   };
 
+  const handlePasswordChange = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await apiFetch("/api/auth/password", {
+        method: "PUT",
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordSuccess("Password updated.");
+    } catch (err: any) {
+      setPasswordError(err.message || "Failed to update password");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <section className="panel">
@@ -154,120 +189,159 @@ export default function SettingsPage() {
   }
 
   return (
-    <section className="panel">
-      <div className="panel-title">Company Settings</div>
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
-        <div className="grid-2">
-          <label className="field">
-            Company name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label className="field">
-            Legal name
-            <input value={legalName} onChange={(e) => setLegalName(e.target.value)} />
-          </label>
-          <label className="field">
-            Logo URL
-            <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
-          </label>
-          <label className="field">
-            Company email
-            <input value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} type="email" />
-          </label>
-          <label className="field">
-            Phone
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </label>
-          <label className="field">
-            Website
-            <input value={website} onChange={(e) => setWebsite(e.target.value)} />
-          </label>
-          <label className="field">
-            Tax ID
-            <input value={taxId} onChange={(e) => setTaxId(e.target.value)} />
-          </label>
-          <label className="field">
-            Currency
-            <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
-          </label>
-        </div>
+    <>
+      <section className="panel">
+        <div className="panel-title">Company Settings</div>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+          <div className="grid-2">
+            <label className="field">
+              Company name
+              <input value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <label className="field">
+              Legal name
+              <input value={legalName} onChange={(e) => setLegalName(e.target.value)} />
+            </label>
+            <label className="field">
+              Logo URL
+              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
+            </label>
+            <label className="field">
+              Company email
+              <input value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} type="email" />
+            </label>
+            <label className="field">
+              Phone
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </label>
+            <label className="field">
+              Website
+              <input value={website} onChange={(e) => setWebsite(e.target.value)} />
+            </label>
+            <label className="field">
+              Tax ID
+              <input value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+            </label>
+            <label className="field">
+              Currency
+              <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+            </label>
+          </div>
 
-        <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
-          Address
-        </div>
-        <div className="grid-2">
-          <label className="field">
-            Address line 1
-            <input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
-          </label>
-          <label className="field">
-            Address line 2
-            <input value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
-          </label>
-          <label className="field">
-            City
-            <input value={city} onChange={(e) => setCity(e.target.value)} />
-          </label>
-          <label className="field">
-            State / Region
-            <input value={state} onChange={(e) => setState(e.target.value)} />
-          </label>
-          <label className="field">
-            Postal code
-            <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
-          </label>
-          <label className="field">
-            Country
-            <input value={country} onChange={(e) => setCountry(e.target.value)} />
-          </label>
-        </div>
+          <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+            Address
+          </div>
+          <div className="grid-2">
+            <label className="field">
+              Address line 1
+              <input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+            </label>
+            <label className="field">
+              Address line 2
+              <input value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
+            </label>
+            <label className="field">
+              City
+              <input value={city} onChange={(e) => setCity(e.target.value)} />
+            </label>
+            <label className="field">
+              State / Region
+              <input value={state} onChange={(e) => setState(e.target.value)} />
+            </label>
+            <label className="field">
+              Postal code
+              <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+            </label>
+            <label className="field">
+              Country
+              <input value={country} onChange={(e) => setCountry(e.target.value)} />
+            </label>
+          </div>
 
-        <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
-          Payment Details
-        </div>
-        <div className="grid-2">
-          <label className="field">
-            Bank name
-            <input value={bankName} onChange={(e) => setBankName(e.target.value)} />
-          </label>
-          <label className="field">
-            Account name
-            <input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-          </label>
-          <label className="field">
-            Account number
-            <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-          </label>
-          <label className="field">
-            Routing number
-            <input value={routingNumber} onChange={(e) => setRoutingNumber(e.target.value)} />
-          </label>
-          <label className="field">
-            SWIFT code
-            <input value={swift} onChange={(e) => setSwift(e.target.value)} />
-          </label>
-          <label className="field">
-            Mobile money
-            <input value={mobileMoney} onChange={(e) => setMobileMoney(e.target.value)} />
-          </label>
-          <label className="field" style={{ gridColumn: "1 / -1" }}>
-            Payment instructions
-            <textarea
-              value={paymentInstructions}
-              onChange={(e) => setPaymentInstructions(e.target.value)}
-              rows={3}
-            />
-          </label>
-        </div>
+          <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+            Payment Details
+          </div>
+          <div className="grid-2">
+            <label className="field">
+              Bank name
+              <input value={bankName} onChange={(e) => setBankName(e.target.value)} />
+            </label>
+            <label className="field">
+              Account name
+              <input value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+            </label>
+            <label className="field">
+              Account number
+              <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </label>
+            <label className="field">
+              Routing number
+              <input value={routingNumber} onChange={(e) => setRoutingNumber(e.target.value)} />
+            </label>
+            <label className="field">
+              SWIFT code
+              <input value={swift} onChange={(e) => setSwift(e.target.value)} />
+            </label>
+            <label className="field">
+              Mobile money
+              <input value={mobileMoney} onChange={(e) => setMobileMoney(e.target.value)} />
+            </label>
+            <label className="field" style={{ gridColumn: "1 / -1" }}>
+              Payment instructions
+              <textarea
+                value={paymentInstructions}
+                onChange={(e) => setPaymentInstructions(e.target.value)}
+                rows={3}
+              />
+            </label>
+          </div>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <button className="button" type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save settings"}
-          </button>
-          {success ? <div className="muted">{success}</div> : null}
-          {error ? <div className="muted">{error}</div> : null}
-        </div>
-      </form>
-    </section>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="button" type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save settings"}
+            </button>
+            {success ? <div className="muted">{success}</div> : null}
+            {error ? <div className="muted">{error}</div> : null}
+          </div>
+        </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Change Password</div>
+        <form onSubmit={handlePasswordChange} style={{ display: "grid", gap: 16 }}>
+          <div className="grid-2">
+            <label className="field">
+              Current password
+              <input
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                type="password"
+                required
+              />
+            </label>
+            <label className="field">
+              New password
+              <input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} type="password" required />
+            </label>
+            <label className="field">
+              Confirm new password
+              <input
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                type="password"
+                required
+              />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="button" type="submit" disabled={passwordSaving}>
+              {passwordSaving ? "Updating..." : "Update password"}
+            </button>
+            {passwordSuccess ? <div className="muted">{passwordSuccess}</div> : null}
+            {passwordError ? <div className="muted">{passwordError}</div> : null}
+          </div>
+        </form>
+      </section>
+    </>
   );
 }

@@ -51,6 +51,11 @@ const LoginSchema = z.object({
   password: z.string().min(1)
 });
 
+const PasswordChangeSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8)
+});
+
 function signToken(user) {
   const secret = process.env.AUTH_JWT_SECRET;
   const ttl = process.env.AUTH_TOKEN_TTL || "7d";
@@ -112,6 +117,23 @@ router.post("/login", async (req, res) => {
 
 router.get("/me", requireAuth, async (req, res) => {
   res.json({ user: req.user });
+});
+
+router.put("/password", requireAuth, async (req, res) => {
+  try {
+    const parsed = PasswordChangeSchema.parse(req.body);
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const ok = await bcrypt.compare(parsed.currentPassword, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: "Current password is incorrect" });
+
+    user.passwordHash = await bcrypt.hash(parsed.newPassword, 12);
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to update password");
+  }
 });
 
 module.exports = router;
