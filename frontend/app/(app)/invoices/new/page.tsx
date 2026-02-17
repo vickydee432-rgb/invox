@@ -39,6 +39,12 @@ export default function NewInvoicePage() {
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const subtotal = items.reduce(
+    (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
+    0
+  );
+  const vatAmount = (subtotal * (Number(vatRate) || 0)) / 100;
+  const total = subtotal + vatAmount;
 
   const normalizeLine = (line: string) =>
     line
@@ -279,212 +285,280 @@ export default function NewInvoicePage() {
   return (
     <>
       <section className="panel">
-        <div className="panel-title">Import Invoices (Excel)</div>
-        <div className="muted" style={{ marginBottom: 12 }}>
-          Required columns: Customer Name, Due Date or Date, Description, Qty, Unit Price.
-          Optional: Invoice No, Customer Phone, Customer TPIN, Status, VAT Rate, Discount.
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label className="field" style={{ minWidth: 220 }}>
-            Import status
-            <select value={importStatus} onChange={(e) => setImportStatus(e.target.value)}>
-              <option value="">Use sheet status</option>
-              <option value="sent">Sent (unpaid)</option>
-              <option value="paid">Paid</option>
-              <option value="draft">Draft</option>
-            </select>
-          </label>
-          <label className="field" style={{ minWidth: 240 }}>
-            Due date from
-            <select value={dueDatePreference} onChange={(e) => setDueDatePreference(e.target.value)}>
-              <option value="date">Use Date column</option>
-              <option value="dueDate">Use Due Date column</option>
-              <option value="auto">Use Due Date, else Date</option>
-            </select>
-          </label>
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-          />
-          <button className="button" onClick={handleImport} disabled={!importFile || importing}>
-            {importing ? "Importing..." : "Import Excel"}
-          </button>
-          {importError ? <div className="muted">{importError}</div> : null}
-          {importResult ? (
-            <div className="muted">
-              {importResult.createdCount > 0
-                ? `Imported ${importResult.createdCount} invoices.`
-                : "No invoices created."}
-            </div>
-          ) : null}
-        </div>
-        {importResult?.errors && importResult.errors.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <div className="muted">Some rows could not be imported:</div>
-            <ul style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
-              {importResult.errors.map((err, idx) => (
-                <li key={`${err.row}-${err.error}-${idx}`} className="muted">
-                  Row {err.row}: {err.error}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="panel">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div className="panel-title">Quick Paste</div>
+          <div className="panel-title">Utilities</div>
           <button className="button secondary" type="button" onClick={() => setShowPaste((prev) => !prev)}>
             {showPaste ? "Hide" : "Show"}
           </button>
         </div>
         {showPaste ? (
-          <>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              Paste one item per line. Supported formats:
-              <br />
-              <strong>Description | Qty | Unit Price | Discount</strong> (discount optional), or
-              <br />
-              a pasted table with headers like <strong>Description</strong>, <strong>Qty</strong>,
-              <strong>Unit Price</strong> (extra columns are ignored).
-            </p>
-            <form onSubmit={handlePasteSubmit} style={{ display: "grid", gap: 12 }}>
-              <label className="field">
-                Paste items
-                <textarea
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                  rows={6}
-                  placeholder="Cement | 10 | 145.50 | 0"
-                />
-              </label>
-              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="checkbox"
-                  checked={appendItems}
-                  onChange={(e) => setAppendItems(e.target.checked)}
-                />
-                Append to existing items
-              </label>
+          <div style={{ display: "grid", gap: 18 }}>
+            <div>
+              <div className="panel-title" style={{ fontSize: 16, marginBottom: 8 }}>
+                Import Invoices (Excel)
+              </div>
+              <div className="muted" style={{ marginBottom: 12 }}>
+                Required columns: Customer Name, Due Date or Date, Description, Qty, Unit Price.
+                Optional: Invoice No, Customer Phone, Customer TPIN, Status, VAT Rate, Discount.
+              </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <button className="button" type="submit">
-                  Import items
+                <label className="field" style={{ minWidth: 220 }}>
+                  Import status
+                  <select value={importStatus} onChange={(e) => setImportStatus(e.target.value)}>
+                    <option value="">Use sheet status</option>
+                    <option value="sent">Sent (unpaid)</option>
+                    <option value="paid">Paid</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </label>
+                <label className="field" style={{ minWidth: 240 }}>
+                  Due date from
+                  <select value={dueDatePreference} onChange={(e) => setDueDatePreference(e.target.value)}>
+                    <option value="date">Use Date column</option>
+                    <option value="dueDate">Use Due Date column</option>
+                    <option value="auto">Use Due Date, else Date</option>
+                  </select>
+                </label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                />
+                <button className="button" onClick={handleImport} disabled={!importFile || importing}>
+                  {importing ? "Importing..." : "Import Excel"}
                 </button>
-                {pasteSuccess ? <div className="muted">{pasteSuccess}</div> : null}
-                {pasteError ? <div className="muted">{pasteError}</div> : null}
+                {importError ? <div className="muted">{importError}</div> : null}
+                {importResult ? (
+                  <div className="muted">
+                    {importResult.createdCount > 0
+                      ? `Imported ${importResult.createdCount} invoices.`
+                      : "No invoices created."}
+                  </div>
+                ) : null}
               </div>
-            </form>
-            {pasteErrors.length > 0 ? (
-              <div style={{ marginTop: 12 }}>
-                <div className="muted">Some lines could not be imported:</div>
-                <ul style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
-                  {pasteErrors.map((err) => (
-                    <li key={`${err.line}-${err.error}`} className="muted">
-                      Line {err.line}: {err.error} — {err.raw}
-                    </li>
-                  ))}
-                </ul>
+              {importResult?.errors && importResult.errors.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div className="muted">Some rows could not be imported:</div>
+                  <ul style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
+                    {importResult.errors.map((err, idx) => (
+                      <li key={`${err.row}-${err.error}-${idx}`} className="muted">
+                        Row {err.row}: {err.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="panel-title" style={{ fontSize: 16, marginBottom: 8 }}>
+                Quick Paste Items
               </div>
-            ) : null}
-          </>
+              <p className="muted" style={{ marginBottom: 12 }}>
+                Paste one item per line. Supported formats:
+                <br />
+                <strong>Description | Qty | Unit Price | Discount</strong> (discount optional), or
+                <br />
+                a pasted table with headers like <strong>Description</strong>, <strong>Qty</strong>,
+                <strong>Unit Price</strong> (extra columns are ignored).
+              </p>
+              <form onSubmit={handlePasteSubmit} style={{ display: "grid", gap: 12 }}>
+                <label className="field">
+                  Paste items
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    rows={6}
+                    placeholder="Cement | 10 | 145.50 | 0"
+                  />
+                </label>
+                <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={appendItems}
+                    onChange={(e) => setAppendItems(e.target.checked)}
+                  />
+                  Append to existing items
+                </label>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <button className="button" type="submit">
+                    Import items
+                  </button>
+                  {pasteSuccess ? <div className="muted">{pasteSuccess}</div> : null}
+                  {pasteError ? <div className="muted">{pasteError}</div> : null}
+                </div>
+              </form>
+              {pasteErrors.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div className="muted">Some lines could not be imported:</div>
+                  <ul style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
+                    {pasteErrors.map((err) => (
+                      <li key={`${err.line}-${err.error}`} className="muted">
+                        Line {err.line}: {err.error} — {err.raw}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </section>
 
       <section className="panel">
         <div className="panel-title">Create Invoice</div>
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
-          <div className="grid-2">
-            <label className="field">
-              Invoice number (optional)
-              <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
-            </label>
-            <label className="field">
-              Customer name
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
-            </label>
-            <label className="field">
-              Customer phone (optional)
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-            </label>
-            <label className="field">
-              Customer TPIN (optional)
-              <input value={customerTpin} onChange={(e) => setCustomerTpin(e.target.value)} />
-            </label>
-            <label className="field">
-              Due date
-              <input value={dueDate} onChange={(e) => setDueDate(e.target.value)} type="date" required />
-            </label>
-            <label className="field">
-              Status
-              <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="draft">draft</option>
-                <option value="sent">sent</option>
-                <option value="paid">paid</option>
-              </select>
-            </label>
-            <label className="field">
-              VAT rate %
-              <input
-                value={vatRate}
-                onChange={(e) => setVatRate(Number(e.target.value))}
-                type="number"
-                min={0}
-              />
-            </label>
+        <form onSubmit={handleSubmit} className="invoice-editor">
+          <div className="invoice-header">
+            <div className="invoice-card">
+              <div className="invoice-tabs">
+                <span className="active">Billing</span>
+                <span>Shipping</span>
+              </div>
+              <div className="invoice-form-grid">
+                <label className="field">
+                  Customer
+                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                </label>
+                <label className="field">
+                  Customer phone
+                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                </label>
+                <label className="field">
+                  Customer TPIN
+                  <input value={customerTpin} onChange={(e) => setCustomerTpin(e.target.value)} />
+                </label>
+              </div>
+            </div>
+            <div className="invoice-card">
+              <div className="invoice-pill">Invoice</div>
+              <div className="invoice-form-grid">
+                <label className="field">
+                  Create From
+                  <select defaultValue="new" disabled>
+                    <option value="new">New Invoice</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Date
+                  <input value={dueDate} onChange={(e) => setDueDate(e.target.value)} type="date" required />
+                </label>
+                <label className="field">
+                  Status
+                  <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                    <option value="draft">draft</option>
+                    <option value="sent">sent</option>
+                    <option value="paid">paid</option>
+                  </select>
+                </label>
+                <label className="field">
+                  VAT rate %
+                  <input
+                    value={vatRate}
+                    onChange={(e) => setVatRate(Number(e.target.value))}
+                    type="number"
+                    min={0}
+                  />
+                </label>
+                <label className="field">
+                  Invoice number
+                  <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
+                </label>
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gap: 10 }}>
-            {items.map((item, index) => (
-              <div key={index} className="grid-2">
-                <label className="field">
-                  Description
-                  <input
-                    value={item.description}
-                    onChange={(e) => updateItem(index, { description: e.target.value })}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  Quantity
-                  <input
-                    value={item.qty}
-                    onChange={(e) => updateItem(index, { qty: Number(e.target.value) })}
-                    type="number"
-                    min={0}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  Unit price
-                  <input
-                    value={item.unitPrice}
-                    onChange={(e) => updateItem(index, { unitPrice: Number(e.target.value) })}
-                    type="number"
-                    min={0}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  Discount
-                  <input
-                    value={item.discount ?? 0}
-                    onChange={(e) => updateItem(index, { discount: Number(e.target.value) })}
-                    type="number"
-                    min={0}
-                  />
-                </label>
-                {items.length > 1 ? (
-                  <button className="button secondary" type="button" onClick={() => removeItem(index)}>
-                    Remove item
-                  </button>
-                ) : null}
+          <div className="invoice-table-wrap">
+            <table className="invoice-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 90 }}>Qty</th>
+                  <th>Item / Description</th>
+                  <th style={{ width: 140 }}>Unit Price</th>
+                  <th style={{ width: 140 }}>Discount</th>
+                  <th style={{ width: 140 }}>Total</th>
+                  <th style={{ width: 120 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => {
+                  const lineTotal = Math.max(0, item.qty * item.unitPrice - (item.discount || 0));
+                  return (
+                    <tr key={index}>
+                      <td>
+                        <input
+                          className="invoice-input"
+                          value={item.qty}
+                          onChange={(e) => updateItem(index, { qty: Number(e.target.value) })}
+                          type="number"
+                          min={0}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="invoice-input"
+                          value={item.description}
+                          onChange={(e) => updateItem(index, { description: e.target.value })}
+                          placeholder="Item description"
+                          required
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="invoice-input"
+                          value={item.unitPrice}
+                          onChange={(e) => updateItem(index, { unitPrice: Number(e.target.value) })}
+                          type="number"
+                          min={0}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="invoice-input"
+                          value={item.discount ?? 0}
+                          onChange={(e) => updateItem(index, { discount: Number(e.target.value) })}
+                          type="number"
+                          min={0}
+                        />
+                      </td>
+                      <td className="invoice-total">{lineTotal.toFixed(2)}</td>
+                      <td>
+                        {items.length > 1 ? (
+                          <button
+                            className="button secondary"
+                            type="button"
+                            onClick={() => removeItem(index)}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="invoice-footer">
+            <div className="invoice-actions">
+              <button className="button secondary" type="button" onClick={addItem}>
+                Add item
+              </button>
+            </div>
+            <div className="invoice-summary">
+              <div>
+                <span>Subtotal</span>
+                <strong>{subtotal.toFixed(2)}</strong>
               </div>
-            ))}
-            <button className="button secondary" type="button" onClick={addItem}>
-              Add item
-            </button>
+              <div>
+                <span>VAT</span>
+                <strong>{vatAmount.toFixed(2)}</strong>
+              </div>
+              <div className="invoice-summary-total">
+                <span>Total</span>
+                <strong>{total.toFixed(2)}</strong>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
