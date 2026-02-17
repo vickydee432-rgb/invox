@@ -335,10 +335,9 @@ function buildDateKey(date) {
 }
 
 function buildExpenseKey(expense) {
-  const category = String(expense.category || "").trim().toLowerCase();
   const amount = Number(expense.amount || 0).toFixed(2);
   const dateKey = buildDateKey(expense.date);
-  return `${category}|${amount}|${dateKey}`;
+  return `${amount}|${dateKey}`;
 }
 
 function dayStart(date) {
@@ -456,12 +455,10 @@ router.post("/bulk", async (req, res) => {
       const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
       const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
       const amountSet = [...new Set(docs.map((doc) => doc.amount))];
-      const categorySet = [...new Set(docs.map((doc) => doc.category))];
       const existing = await Expense.find({
         companyId: req.user.companyId,
         date: { $gte: dayStart(minDate), $lte: dayEnd(maxDate) },
-        amount: { $in: amountSet },
-        category: { $in: categorySet }
+        amount: { $in: amountSet }
       })
         .select("title category amount date")
         .lean();
