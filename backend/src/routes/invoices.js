@@ -359,7 +359,7 @@ router.post("/import", async (req, res) => {
     }
 
     if (createPayload.length === 0) {
-      return res.status(400).json({ error: "No invoices created", errors });
+      return res.json({ createdCount: 0, errors, message: "No invoices created" });
     }
 
     const created = await Invoice.insertMany(createPayload);

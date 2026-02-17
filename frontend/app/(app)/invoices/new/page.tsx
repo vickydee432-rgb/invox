@@ -313,7 +313,9 @@ export default function NewInvoicePage() {
           {importError ? <div className="muted">{importError}</div> : null}
           {importResult ? (
             <div className="muted">
-              Imported {importResult.createdCount} invoices.
+              {importResult.createdCount > 0
+                ? `Imported ${importResult.createdCount} invoices.`
+                : "No invoices created."}
             </div>
           ) : null}
         </div>
