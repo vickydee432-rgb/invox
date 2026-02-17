@@ -25,12 +25,31 @@ const InvoiceSchema = new mongoose.Schema(
     trackingRef: { type: String, trim: true },
     shippingCost: { type: Number, default: 0, min: 0 },
     shippingTaxRate: { type: Number, default: 0, min: 0 },
+    source: { type: String, enum: ["APP", "ZRA"], default: "APP", index: true },
+    zraReceiptNo: { type: String, trim: true },
+    zraMarkId: { type: String, trim: true },
+    zraSignature: { type: String, trim: true },
+    zraQrData: { type: String, trim: true },
+    zraStatus: { type: String, trim: true },
+    lockedAt: { type: Date },
+    lockedReason: { type: String, trim: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
     projectLabel: { type: String, trim: true },
 
     status: {
       type: String,
-      enum: ["draft", "sent", "paid", "partial", "overdue", "cancelled"],
+      enum: [
+        "draft",
+        "sent",
+        "paid",
+        "partial",
+        "overdue",
+        "cancelled",
+        "imported_pending",
+        "imported_approved",
+        "imported_rejected",
+        "credited"
+      ],
       default: "sent",
       index: true
     },

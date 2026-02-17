@@ -64,6 +64,33 @@ export default function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [zraConnections, setZraConnections] = useState<
+    {
+      id: string;
+      tpin: string;
+      branchId: string;
+      branchName?: string;
+      enabled: boolean;
+      syncEnabled: boolean;
+      syncIntervalMinutes: number;
+      baseUrl?: string;
+      lastSyncAt?: string;
+      lastSyncStatus?: string;
+      lastSyncError?: string;
+    }[]
+  >([]);
+  const [zraLoading, setZraLoading] = useState(false);
+  const [zraError, setZraError] = useState("");
+  const [zraSuccess, setZraSuccess] = useState("");
+  const [zraTpin, setZraTpin] = useState("");
+  const [zraBranchId, setZraBranchId] = useState("");
+  const [zraBranchName, setZraBranchName] = useState("");
+  const [zraBaseUrl, setZraBaseUrl] = useState("");
+  const [zraAuthType, setZraAuthType] = useState("bearer");
+  const [zraUsername, setZraUsername] = useState("");
+  const [zraPassword, setZraPassword] = useState("");
+  const [zraAccessToken, setZraAccessToken] = useState("");
+  const [zraApiKey, setZraApiKey] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -104,6 +131,23 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const loadZraStatus = async () => {
+    setZraLoading(true);
+    setZraError("");
+    try {
+      const data = await apiFetch<{ connections: any[] }>("/api/integrations/zra/status");
+      setZraConnections(data.connections || []);
+    } catch (err: any) {
+      setZraError(err.message || "Failed to load ZRA status");
+    } finally {
+      setZraLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadZraStatus();
   }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -176,6 +220,67 @@ export default function SettingsPage() {
       setPasswordError(err.message || "Failed to update password");
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleZraConnect = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setZraError("");
+    setZraSuccess("");
+    const credentials: Record<string, any> = { authType: zraAuthType };
+    if (zraAuthType === "basic") {
+      credentials.username = zraUsername;
+      credentials.password = zraPassword;
+    } else if (zraAuthType === "bearer") {
+      credentials.accessToken = zraAccessToken;
+    } else if (zraAuthType === "apikey") {
+      credentials.apiKey = zraApiKey;
+    }
+    try {
+      await apiFetch("/api/integrations/zra/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          tpin: zraTpin,
+          branchId: zraBranchId,
+          branchName: zraBranchName || undefined,
+          baseUrl: zraBaseUrl || undefined,
+          credentials
+        })
+      });
+      setZraSuccess("ZRA connection saved.");
+      await loadZraStatus();
+    } catch (err: any) {
+      setZraError(err.message || "Failed to connect ZRA");
+    }
+  };
+
+  const handleZraDisconnect = async (branchId: string) => {
+    setZraError("");
+    setZraSuccess("");
+    try {
+      await apiFetch("/api/integrations/zra/disconnect", {
+        method: "POST",
+        body: JSON.stringify({ branchId })
+      });
+      setZraSuccess("ZRA sync disabled.");
+      await loadZraStatus();
+    } catch (err: any) {
+      setZraError(err.message || "Failed to disconnect ZRA");
+    }
+  };
+
+  const handleZraSync = async (branchId?: string) => {
+    setZraError("");
+    setZraSuccess("");
+    try {
+      await apiFetch("/api/integrations/zra/sync/manual", {
+        method: "POST",
+        body: JSON.stringify(branchId ? { branchId } : {})
+      });
+      setZraSuccess("ZRA sync started.");
+      await loadZraStatus();
+    } catch (err: any) {
+      setZraError(err.message || "Failed to sync ZRA");
     }
   };
 
@@ -341,6 +446,115 @@ export default function SettingsPage() {
             {passwordError ? <div className="muted">{passwordError}</div> : null}
           </div>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Integrations · ZRA Smart Invoice</div>
+        <form onSubmit={handleZraConnect} style={{ display: "grid", gap: 16 }}>
+          <div className="grid-2">
+            <label className="field">
+              TPIN
+              <input value={zraTpin} onChange={(e) => setZraTpin(e.target.value)} required />
+            </label>
+            <label className="field">
+              Branch ID
+              <input value={zraBranchId} onChange={(e) => setZraBranchId(e.target.value)} required />
+            </label>
+            <label className="field">
+              Branch Name
+              <input value={zraBranchName} onChange={(e) => setZraBranchName(e.target.value)} />
+            </label>
+            <label className="field">
+              ZRA Base URL
+              <input value={zraBaseUrl} onChange={(e) => setZraBaseUrl(e.target.value)} />
+            </label>
+            <label className="field">
+              Auth Type
+              <select value={zraAuthType} onChange={(e) => setZraAuthType(e.target.value)}>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Username/Password</option>
+                <option value="apikey">API Key</option>
+              </select>
+            </label>
+            {zraAuthType === "basic" ? (
+              <>
+                <label className="field">
+                  Username
+                  <input value={zraUsername} onChange={(e) => setZraUsername(e.target.value)} />
+                </label>
+                <label className="field">
+                  Password
+                  <input value={zraPassword} onChange={(e) => setZraPassword(e.target.value)} type="password" />
+                </label>
+              </>
+            ) : null}
+            {zraAuthType === "bearer" ? (
+              <label className="field" style={{ gridColumn: "1 / -1" }}>
+                Access Token
+                <input value={zraAccessToken} onChange={(e) => setZraAccessToken(e.target.value)} />
+              </label>
+            ) : null}
+            {zraAuthType === "apikey" ? (
+              <label className="field" style={{ gridColumn: "1 / -1" }}>
+                API Key
+                <input value={zraApiKey} onChange={(e) => setZraApiKey(e.target.value)} />
+              </label>
+            ) : null}
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="button" type="submit" disabled={zraLoading}>
+              {zraLoading ? "Saving..." : "Save connection"}
+            </button>
+            <button className="button secondary" type="button" onClick={() => handleZraSync()}>
+              Sync now
+            </button>
+            {zraSuccess ? <div className="muted">{zraSuccess}</div> : null}
+            {zraError ? <div className="muted">{zraError}</div> : null}
+          </div>
+        </form>
+
+        <div style={{ marginTop: 18 }}>
+          <div className="panel-title" style={{ fontSize: 16 }}>
+            Connections
+          </div>
+          {zraConnections.length === 0 ? (
+            <div className="muted">No ZRA connections yet.</div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>TPIN</th>
+                  <th>Branch</th>
+                  <th>Enabled</th>
+                  <th>Last Sync</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {zraConnections.map((conn) => (
+                  <tr key={conn.id}>
+                    <td>{conn.tpin}</td>
+                    <td>{conn.branchName || conn.branchId}</td>
+                    <td>{conn.enabled ? "Yes" : "No"}</td>
+                    <td>{conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleString() : "—"}</td>
+                    <td>{conn.lastSyncStatus || "—"}</td>
+                    <td style={{ display: "flex", gap: 8 }}>
+                      <button className="button secondary" onClick={() => handleZraSync(conn.branchId)}>
+                        Sync
+                      </button>
+                      {conn.enabled ? (
+                        <button className="button secondary" onClick={() => handleZraDisconnect(conn.branchId)}>
+                          Disable
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </section>
     </>
   );

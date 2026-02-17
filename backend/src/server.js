@@ -10,6 +10,8 @@ const expensesRoutes = require("./routes/expenses");
 const authRoutes = require("./routes/auth");
 const reportsRoutes = require("./routes/reports");
 const companyRoutes = require("./routes/company");
+const zraRoutes = require("./routes/integrations/zra");
+const { startZraSyncWorker } = require("./workers/zraWorker");
 
 const app = express();
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
@@ -26,6 +28,7 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_, res) => res.json({ ok: true, name: "invox-api" }));
+app.get("/health", (_, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/company", companyRoutes);
@@ -34,6 +37,7 @@ app.use("/api/invoices", invoicesRoutes);
 app.use("/api/projects", projectsRoutes);
 app.use("/api/expenses", expensesRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/integrations/zra", zraRoutes);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];
@@ -46,6 +50,7 @@ if (missingEnv.length > 0) {
 connectDB(process.env.MONGO_URI)
   .then(() => {
     app.listen(port, () => console.log(`🚀 Running on http://localhost:${port}`));
+    startZraSyncWorker();
   })
   .catch((err) => {
     console.error("❌ DB connect error:", err);

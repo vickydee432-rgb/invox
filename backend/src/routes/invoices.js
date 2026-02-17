@@ -17,14 +17,23 @@ const { generateInvoicePdf } = require("../services/pdf");
 const { buildInvoicesWorkbook } = require("../services/export");
 const Company = require("../models/Company");
 const ExcelJS = require("exceljs");
+const ZraConnection = require("../models/ZraConnection");
+const { submitInvoice, submitCancel, submitCreditNote } = require("../services/zra/client");
+const {
+  buildZraInvoicePayload,
+  buildZraCancelPayload,
+  buildZraCreditPayload
+} = require("../services/zra/transform");
+const { mapZraStatus } = require("../services/zra/mapping");
 
 const router = express.Router();
 router.use(requireAuth);
 
 function buildInvoiceFilter(query) {
-  const { status, projectId, from, to, q } = query;
+  const { status, projectId, from, to, q, source } = query;
   const filter = {};
   if (status) filter.status = status;
+  if (source) filter.source = source;
   if (projectId) {
     ensureObjectId(projectId, "project id");
     filter.projectId = projectId;
@@ -392,7 +401,20 @@ const InvoiceUpdateSchema = z.object({
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
   dueDate: z.string().optional(),
-  status: z.enum(["draft", "sent", "paid", "partial", "overdue", "cancelled"]).optional(),
+  status: z
+    .enum([
+      "draft",
+      "sent",
+      "paid",
+      "partial",
+      "overdue",
+      "cancelled",
+      "imported_pending",
+      "imported_approved",
+      "imported_rejected",
+      "credited"
+    ])
+    .optional(),
   vatRate: z.number().nonnegative().optional(),
   items: z.array(
     z.object({
@@ -497,6 +519,9 @@ router.put("/:id", async (req, res) => {
     const parsed = InvoiceUpdateSchema.parse(req.body);
     const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+    if (invoice.lockedAt) {
+      return res.status(400).json({ error: "Invoice is locked after ZRA submission" });
+    }
     if (["paid", "cancelled"].includes(invoice.status)) {
       return res.status(400).json({ error: `Cannot edit invoice in status: ${invoice.status}` });
     }
@@ -585,6 +610,101 @@ router.post("/:id/payment", async (req, res) => {
     res.json({ invoice });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update payment");
+  }
+});
+
+const ZraSubmitSchema = z.object({
+  branchId: z.string().optional(),
+  reason: z.string().optional(),
+  creditNote: z.any().optional()
+});
+
+async function resolveZraConnection(companyId, branchId) {
+  if (branchId) {
+    return ZraConnection.findOne({ companyId, branchId, enabled: true });
+  }
+  const connections = await ZraConnection.find({ companyId, enabled: true }).limit(2);
+  if (connections.length === 1) return connections[0];
+  return null;
+}
+
+router.post("/:id/zra/submit", async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, "invoice id");
+    const parsed = ZraSubmitSchema.parse(req.body || {});
+    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+    if (invoice.lockedAt) return res.status(400).json({ error: "Invoice already submitted to ZRA" });
+
+    const connection = await resolveZraConnection(req.user.companyId, parsed.branchId);
+    if (!connection) return res.status(400).json({ error: "ZRA connection not found for branch" });
+
+    const payload = buildZraInvoicePayload(invoice, connection);
+    const response = await submitInvoice(connection, payload);
+
+    invoice.zraReceiptNo = response.receiptNo || response.invoiceNo || invoice.invoiceNo;
+    invoice.zraMarkId = response.markId || response.markID || response.mark_id;
+    invoice.zraSignature = response.signature || response.sign || response.sig;
+    invoice.zraQrData = response.qrData || response.qr || response.qrCode;
+    invoice.zraStatus = response.status || "ZRA_PENDING";
+    invoice.lockedAt = new Date();
+    invoice.lockedReason = "ZRA_SUBMITTED";
+    invoice.status = mapZraStatus(invoice.zraStatus);
+    await invoice.save();
+
+    res.json({ invoice });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to submit invoice to ZRA");
+  }
+});
+
+router.post("/:id/zra/cancel", async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, "invoice id");
+    const parsed = ZraSubmitSchema.parse(req.body || {});
+    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    const connection = await resolveZraConnection(req.user.companyId, parsed.branchId);
+    if (!connection) return res.status(400).json({ error: "ZRA connection not found for branch" });
+
+    const payload = buildZraCancelPayload(invoice, connection, parsed.reason);
+    const response = await submitCancel(connection, payload);
+
+    invoice.zraStatus = response.status || "ZRA_CANCELLED";
+    invoice.status = mapZraStatus(invoice.zraStatus);
+    invoice.lockedAt = invoice.lockedAt || new Date();
+    invoice.lockedReason = invoice.lockedReason || "ZRA_CANCELLED";
+    await invoice.save();
+
+    res.json({ invoice });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to cancel invoice");
+  }
+});
+
+router.post("/:id/zra/credit-note", async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, "invoice id");
+    const parsed = ZraSubmitSchema.parse(req.body || {});
+    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    const connection = await resolveZraConnection(req.user.companyId, parsed.branchId);
+    if (!connection) return res.status(400).json({ error: "ZRA connection not found for branch" });
+
+    const payload = buildZraCreditPayload(invoice, connection, parsed.creditNote || {});
+    const response = await submitCreditNote(connection, payload);
+
+    invoice.zraStatus = response.status || "ZRA_CREDIT_NOTE";
+    invoice.status = mapZraStatus(invoice.zraStatus);
+    invoice.lockedAt = invoice.lockedAt || new Date();
+    invoice.lockedReason = invoice.lockedReason || "ZRA_CREDITED";
+    await invoice.save();
+
+    res.json({ invoice });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to create credit note");
   }
 });
 

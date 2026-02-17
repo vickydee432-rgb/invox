@@ -18,6 +18,8 @@ type Invoice = {
   customerTpin?: string;
   projectId?: string | null;
   projectLabel?: string;
+  source?: "APP" | "ZRA";
+  lockedAt?: string | null;
   total: number;
   amountPaid: number;
   balance: number;
@@ -47,6 +49,7 @@ export default function InvoicesPage() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [sourceFilter, setSourceFilter] = useState("");
 
   const [selectedId, setSelectedId] = useState("");
   const [amountPaid, setAmountPaid] = useState(0);
@@ -72,11 +75,13 @@ export default function InvoicesPage() {
     setLoading(true);
     setError("");
     try {
+      const params = new URLSearchParams({ page: String(targetPage), limit: String(LIMIT) });
+      if (sourceFilter) params.set("source", sourceFilter);
       const data = await apiFetch<{
         invoices: Invoice[];
         page: number;
         pages: number;
-      }>(`/api/invoices?page=${targetPage}&limit=${LIMIT}`);
+      }>(`/api/invoices?${params.toString()}`);
       setInvoices(data.invoices);
       setPage(data.page);
       setPages(data.pages);
@@ -90,7 +95,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadInvoices(page);
-  }, [page]);
+  }, [page, sourceFilter]);
 
   useEffect(() => {
     let mounted = true;
@@ -225,6 +230,15 @@ export default function InvoicesPage() {
       await loadInvoices(page);
     } catch (err: any) {
       setError(err.message || "Failed to delete invoice");
+    }
+  };
+
+  const handleSubmitZra = async (invoice: Invoice) => {
+    try {
+      await apiFetch(`/api/invoices/${invoice._id}/zra/submit`, { method: "POST" });
+      await loadInvoices(page);
+    } catch (err: any) {
+      setError(err.message || "Failed to submit to ZRA");
     }
   };
 
@@ -432,6 +446,14 @@ export default function InvoicesPage() {
               <Link className="button" href="/invoices/new">
                 Create invoice
               </Link>
+              <label className="field" style={{ minWidth: 160 }}>
+                Source
+                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="APP">App</option>
+                  <option value="ZRA">ZRA</option>
+                </select>
+              </label>
               <button className="button secondary" onClick={handleExport}>
                 Export Excel
               </button>
@@ -442,6 +464,7 @@ export default function InvoicesPage() {
                 <tr>
                   <th>No</th>
                   <th>Customer</th>
+                  <th>Source</th>
                   <th>Total</th>
                   <th>Paid</th>
                   <th>Balance</th>
@@ -455,6 +478,7 @@ export default function InvoicesPage() {
                   <tr key={invoice._id}>
                     <td>{invoice.invoiceNo}</td>
                     <td>{invoice.customerName}</td>
+                    <td>{invoice.source || "APP"}</td>
                     <td>{invoice.total.toFixed(2)}</td>
                     <td>{invoice.amountPaid.toFixed(2)}</td>
                     <td>{invoice.balance.toFixed(2)}</td>
@@ -466,6 +490,11 @@ export default function InvoicesPage() {
                       <button className="button secondary" onClick={() => startEdit(invoice)}>
                         Edit
                       </button>
+                      {invoice.source !== "ZRA" && !invoice.lockedAt ? (
+                        <button className="button secondary" onClick={() => handleSubmitZra(invoice)}>
+                          Submit ZRA
+                        </button>
+                      ) : null}
                       <button className="button secondary" onClick={() => handlePdf(invoice)}>
                         PDF
                       </button>
@@ -477,7 +506,7 @@ export default function InvoicesPage() {
                 ))}
                 {invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="muted">
+                    <td colSpan={9} className="muted">
                       No invoices yet.
                     </td>
                   </tr>
