@@ -72,9 +72,12 @@ function buildItems(rawItems) {
   });
 }
 
-function calcTotals(items, vatRate) {
-  const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
-  const vatAmount = (subtotal * (vatRate || 0)) / 100;
+function calcTotals(items, vatRate, shippingCost = 0, shippingTaxRate = 0) {
+  const itemsSubtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
+  const shippingValue = Number(shippingCost || 0);
+  const shippingVat = (shippingValue * (shippingTaxRate || 0)) / 100;
+  const vatAmount = (itemsSubtotal * (vatRate || 0)) / 100 + shippingVat;
+  const subtotal = itemsSubtotal + shippingValue;
   const total = subtotal + vatAmount;
   return { subtotal, vatAmount, total };
 }

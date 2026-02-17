@@ -336,7 +336,7 @@ router.post("/import", async (req, res) => {
       }
       const items = buildItems(group.items);
       const vatRate = group.vatRate ?? 0;
-      const { subtotal, vatAmount, total } = calcTotals(items, vatRate);
+      const { subtotal, vatAmount, total } = calcTotals(items, vatRate, 0, 0);
       const status = group.status || "sent";
       const amountPaid = status === "paid" ? total : 0;
       const balance = Math.max(0, total - amountPaid);
@@ -348,6 +348,13 @@ router.post("/import", async (req, res) => {
         customerName: group.customerName,
         customerPhone: group.customerPhone || undefined,
         customerTpin: group.customerTpin || undefined,
+        billingAddress: undefined,
+        shippingAddress: undefined,
+        sameAsBilling: false,
+        shipBy: undefined,
+        trackingRef: undefined,
+        shippingCost: 0,
+        shippingTaxRate: 0,
         dueDate: group.dueDate,
         status,
         vatRate,
@@ -375,6 +382,13 @@ const InvoiceUpdateSchema = z.object({
   customerName: z.string().min(1).optional(),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  billingAddress: z.string().optional(),
+  shippingAddress: z.string().optional(),
+  sameAsBilling: z.boolean().optional(),
+  shipBy: z.string().optional(),
+  trackingRef: z.string().optional(),
+  shippingCost: z.number().nonnegative().optional(),
+  shippingTaxRate: z.number().nonnegative().optional(),
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
   dueDate: z.string().optional(),
@@ -395,6 +409,13 @@ const InvoiceCreateSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  billingAddress: z.string().optional(),
+  shippingAddress: z.string().optional(),
+  sameAsBilling: z.boolean().optional(),
+  shipBy: z.string().optional(),
+  trackingRef: z.string().optional(),
+  shippingCost: z.number().nonnegative().optional(),
+  shippingTaxRate: z.number().nonnegative().optional(),
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
   issueDate: z.string().optional(),
@@ -426,7 +447,9 @@ router.post("/", async (req, res) => {
     }
     const items = buildItems(parsed.items);
     const vatRate = parsed.vatRate ?? 0;
-    const { subtotal, vatAmount, total } = calcTotals(items, vatRate);
+    const shippingCost = parsed.shippingCost ?? 0;
+    const shippingTaxRate = parsed.shippingTaxRate ?? 0;
+    const { subtotal, vatAmount, total } = calcTotals(items, vatRate, shippingCost, shippingTaxRate);
     const issueDate = parseOptionalDate(parsed.issueDate, "issueDate") || new Date();
     const dueDate = parseDateOrThrow(parsed.dueDate, "dueDate");
 
@@ -440,6 +463,13 @@ router.post("/", async (req, res) => {
       customerName: parsed.customerName,
       customerPhone: parsed.customerPhone,
       customerTpin: parsed.customerTpin,
+      billingAddress: parsed.billingAddress,
+      shippingAddress: parsed.shippingAddress,
+      sameAsBilling: parsed.sameAsBilling ?? false,
+      shipBy: parsed.shipBy,
+      trackingRef: parsed.trackingRef,
+      shippingCost,
+      shippingTaxRate,
       projectId: parsed.projectId || null,
       projectLabel: parsed.projectLabel,
       issueDate,
@@ -478,11 +508,22 @@ router.put("/:id", async (req, res) => {
     if (parsed.customerName !== undefined) invoice.customerName = parsed.customerName;
     if (parsed.customerPhone !== undefined) invoice.customerPhone = parsed.customerPhone;
     if (parsed.customerTpin !== undefined) invoice.customerTpin = parsed.customerTpin;
+    if (parsed.billingAddress !== undefined) invoice.billingAddress = parsed.billingAddress;
+    if (parsed.shippingAddress !== undefined) invoice.shippingAddress = parsed.shippingAddress;
+    if (parsed.sameAsBilling !== undefined) invoice.sameAsBilling = parsed.sameAsBilling;
+    if (parsed.shipBy !== undefined) invoice.shipBy = parsed.shipBy;
+    if (parsed.trackingRef !== undefined) invoice.trackingRef = parsed.trackingRef;
+    if (parsed.shippingCost !== undefined) invoice.shippingCost = parsed.shippingCost;
+    if (parsed.shippingTaxRate !== undefined) invoice.shippingTaxRate = parsed.shippingTaxRate;
     if (parsed.projectId !== undefined) invoice.projectId = parsed.projectId || null;
     if (parsed.projectLabel !== undefined) invoice.projectLabel = parsed.projectLabel;
     if (parsed.dueDate !== undefined) invoice.dueDate = parseDateOrThrow(parsed.dueDate, "dueDate");
 
-    const shouldRecalc = parsed.items !== undefined || parsed.vatRate !== undefined;
+    const shouldRecalc =
+      parsed.items !== undefined ||
+      parsed.vatRate !== undefined ||
+      parsed.shippingCost !== undefined ||
+      parsed.shippingTaxRate !== undefined;
     if (parsed.items !== undefined) {
       invoice.items = buildItems(parsed.items);
     }
@@ -490,7 +531,12 @@ router.put("/:id", async (req, res) => {
       invoice.vatRate = parsed.vatRate;
     }
     if (shouldRecalc) {
-      const { subtotal, vatAmount, total } = calcTotals(invoice.items, invoice.vatRate);
+      const { subtotal, vatAmount, total } = calcTotals(
+        invoice.items,
+        invoice.vatRate,
+        invoice.shippingCost || 0,
+        invoice.shippingTaxRate || 0
+      );
       invoice.subtotal = subtotal;
       invoice.vatAmount = vatAmount;
       invoice.total = total;

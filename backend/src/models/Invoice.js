@@ -18,6 +18,13 @@ const InvoiceSchema = new mongoose.Schema(
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
     customerTpin: { type: String, trim: true },
+    billingAddress: { type: String, trim: true },
+    shippingAddress: { type: String, trim: true },
+    sameAsBilling: { type: Boolean, default: false },
+    shipBy: { type: String, trim: true },
+    trackingRef: { type: String, trim: true },
+    shippingCost: { type: Number, default: 0, min: 0 },
+    shippingTaxRate: { type: Number, default: 0, min: 0 },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
     projectLabel: { type: String, trim: true },
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
@@ -31,20 +31,37 @@ export default function NewInvoicePage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTpin, setCustomerTpin] = useState("");
   const [invoiceNo, setInvoiceNo] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [sameAsBilling, setSameAsBilling] = useState(true);
+  const [shipBy, setShipBy] = useState("");
+  const [trackingRef, setTrackingRef] = useState("");
+  const [shippingCost, setShippingCost] = useState(0);
+  const [shippingTaxRate, setShippingTaxRate] = useState(0);
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState("sent");
   const [vatRate, setVatRate] = useState(0);
+  const [activeTab, setActiveTab] = useState<"billing" | "shipping">("billing");
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: "", qty: 1, unitPrice: 0, discount: 0 }
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const subtotal = items.reduce(
+  const itemsSubtotal = items.reduce(
     (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
     0
   );
-  const vatAmount = (subtotal * (Number(vatRate) || 0)) / 100;
+  const shippingValue = Number(shippingCost) || 0;
+  const shippingVat = (shippingValue * (Number(shippingTaxRate) || 0)) / 100;
+  const subtotal = itemsSubtotal + shippingValue;
+  const vatAmount = (itemsSubtotal * (Number(vatRate) || 0)) / 100 + shippingVat;
   const total = subtotal + vatAmount;
+
+  useEffect(() => {
+    if (sameAsBilling) {
+      setShippingAddress(billingAddress);
+    }
+  }, [sameAsBilling, billingAddress]);
 
   const normalizeLine = (line: string) =>
     line
@@ -268,6 +285,13 @@ export default function NewInvoicePage() {
           customerName,
           customerPhone: customerPhone || undefined,
           customerTpin: customerTpin || undefined,
+          billingAddress: billingAddress || undefined,
+          shippingAddress: shippingAddress || undefined,
+          sameAsBilling,
+          shipBy: shipBy || undefined,
+          trackingRef: trackingRef || undefined,
+          shippingCost: Number(shippingCost) || 0,
+          shippingTaxRate: Number(shippingTaxRate) || 0,
           dueDate,
           status,
           vatRate,
@@ -411,23 +435,97 @@ export default function NewInvoicePage() {
           <div className="invoice-header">
             <div className="invoice-card">
               <div className="invoice-tabs">
-                <span className="active">Billing</span>
-                <span>Shipping</span>
+                <button
+                  type="button"
+                  className={activeTab === "billing" ? "active" : ""}
+                  onClick={() => setActiveTab("billing")}
+                >
+                  Billing
+                </button>
+                <button
+                  type="button"
+                  className={activeTab === "shipping" ? "active" : ""}
+                  onClick={() => setActiveTab("shipping")}
+                >
+                  Shipping
+                </button>
               </div>
-              <div className="invoice-form-grid">
-                <label className="field">
-                  Customer
-                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
-                </label>
-                <label className="field">
-                  Customer phone
-                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-                </label>
-                <label className="field">
-                  Customer TPIN
-                  <input value={customerTpin} onChange={(e) => setCustomerTpin(e.target.value)} />
-                </label>
-              </div>
+              {activeTab === "billing" ? (
+                <div className="invoice-form-grid">
+                  <label className="field">
+                    Customer
+                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                  </label>
+                  <label className="field">
+                    Customer phone
+                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                  </label>
+                  <label className="field">
+                    Customer TPIN
+                    <input value={customerTpin} onChange={(e) => setCustomerTpin(e.target.value)} />
+                  </label>
+                  <label className="field" style={{ gridColumn: "1 / -1" }}>
+                    Bill to
+                    <textarea
+                      value={billingAddress}
+                      onChange={(e) => setBillingAddress(e.target.value)}
+                      rows={3}
+                      placeholder="Enter billing address"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="invoice-form-grid">
+                  <label className="field" style={{ gridColumn: "1 / -1" }}>
+                    Ship to
+                    <textarea
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      rows={3}
+                      placeholder="Enter shipping address"
+                      disabled={sameAsBilling}
+                    />
+                  </label>
+                  <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={sameAsBilling}
+                      onChange={(e) => setSameAsBilling(e.target.checked)}
+                    />
+                    Same as billing
+                  </label>
+                  <label className="field">
+                    Ship by
+                    <input value={shipBy} onChange={(e) => setShipBy(e.target.value)} placeholder="Courier" />
+                  </label>
+                  <label className="field">
+                    Tracking ref no.
+                    <input
+                      value={trackingRef}
+                      onChange={(e) => setTrackingRef(e.target.value)}
+                      placeholder="Tracking reference"
+                    />
+                  </label>
+                  <label className="field">
+                    Shipping cost
+                    <input
+                      value={shippingCost}
+                      onChange={(e) => setShippingCost(Number(e.target.value))}
+                      type="number"
+                      min={0}
+                    />
+                  </label>
+                  <label className="field">
+                    Shipping tax %
+                    <input
+                      value={shippingTaxRate}
+                      onChange={(e) => setShippingTaxRate(Number(e.target.value))}
+                      type="number"
+                      min={0}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             <div className="invoice-card">
               <div className="invoice-pill">Invoice</div>
@@ -548,7 +646,11 @@ export default function NewInvoicePage() {
             <div className="invoice-summary">
               <div>
                 <span>Subtotal</span>
-                <strong>{subtotal.toFixed(2)}</strong>
+                <strong>{itemsSubtotal.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Shipping</span>
+                <strong>{shippingValue.toFixed(2)}</strong>
               </div>
               <div>
                 <span>VAT</span>

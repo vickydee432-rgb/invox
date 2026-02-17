@@ -323,7 +323,9 @@ a {
   width: fit-content;
 }
 
-.invoice-tabs span {
+.invoice-tabs button {
+  border: none;
+  background: transparent;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
@@ -331,9 +333,10 @@ a {
   letter-spacing: 0.08em;
   color: var(--muted);
   font-weight: 600;
+  cursor: pointer;
 }
 
-.invoice-tabs span.active {
+.invoice-tabs button.active {
   background: #fff;
   border: 1px solid rgba(27, 31, 42, 0.12);
   color: var(--ink);
