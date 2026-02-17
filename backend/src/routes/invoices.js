@@ -322,7 +322,9 @@ router.post("/import", async (req, res) => {
       .map((group) => group.invoiceNo)
       .filter(Boolean);
     const existing = invoiceNos.length
-      ? await Invoice.find({ invoiceNo: { $in: invoiceNos } }).select("invoiceNo").lean()
+      ? await Invoice.find({ companyId: req.user.companyId, invoiceNo: { $in: invoiceNos } })
+          .select("invoiceNo")
+          .lean()
       : [];
     const existingSet = new Set(existing.map((row) => row.invoiceNo));
 
@@ -417,7 +419,7 @@ router.post("/", async (req, res) => {
 
     let invoiceNo = parsed.invoiceNo ? parsed.invoiceNo.trim() : "";
     if (invoiceNo) {
-      const existing = await Invoice.findOne({ invoiceNo }).lean();
+      const existing = await Invoice.findOne({ companyId: req.user.companyId, invoiceNo }).lean();
       if (existing) return res.status(400).json({ error: "Invoice number already exists" });
     } else {
       invoiceNo = await nextNumber("INV", Invoice, "invoiceNo", "^INV-");

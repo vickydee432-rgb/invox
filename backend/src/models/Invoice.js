@@ -13,7 +13,7 @@ const InvoiceItemSchema = new mongoose.Schema(
 
 const InvoiceSchema = new mongoose.Schema(
   {
-    invoiceNo: { type: String, required: true, unique: true, index: true },
+    invoiceNo: { type: String, required: true, index: true },
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
@@ -46,6 +46,7 @@ const InvoiceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+InvoiceSchema.index({ companyId: 1, invoiceNo: 1 }, { unique: true });
 InvoiceSchema.index({ projectId: 1, issueDate: -1 });
 InvoiceSchema.index({ dueDate: 1 });
 
