@@ -11,6 +11,11 @@ type InvoiceItem = {
   discount?: number;
 };
 
+type Project = {
+  _id: string;
+  name: string;
+};
+
 export default function NewInvoicePage() {
   const router = useRouter();
   const [showPaste, setShowPaste] = useState(false);
@@ -38,6 +43,9 @@ export default function NewInvoicePage() {
   const [trackingRef, setTrackingRef] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingTaxRate, setShippingTaxRate] = useState(0);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [projectLabel, setProjectLabel] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState("sent");
   const [vatRate, setVatRate] = useState(0);
@@ -62,6 +70,18 @@ export default function NewInvoicePage() {
       setShippingAddress(billingAddress);
     }
   }, [sameAsBilling, billingAddress]);
+
+  useEffect(() => {
+    let mounted = true;
+    apiFetch<{ projects: Project[] }>("/api/projects")
+      .then((data) => {
+        if (mounted) setProjects(data.projects || []);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const normalizeLine = (line: string) =>
     line
@@ -292,6 +312,8 @@ export default function NewInvoicePage() {
           trackingRef: trackingRef || undefined,
           shippingCost: Number(shippingCost) || 0,
           shippingTaxRate: Number(shippingTaxRate) || 0,
+          projectId: projectId || undefined,
+          projectLabel: projectLabel || undefined,
           dueDate,
           status,
           vatRate,
@@ -534,6 +556,25 @@ export default function NewInvoicePage() {
                   Create From
                   <select defaultValue="new" disabled>
                     <option value="new">New Invoice</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Project
+                  <select
+                    value={projectId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setProjectId(nextId);
+                      const match = projects.find((proj) => proj._id === nextId);
+                      setProjectLabel(match ? match.name : "");
+                    }}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project._id} value={project._id}>
+                        {project.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className="field">

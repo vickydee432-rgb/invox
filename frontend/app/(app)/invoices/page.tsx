@@ -16,6 +16,8 @@ type Invoice = {
   invoiceNo: string;
   customerName: string;
   customerTpin?: string;
+  projectId?: string | null;
+  projectLabel?: string;
   total: number;
   amountPaid: number;
   balance: number;
@@ -23,6 +25,11 @@ type Invoice = {
   dueDate: string;
   vatRate: number;
   items: InvoiceItem[];
+};
+
+type Project = {
+  _id: string;
+  name: string;
 };
 
 const LIMIT = 10;
@@ -50,6 +57,8 @@ export default function InvoicesPage() {
   const [editInvoiceNo, setEditInvoiceNo] = useState("");
   const [editCustomerName, setEditCustomerName] = useState("");
   const [editCustomerTpin, setEditCustomerTpin] = useState("");
+  const [editProjectId, setEditProjectId] = useState("");
+  const [editProjectLabel, setEditProjectLabel] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editStatus, setEditStatus] = useState("sent");
   const [editVatRate, setEditVatRate] = useState(0);
@@ -57,6 +66,7 @@ export default function InvoicesPage() {
     { description: "", qty: 1, unitPrice: 0, discount: 0 }
   ]);
   const [saving, setSaving] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const loadInvoices = async (targetPage = page) => {
     setLoading(true);
@@ -82,11 +92,25 @@ export default function InvoicesPage() {
     loadInvoices(page);
   }, [page]);
 
+  useEffect(() => {
+    let mounted = true;
+    apiFetch<{ projects: Project[] }>("/api/projects")
+      .then((data) => {
+        if (mounted) setProjects(data.projects || []);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const startEdit = (invoice: Invoice) => {
     setEditId(invoice._id);
     setEditInvoiceNo(invoice.invoiceNo);
     setEditCustomerName(invoice.customerName);
     setEditCustomerTpin(invoice.customerTpin || "");
+    setEditProjectId(invoice.projectId || "");
+    setEditProjectLabel(invoice.projectLabel || "");
     setEditDueDate(toDateInputValue(invoice.dueDate));
     setEditStatus(invoice.status);
     setEditVatRate(invoice.vatRate ?? 0);
@@ -106,6 +130,8 @@ export default function InvoicesPage() {
     setEditInvoiceNo("");
     setEditCustomerName("");
     setEditCustomerTpin("");
+    setEditProjectId("");
+    setEditProjectLabel("");
     setEditDueDate("");
     setEditStatus("sent");
     setEditVatRate(0);
@@ -136,6 +162,8 @@ export default function InvoicesPage() {
         body: JSON.stringify({
           customerName: editCustomerName,
           customerTpin: editCustomerTpin || undefined,
+          projectId: editProjectId || "",
+          projectLabel: editProjectLabel || "",
           dueDate: editDueDate,
           status: editStatus,
           vatRate: editVatRate,
@@ -256,6 +284,25 @@ export default function InvoicesPage() {
                   onChange={(e) => setEditCustomerName(e.target.value)}
                   required
                 />
+              </label>
+              <label className="field">
+                Project
+                <select
+                  value={editProjectId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setEditProjectId(nextId);
+                    const match = projects.find((proj) => proj._id === nextId);
+                    setEditProjectLabel(match ? match.name : "");
+                  }}
+                >
+                  <option value="">No project</option>
+                  {projects.map((project) => (
+                    <option key={project._id} value={project._id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 Customer TPIN
