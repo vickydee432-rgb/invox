@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
@@ -34,8 +35,11 @@ export default function Topbar() {
         <div className="panel-title">Cashflow Studio</div>
         <p className="muted">Quotes, invoices, and expenses in one clean ledger.</p>
         {readOnly ? (
-          <div className="badge" style={{ marginTop: 8 }}>
-            Read-only mode · Subscription required
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+            <div className="badge">Read-only mode · Subscription required</div>
+            <Link className="button secondary" href="/plans">
+              View plans
+            </Link>
           </div>
         ) : null}
       </div>
