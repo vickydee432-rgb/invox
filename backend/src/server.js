@@ -11,7 +11,7 @@ const authRoutes = require("./routes/auth");
 const reportsRoutes = require("./routes/reports");
 const companyRoutes = require("./routes/company");
 const zraRoutes = require("./routes/integrations/zra");
-const { billingRouter, paypalWebhookHandler } = require("./routes/billing");
+const { billingRouter, dodoWebhookHandler } = require("./routes/billing");
 const { startZraSyncWorker } = require("./workers/zraWorker");
 
 const app = express();
@@ -26,11 +26,7 @@ app.use(
     credentials: true
   })
 );
-app.post(
-  "/api/billing/paypal/webhook",
-  express.raw({ type: "application/json" }),
-  paypalWebhookHandler
-);
+app.post("/api/billing/dodo/webhook", express.raw({ type: "application/json" }), dodoWebhookHandler);
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_, res) => res.json({ ok: true, name: "invox-api" }));
