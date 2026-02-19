@@ -2,6 +2,7 @@ const express = require("express");
 const { z } = require("zod");
 const { requireAuth } = require("../../middleware/auth");
 const { requireSubscription } = require("../../middleware/subscription");
+const Company = require("../../models/Company");
 const ZraConnection = require("../../models/ZraConnection");
 const { encryptJson } = require("../../services/zra/crypto");
 const { syncConnection } = require("../../services/zra/sync");
@@ -9,6 +10,19 @@ const { handleRouteError } = require("../_helpers");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription);
+
+router.use(async (req, res, next) => {
+  try {
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (company.subscriptionPlan !== "businessplus") {
+      return res.status(403).json({ error: "ZRA integration is available on BusinessPlus plan." });
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
 
 const ConnectSchema = z.object({
   tpin: z.string().min(1),

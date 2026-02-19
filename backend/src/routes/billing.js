@@ -13,11 +13,24 @@ const SubscribeSchema = z.object({
 });
 
 const PLAN_MAP = {
+  starter_monthly: process.env.PAYPAL_PLAN_STARTER_MONTHLY,
+  starter_yearly: process.env.PAYPAL_PLAN_STARTER_YEARLY,
   pro_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,
   pro_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,
   businessplus_monthly: process.env.PAYPAL_PLAN_BUSINESSPLUS_MONTHLY,
   businessplus_yearly: process.env.PAYPAL_PLAN_BUSINESSPLUS_YEARLY
 };
+
+function applyPlanDetails(company, planId) {
+  const planEntries = Object.entries(PLAN_MAP).filter(([, value]) => value);
+  const match = planEntries.find(([, value]) => value === planId);
+  if (!match) return;
+  const [planKey] = match;
+  if (planKey.startsWith("starter")) company.subscriptionPlan = "starter";
+  if (planKey.startsWith("pro")) company.subscriptionPlan = "pro";
+  if (planKey.startsWith("businessplus")) company.subscriptionPlan = "businessplus";
+  company.subscriptionCycle = planKey.endsWith("yearly") ? "yearly" : "monthly";
+}
 
 function mapPaypalStatus(status) {
   const normalized = String(status || "").toUpperCase();
@@ -92,6 +105,7 @@ billingRouter.post("/paypal/subscribe", requireAuth, async (req, res) => {
   company.paypalSubscriptionId = response.id;
   company.paypalPlanId = planId;
   company.subscriptionStatus = mapPaypalStatus(response.status) || "pending";
+  if (parsed.planKey.startsWith("starter")) company.subscriptionPlan = "starter";
   if (parsed.planKey.startsWith("pro")) company.subscriptionPlan = "pro";
   if (parsed.planKey.startsWith("businessplus")) company.subscriptionPlan = "businessplus";
   company.subscriptionCycle = parsed.planKey.endsWith("yearly") ? "yearly" : "monthly";
@@ -133,6 +147,7 @@ async function paypalWebhookHandler(req, res) {
     if (subscriptionId) company.paypalSubscriptionId = subscriptionId;
     if (resource.plan_id) company.paypalPlanId = resource.plan_id;
     if (resource.status) company.subscriptionStatus = mapPaypalStatus(resource.status);
+    if (resource.plan_id) applyPlanDetails(company, resource.plan_id);
     if (resource.billing_info?.next_billing_time) {
       company.currentPeriodEnd = new Date(resource.billing_info.next_billing_time);
     }

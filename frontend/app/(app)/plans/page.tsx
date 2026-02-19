@@ -22,12 +22,18 @@ export default function PlansPage() {
   const [paypalEmbedError, setPaypalEmbedError] = useState("");
   const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
   const paypalPlanIds = {
+    starter_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_STARTER_MONTHLY || "",
+    starter_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_STARTER_YEARLY || "",
     pro_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_MONTHLY || "",
     pro_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_YEARLY || "",
     businessplus_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_MONTHLY || "",
     businessplus_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_YEARLY || ""
   };
   const pricing = {
+    starter: {
+      monthly: { price: "K150", note: "/month" },
+      yearly: { price: "K1500", note: "/year" }
+    },
     pro: {
       monthly: { price: "K350", note: "/month" },
       yearly: { price: "K3500", note: "/year" }
@@ -38,6 +44,7 @@ export default function PlansPage() {
     }
   };
 
+  const starterButtonRef = useRef<HTMLDivElement | null>(null);
   const proButtonRef = useRef<HTMLDivElement | null>(null);
   const businessButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -69,11 +76,13 @@ export default function PlansPage() {
 
   useEffect(() => {
     if (!paypalReady) return;
+    const planIdStarter =
+      billingCycle === "monthly" ? paypalPlanIds.starter_monthly : paypalPlanIds.starter_yearly;
     const planIdPro = billingCycle === "monthly" ? paypalPlanIds.pro_monthly : paypalPlanIds.pro_yearly;
     const planIdBusiness =
       billingCycle === "monthly" ? paypalPlanIds.businessplus_monthly : paypalPlanIds.businessplus_yearly;
 
-    if (!planIdPro || !planIdBusiness) {
+    if (!planIdStarter || !planIdPro || !planIdBusiness) {
       setPaypalEmbedError("Missing PayPal plan ID for the selected plan.");
       return;
     }
@@ -107,6 +116,7 @@ export default function PlansPage() {
         .render(ref.current);
     };
 
+    renderButton(starterButtonRef, planIdStarter);
     renderButton(proButtonRef, planIdPro);
     renderButton(businessButtonRef, planIdBusiness);
   }, [paypalReady, billingCycle]);
@@ -128,11 +138,11 @@ export default function PlansPage() {
             Huge productivity <span>boost</span>
           </h1>
           <p>
-            Simple, secure billing for your team. Two flexible plans with monthly or yearly options.
+            Simple, secure billing for your team. Three flexible plans with monthly or yearly options.
           </p>
           <div className="plans-badges">
             <span>14-day free trial</span>
-            <span>All features included</span>
+            <span>All core features included</span>
             <span>Cancel anytime</span>
           </div>
           <div className="plans-toggle">
@@ -157,12 +167,29 @@ export default function PlansPage() {
 
         <section className="plans-cards">
           <article className="plan-card">
+            <div className="plan-title">Starter</div>
+            <div className="plan-subtitle">For small teams getting started</div>
+            <div className="plan-price">
+              {pricing.starter[billingCycle].price} <span>{pricing.starter[billingCycle].note}</span>
+            </div>
+            <div ref={starterButtonRef} className="paypal-embed" />
+            <div className="plan-helper">PayPal button will appear here.</div>
+            <ul className="plan-features">
+              <li>Invoices & quotes</li>
+              <li>Basic expense tracking</li>
+              <li>PDF exports</li>
+              <li>Email support</li>
+            </ul>
+          </article>
+
+          <article className="plan-card">
             <div className="plan-title">Pro</div>
             <div className="plan-subtitle">For fast-moving teams</div>
             <div className="plan-price">
               {pricing.pro[billingCycle].price} <span>{pricing.pro[billingCycle].note}</span>
             </div>
             <div ref={proButtonRef} className="paypal-embed" />
+            <div className="plan-helper">PayPal button will appear here.</div>
             <ul className="plan-features">
               <li>Unlimited invoices & quotes</li>
               <li>Project tracking + exports</li>
@@ -179,10 +206,11 @@ export default function PlansPage() {
               {pricing.businessplus[billingCycle].price} <span>{pricing.businessplus[billingCycle].note}</span>
             </div>
             <div ref={businessButtonRef} className="paypal-embed" />
+            <div className="plan-helper">PayPal button will appear here.</div>
             <ul className="plan-features">
               <li>Everything in Pro</li>
+              <li>ZRA Smart Invoice sync</li>
               <li>Advanced reports + trends</li>
-              <li>Bulk imports & exports</li>
               <li>Priority support</li>
             </ul>
           </article>

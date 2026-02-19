@@ -404,6 +404,15 @@ a {
   gap: 12px;
 }
 
+.paypal-embed {
+  min-height: 48px;
+}
+
+.plan-helper {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .plan-card.featured {
   background: linear-gradient(160deg, #1c2333, #0f1320);
   color: #fff;
