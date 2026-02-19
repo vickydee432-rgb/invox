@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { clearToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -11,13 +13,27 @@ const navItems = [
   { href: "/expenses", label: "Expenses" },
   { href: "/projects", label: "Projects" },
   { href: "/reports", label: "Reports" },
-  { href: "/plans", label: "Plans" },
   { href: "/settings", label: "Settings" }
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [readOnly, setReadOnly] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ readOnly: boolean }>("/api/billing/status")
+      .then((data) => {
+        if (active) setReadOnly(Boolean(data.readOnly));
+      })
+      .catch(() => {
+        if (active) setReadOnly(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleLogout = () => {
     clearToken();
@@ -36,6 +52,11 @@ export default function Sidebar() {
             {item.label}
           </Link>
         ))}
+        {readOnly ? (
+          <Link href="/plans" className={pathname === "/plans" ? "active" : ""}>
+            Plans
+          </Link>
+        ) : null}
       </nav>
       <div className="nav-actions">
         <button className="button ghost" onClick={handleLogout}>
