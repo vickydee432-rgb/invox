@@ -292,6 +292,16 @@ a {
   color: var(--muted);
 }
 
+.app-shell.read-only .content input,
+.app-shell.read-only .content select,
+.app-shell.read-only .content textarea,
+.app-shell.read-only .content button:not([data-allow="true"]),
+.app-shell.read-only .content a.button:not([data-allow="true"]) {
+  pointer-events: none;
+  opacity: 0.6;
+  filter: grayscale(0.2);
+}
+
 .invoice-editor {
   display: grid;
   gap: 18px;

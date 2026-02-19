@@ -45,7 +45,7 @@ export default function Topbar() {
         {readOnly ? (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <div className="badge">Read-only mode · Subscription required</div>
-            <Link className="button secondary" href="/plans">
+            <Link className="button secondary" href="/plans" data-allow="true">
               View plans
             </Link>
           </div>
@@ -54,7 +54,7 @@ export default function Topbar() {
             <div className="badge">
               Trial ends {trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : "soon"}
             </div>
-            <Link className="button secondary" href="/plans">
+            <Link className="button secondary" href="/plans" data-allow="true">
               Upgrade
             </Link>
           </div>

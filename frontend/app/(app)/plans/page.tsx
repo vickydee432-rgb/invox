@@ -144,7 +144,7 @@ export default function PlansPage() {
               </label>
               <div ref={paypalButtonRef} />
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <button className="button secondary" type="button" onClick={loadBillingStatus}>
+                <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
                   Refresh status
                 </button>
               </div>

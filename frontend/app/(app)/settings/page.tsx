@@ -447,9 +447,9 @@ export default function SettingsPage() {
               <div style={{ display: "grid", gap: 12 }}>
                 <div ref={paypalButtonRef} />
                 <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <button className="button secondary" type="button" onClick={loadBillingStatus}>
-                    Refresh status
-                  </button>
+                <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
+                  Refresh status
+                </button>
                 </div>
                 {paypalEmbedError ? <div className="muted">{paypalEmbedError}</div> : null}
                 {billingError ? <div className="muted">{billingError}</div> : null}
