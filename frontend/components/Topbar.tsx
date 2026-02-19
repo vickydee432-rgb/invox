@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/api";
 export default function Topbar() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  const [isTrial, setIsTrial] = useState(false);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -17,12 +19,18 @@ export default function Topbar() {
       .catch(() => {
         if (active) setUser(null);
       });
-    apiFetch<{ readOnly: boolean }>("/api/billing/status")
+    apiFetch<{ readOnly: boolean; isTrial?: boolean; trialEndsAt?: string }>("/api/billing/status")
       .then((data) => {
-        if (active) setReadOnly(Boolean(data.readOnly));
+        if (!active) return;
+        setReadOnly(Boolean(data.readOnly));
+        setIsTrial(Boolean(data.isTrial));
+        setTrialEndsAt(data.trialEndsAt || null);
       })
       .catch(() => {
-        if (active) setReadOnly(false);
+        if (!active) return;
+        setReadOnly(false);
+        setIsTrial(false);
+        setTrialEndsAt(null);
       });
     return () => {
       active = false;
@@ -39,6 +47,15 @@ export default function Topbar() {
             <div className="badge">Read-only mode · Subscription required</div>
             <Link className="button secondary" href="/plans">
               View plans
+            </Link>
+          </div>
+        ) : isTrial ? (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+            <div className="badge">
+              Trial ends {trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : "soon"}
+            </div>
+            <Link className="button secondary" href="/plans">
+              Upgrade
             </Link>
           </div>
         ) : null}
