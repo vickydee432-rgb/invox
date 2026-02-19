@@ -64,6 +64,19 @@ export default function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [billingStatus, setBillingStatus] = useState<{
+    status: string;
+    plan: string | null;
+    billingCycle: string | null;
+    isActive: boolean;
+    isTrial: boolean;
+    readOnly: boolean;
+    trialEndsAt?: string;
+    currentPeriodEnd?: string;
+  } | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [billingPlan, setBillingPlan] = useState("pro_monthly");
   const [zraConnections, setZraConnections] = useState<
     {
       id: string;
@@ -131,6 +144,32 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const loadBillingStatus = async () => {
+    setBillingLoading(true);
+    setBillingError("");
+    try {
+      const data = await apiFetch<{
+        status: string;
+        plan: string | null;
+        billingCycle: string | null;
+        isActive: boolean;
+        isTrial: boolean;
+        readOnly: boolean;
+        trialEndsAt?: string;
+        currentPeriodEnd?: string;
+      }>("/api/billing/status");
+      setBillingStatus(data);
+    } catch (err: any) {
+      setBillingError(err.message || "Failed to load billing status");
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBillingStatus();
   }, []);
 
   const loadZraStatus = async () => {
@@ -284,6 +323,21 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSubscribe = async () => {
+    setBillingError("");
+    try {
+      const data = await apiFetch<{ approveUrl?: string }>("/api/billing/paypal/subscribe", {
+        method: "POST",
+        body: JSON.stringify({ planKey: billingPlan })
+      });
+      if (data.approveUrl) {
+        window.location.href = data.approveUrl;
+      }
+    } catch (err: any) {
+      setBillingError(err.message || "Failed to start subscription");
+    }
+  };
+
   if (loading) {
     return (
       <section className="panel">
@@ -295,6 +349,63 @@ export default function SettingsPage() {
 
   return (
     <>
+      <section className="panel">
+        <div className="panel-title">Subscription</div>
+        {billingLoading ? (
+          <div className="muted">Loading subscription...</div>
+        ) : (
+          <>
+            <div className="grid-2">
+              <div>
+                <div className="muted">Status</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
+              </div>
+              <div>
+                <div className="muted">Plan</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>
+                  {billingStatus?.plan ? `${billingStatus.plan} · ${billingStatus?.billingCycle}` : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="muted">Trial Ends</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>
+                  {billingStatus?.trialEndsAt ? new Date(billingStatus.trialEndsAt).toLocaleDateString() : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="muted">Current Period End</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>
+                  {billingStatus?.currentPeriodEnd
+                    ? new Date(billingStatus.currentPeriodEnd).toLocaleDateString()
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+              <label className="field">
+                Choose plan
+                <select value={billingPlan} onChange={(e) => setBillingPlan(e.target.value)}>
+                  <option value="pro_monthly">Pro · Monthly</option>
+                  <option value="pro_yearly">Pro · Yearly</option>
+                  <option value="businessplus_monthly">BusinessPlus · Monthly</option>
+                  <option value="businessplus_yearly">BusinessPlus · Yearly</option>
+                </select>
+              </label>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="button" type="button" onClick={handleSubscribe}>
+                  Subscribe with PayPal
+                </button>
+                <button className="button secondary" type="button" onClick={loadBillingStatus}>
+                  Refresh status
+                </button>
+                {billingError ? <div className="muted">{billingError}</div> : null}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
       <section className="panel">
         <div className="panel-title">Company Settings</div>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>

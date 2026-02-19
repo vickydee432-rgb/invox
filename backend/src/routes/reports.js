@@ -1,5 +1,6 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 const { parseOptionalDate, handleRouteError } = require("./_helpers");
 const Invoice = require("../models/Invoice");
 const Quote = require("../models/Quote");
@@ -8,7 +9,7 @@ const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 async function buildReportData(req) {
   const fromDate = parseOptionalDate(req.query.from, "from");

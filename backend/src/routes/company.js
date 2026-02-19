@@ -2,10 +2,11 @@ const express = require("express");
 const { z } = require("zod");
 const Company = require("../models/Company");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 const { handleRouteError } = require("./_helpers");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 const CompanyUpdateSchema = z.object({
   name: z.string().min(2).optional(),

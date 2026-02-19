@@ -5,6 +5,7 @@ const Quote = require("../models/Quote");
 const Invoice = require("../models/Invoice");
 const { makePublicQuoteToken, verifyPublicQuoteToken } = require("../services/quotePublicLink");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 const { generateQuotePdf } = require("../services/pdf");
 const Company = require("../models/Company");
 const { buildQuotesWorkbook } = require("../services/export");
@@ -27,7 +28,10 @@ const isJwtError = (err) => jwtErrorNames.has(err?.name);
 
 router.use((req, res, next) => {
   if (req.path.startsWith("/public/")) return next();
-  return requireAuth(req, res, next);
+  return requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    return requireSubscription(req, res, next);
+  });
 });
 
 const QuoteCreateSchema = z.object({

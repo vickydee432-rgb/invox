@@ -1,13 +1,14 @@
 const express = require("express");
 const { z } = require("zod");
 const { requireAuth } = require("../../middleware/auth");
+const { requireSubscription } = require("../../middleware/subscription");
 const ZraConnection = require("../../models/ZraConnection");
 const { encryptJson } = require("../../services/zra/crypto");
 const { syncConnection } = require("../../services/zra/sync");
 const { handleRouteError } = require("../_helpers");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 const ConnectSchema = z.object({
   tpin: z.string().min(1),

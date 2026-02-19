@@ -36,7 +36,20 @@ const CompanySchema = new mongoose.Schema(
     taxId: { type: String, trim: true },
     currency: { type: String, trim: true, default: "USD" },
     address: { type: AddressSchema, default: {} },
-    payment: { type: PaymentSchema, default: {} }
+    payment: { type: PaymentSchema, default: {} },
+    subscriptionStatus: {
+      type: String,
+      enum: ["trialing", "active", "past_due", "cancelled", "expired", "inactive", "pending"],
+      default: "trialing",
+      index: true
+    },
+    subscriptionPlan: { type: String, enum: ["pro", "businessplus"], default: "pro" },
+    subscriptionCycle: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
+    trialEndsAt: { type: Date },
+    currentPeriodEnd: { type: Date },
+    paypalSubscriptionId: { type: String, trim: true },
+    paypalPlanId: { type: String, trim: true },
+    lastPaymentAt: { type: Date }
   },
   { timestamps: true }
 );

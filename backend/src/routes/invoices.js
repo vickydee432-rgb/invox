@@ -13,6 +13,7 @@ const {
   handleRouteError
 } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 const { generateInvoicePdf } = require("../services/pdf");
 const { buildInvoicesWorkbook } = require("../services/export");
 const Company = require("../models/Company");
@@ -27,7 +28,7 @@ const {
 const { mapZraStatus } = require("../services/zra/mapping");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 function buildInvoiceFilter(query) {
   const { status, projectId, from, to, q, source } = query;

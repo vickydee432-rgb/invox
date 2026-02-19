@@ -5,10 +5,11 @@ const Invoice = require("../models/Invoice");
 const Expense = require("../models/Expense");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 const { buildProjectExpensesWorkbook } = require("../services/export");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 const ProjectCreateSchema = z.object({
   name: z.string().min(1),

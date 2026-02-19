@@ -11,6 +11,7 @@ const authRoutes = require("./routes/auth");
 const reportsRoutes = require("./routes/reports");
 const companyRoutes = require("./routes/company");
 const zraRoutes = require("./routes/integrations/zra");
+const { billingRouter, paypalWebhookHandler } = require("./routes/billing");
 const { startZraSyncWorker } = require("./workers/zraWorker");
 
 const app = express();
@@ -25,6 +26,11 @@ app.use(
     credentials: true
   })
 );
+app.post(
+  "/api/billing/paypal/webhook",
+  express.raw({ type: "application/json" }),
+  paypalWebhookHandler
+);
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (_, res) => res.json({ ok: true, name: "invox-api" }));
@@ -38,6 +44,7 @@ app.use("/api/projects", projectsRoutes);
 app.use("/api/expenses", expensesRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/integrations/zra", zraRoutes);
+app.use("/api/billing", billingRouter);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];

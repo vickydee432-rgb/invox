@@ -89,7 +89,9 @@ router.post("/register", async (req, res) => {
       taxId: parsed.company.taxId,
       currency: parsed.company.currency || "USD",
       address: parsed.company.address || {},
-      payment: parsed.company.payment || {}
+      payment: parsed.company.payment || {},
+      subscriptionStatus: "trialing",
+      trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     });
 
     const passwordHash = await bcrypt.hash(parsed.password, 12);

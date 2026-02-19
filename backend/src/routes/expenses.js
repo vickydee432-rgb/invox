@@ -3,9 +3,10 @@ const { z } = require("zod");
 const Expense = require("../models/Expense");
 const { ensureObjectId, parseDateOrThrow, parseOptionalDate, parseLimit, parsePage, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
+const { requireSubscription } = require("../middleware/subscription");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireSubscription);
 
 const ExpenseCreateSchema = z.object({
   title: z.string().min(1),

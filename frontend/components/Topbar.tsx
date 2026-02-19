@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 
 export default function Topbar() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -14,6 +15,13 @@ export default function Topbar() {
       })
       .catch(() => {
         if (active) setUser(null);
+      });
+    apiFetch<{ readOnly: boolean }>("/api/billing/status")
+      .then((data) => {
+        if (active) setReadOnly(Boolean(data.readOnly));
+      })
+      .catch(() => {
+        if (active) setReadOnly(false);
       });
     return () => {
       active = false;
@@ -25,6 +33,11 @@ export default function Topbar() {
       <div>
         <div className="panel-title">Cashflow Studio</div>
         <p className="muted">Quotes, invoices, and expenses in one clean ledger.</p>
+        {readOnly ? (
+          <div className="badge" style={{ marginTop: 8 }}>
+            Read-only mode · Subscription required
+          </div>
+        ) : null}
       </div>
       <div className="badge">{user ? `${user.name} · ${user.email}` : "Loading user..."}</div>
     </div>
