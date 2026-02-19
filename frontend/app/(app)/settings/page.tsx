@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Script from "next/script";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 type Company = {
@@ -77,6 +78,16 @@ export default function SettingsPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [billingPlan, setBillingPlan] = useState("pro_monthly");
+  const [paypalReady, setPaypalReady] = useState(false);
+  const [paypalEmbedError, setPaypalEmbedError] = useState("");
+  const paypalButtonRef = useRef<HTMLDivElement | null>(null);
+  const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
+  const paypalPlanIds = {
+    pro_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_MONTHLY || "",
+    pro_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_YEARLY || "",
+    businessplus_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_MONTHLY || "",
+    businessplus_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_YEARLY || ""
+  };
   const [zraConnections, setZraConnections] = useState<
     {
       id: string;
@@ -338,6 +349,40 @@ export default function SettingsPage() {
     }
   };
 
+  useEffect(() => {
+    if (!paypalReady || !paypalButtonRef.current) return;
+    const planId = paypalPlanIds[billingPlan as keyof typeof paypalPlanIds];
+    if (!planId) {
+      setPaypalEmbedError("Missing PayPal plan ID for the selected plan.");
+      return;
+    }
+    setPaypalEmbedError("");
+    const paypal = (window as any).paypal;
+    if (!paypal) {
+      setPaypalEmbedError("PayPal SDK not ready.");
+      return;
+    }
+    paypalButtonRef.current.innerHTML = "";
+    paypal
+      .Buttons({
+        style: {
+          layout: "vertical",
+          shape: "pill",
+          label: "subscribe"
+        },
+        createSubscription: (_data: any, actions: any) => {
+          return actions.subscription.create({ plan_id: planId });
+        },
+        onApprove: () => {
+          loadBillingStatus();
+        },
+        onError: (err: any) => {
+          setPaypalEmbedError(err?.message || "PayPal checkout failed.");
+        }
+      })
+      .render(paypalButtonRef.current);
+  }, [paypalReady, billingPlan]);
+
   if (loading) {
     return (
       <section className="panel">
@@ -349,6 +394,13 @@ export default function SettingsPage() {
 
   return (
     <>
+      {paypalClientId ? (
+        <Script
+          src={`https://www.paypal.com/sdk/js?client-id=${paypalClientId}&vault=true&intent=subscription`}
+          strategy="afterInteractive"
+          onLoad={() => setPaypalReady(true)}
+        />
+      ) : null}
       <section className="panel">
         <div className="panel-title">Subscription</div>
         {billingLoading ? (
@@ -392,13 +444,14 @@ export default function SettingsPage() {
                   <option value="businessplus_yearly">BusinessPlus · Yearly</option>
                 </select>
               </label>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <button className="button" type="button" onClick={handleSubscribe}>
-                  Subscribe with PayPal
-                </button>
-                <button className="button secondary" type="button" onClick={loadBillingStatus}>
-                  Refresh status
-                </button>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div ref={paypalButtonRef} />
+                <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <button className="button secondary" type="button" onClick={loadBillingStatus}>
+                    Refresh status
+                  </button>
+                </div>
+                {paypalEmbedError ? <div className="muted">{paypalEmbedError}</div> : null}
                 {billingError ? <div className="muted">{billingError}</div> : null}
               </div>
             </div>
