@@ -68,7 +68,16 @@ function buildItems(rawItems) {
     const unitPrice = Number(it.unitPrice);
     const discount = Number(it.discount || 0);
     const lineTotal = Math.max(0, qty * unitPrice - discount);
-    return { description: String(it.description), qty, unitPrice, discount, lineTotal };
+    return {
+      description: String(it.description),
+      qty,
+      unitPrice,
+      discount,
+      lineTotal,
+      productId: it.productId || undefined,
+      productSku: it.productSku || undefined,
+      productName: it.productName || undefined
+    };
   });
 }
 

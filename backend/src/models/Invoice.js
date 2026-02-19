@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 const InvoiceItemSchema = new mongoose.Schema(
   {
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+    productSku: { type: String, trim: true },
+    productName: { type: String, trim: true },
     description: { type: String, required: true, trim: true },
     qty: { type: Number, required: true, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },
@@ -35,6 +38,9 @@ const InvoiceSchema = new mongoose.Schema(
     lockedReason: { type: String, trim: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
     projectLabel: { type: String, trim: true },
+    invoiceType: { type: String, enum: ["sale", "purchase"], default: "sale", index: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", default: null, index: true },
+    branchName: { type: String, trim: true },
 
     status: {
       type: String,
