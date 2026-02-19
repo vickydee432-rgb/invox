@@ -15,12 +15,11 @@ export default function PlansPage() {
     trialEndsAt?: string;
     currentPeriodEnd?: string;
   } | null>(null);
-  const [billingPlan, setBillingPlan] = useState("pro_monthly");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [paypalReady, setPaypalReady] = useState(false);
   const [paypalEmbedError, setPaypalEmbedError] = useState("");
-  const paypalButtonRef = useRef<HTMLDivElement | null>(null);
   const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
   const paypalPlanIds = {
     pro_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_MONTHLY || "",
@@ -28,6 +27,19 @@ export default function PlansPage() {
     businessplus_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_MONTHLY || "",
     businessplus_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_YEARLY || ""
   };
+  const pricing = {
+    pro: {
+      monthly: { price: "K350", note: "/month" },
+      yearly: { price: "K3500", note: "/year" }
+    },
+    businessplus: {
+      monthly: { price: "K750", note: "/month" },
+      yearly: { price: "K7500", note: "/year" }
+    }
+  };
+
+  const proButtonRef = useRef<HTMLDivElement | null>(null);
+  const businessButtonRef = useRef<HTMLDivElement | null>(null);
 
   const loadBillingStatus = async () => {
     setBillingLoading(true);
@@ -56,9 +68,12 @@ export default function PlansPage() {
   }, []);
 
   useEffect(() => {
-    if (!paypalReady || !paypalButtonRef.current) return;
-    const planId = paypalPlanIds[billingPlan as keyof typeof paypalPlanIds];
-    if (!planId) {
+    if (!paypalReady) return;
+    const planIdPro = billingCycle === "monthly" ? paypalPlanIds.pro_monthly : paypalPlanIds.pro_yearly;
+    const planIdBusiness =
+      billingCycle === "monthly" ? paypalPlanIds.businessplus_monthly : paypalPlanIds.businessplus_yearly;
+
+    if (!planIdPro || !planIdBusiness) {
       setPaypalEmbedError("Missing PayPal plan ID for the selected plan.");
       return;
     }
@@ -68,26 +83,33 @@ export default function PlansPage() {
       setPaypalEmbedError("PayPal SDK not ready.");
       return;
     }
-    paypalButtonRef.current.innerHTML = "";
-    paypal
-      .Buttons({
-        style: {
-          layout: "vertical",
-          shape: "pill",
-          label: "subscribe"
-        },
-        createSubscription: (_data: any, actions: any) => {
-          return actions.subscription.create({ plan_id: planId });
-        },
-        onApprove: () => {
-          loadBillingStatus();
-        },
-        onError: (err: any) => {
-          setPaypalEmbedError(err?.message || "PayPal checkout failed.");
-        }
-      })
-      .render(paypalButtonRef.current);
-  }, [paypalReady, billingPlan]);
+
+    const renderButton = (ref: React.MutableRefObject<HTMLDivElement | null>, planId: string) => {
+      if (!ref.current) return;
+      ref.current.innerHTML = "";
+      paypal
+        .Buttons({
+          style: {
+            layout: "vertical",
+            shape: "pill",
+            label: "subscribe"
+          },
+          createSubscription: (_data: any, actions: any) => {
+            return actions.subscription.create({ plan_id: planId });
+          },
+          onApprove: () => {
+            loadBillingStatus();
+          },
+          onError: (err: any) => {
+            setPaypalEmbedError(err?.message || "PayPal checkout failed.");
+          }
+        })
+        .render(ref.current);
+    };
+
+    renderButton(proButtonRef, planIdPro);
+    renderButton(businessButtonRef, planIdBusiness);
+  }, [paypalReady, billingCycle]);
 
   return (
     <>
@@ -99,13 +121,78 @@ export default function PlansPage() {
         />
       ) : null}
 
-      <section className="panel">
-        <div className="panel-title">Plans & Billing</div>
-        {billingLoading ? (
-          <div className="muted">Loading subscription...</div>
-        ) : (
-          <>
-            <div className="grid-2">
+      <div className="plans-page plans-allow">
+        <section className="plans-hero">
+          <div className="plans-kicker">Small investment</div>
+          <h1>
+            Huge productivity <span>boost</span>
+          </h1>
+          <p>
+            Simple, secure billing for your team. Two flexible plans with monthly or yearly options.
+          </p>
+          <div className="plans-badges">
+            <span>14-day free trial</span>
+            <span>All features included</span>
+            <span>Cancel anytime</span>
+          </div>
+          <div className="plans-toggle">
+            <button
+              type="button"
+              className={billingCycle === "monthly" ? "active" : ""}
+              onClick={() => setBillingCycle("monthly")}
+              data-allow="true"
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              className={billingCycle === "yearly" ? "active" : ""}
+              onClick={() => setBillingCycle("yearly")}
+              data-allow="true"
+            >
+              Yearly
+            </button>
+          </div>
+        </section>
+
+        <section className="plans-cards">
+          <article className="plan-card">
+            <div className="plan-title">Pro</div>
+            <div className="plan-subtitle">For fast-moving teams</div>
+            <div className="plan-price">
+              {pricing.pro[billingCycle].price} <span>{pricing.pro[billingCycle].note}</span>
+            </div>
+            <div ref={proButtonRef} className="paypal-embed" />
+            <ul className="plan-features">
+              <li>Unlimited invoices & quotes</li>
+              <li>Project tracking + exports</li>
+              <li>PDF & Excel reporting</li>
+              <li>Email support</li>
+            </ul>
+          </article>
+
+          <article className="plan-card featured">
+            <div className="plan-tag">Most popular</div>
+            <div className="plan-title">BusinessPlus</div>
+            <div className="plan-subtitle">For growing operations</div>
+            <div className="plan-price">
+              {pricing.businessplus[billingCycle].price} <span>{pricing.businessplus[billingCycle].note}</span>
+            </div>
+            <div ref={businessButtonRef} className="paypal-embed" />
+            <ul className="plan-features">
+              <li>Everything in Pro</li>
+              <li>Advanced reports + trends</li>
+              <li>Bulk imports & exports</li>
+              <li>Priority support</li>
+            </ul>
+          </article>
+        </section>
+
+        <section className="plans-status">
+          {billingLoading ? (
+            <div className="muted">Loading subscription...</div>
+          ) : (
+            <div className="plans-status-grid">
               <div>
                 <div className="muted">Status</div>
                 <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
@@ -130,30 +217,17 @@ export default function PlansPage() {
                     : "—"}
                 </div>
               </div>
-            </div>
-
-            <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-              <label className="field">
-                Choose plan
-                <select value={billingPlan} onChange={(e) => setBillingPlan(e.target.value)}>
-                  <option value="pro_monthly">Pro · Monthly</option>
-                  <option value="pro_yearly">Pro · Yearly</option>
-                  <option value="businessplus_monthly">BusinessPlus · Monthly</option>
-                  <option value="businessplus_yearly">BusinessPlus · Yearly</option>
-                </select>
-              </label>
-              <div ref={paypalButtonRef} />
-              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
                 <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
                   Refresh status
                 </button>
               </div>
-              {paypalEmbedError ? <div className="muted">{paypalEmbedError}</div> : null}
-              {billingError ? <div className="muted">{billingError}</div> : null}
             </div>
-          </>
-        )}
-      </section>
+          )}
+          {paypalEmbedError ? <div className="muted">{paypalEmbedError}</div> : null}
+          {billingError ? <div className="muted">{billingError}</div> : null}
+        </section>
+      </div>
     </>
   );
 }

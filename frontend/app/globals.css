@@ -302,6 +302,200 @@ a {
   filter: grayscale(0.2);
 }
 
+.app-shell.read-only .content .plans-allow input,
+.app-shell.read-only .content .plans-allow select,
+.app-shell.read-only .content .plans-allow textarea,
+.app-shell.read-only .content .plans-allow button,
+.app-shell.read-only .content .plans-allow .paypal-embed button {
+  pointer-events: auto;
+  opacity: 1;
+  filter: none;
+}
+
+.plans-page {
+  display: grid;
+  gap: 28px;
+}
+
+.plans-hero {
+  text-align: center;
+  padding: 24px 16px 8px;
+}
+
+.plans-kicker {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.plans-hero h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  font-family: var(--font-display);
+  margin-bottom: 10px;
+}
+
+.plans-hero h1 span {
+  color: var(--brand);
+}
+
+.plans-hero p {
+  color: var(--muted);
+  max-width: 640px;
+  margin: 0 auto 18px;
+}
+
+.plans-badges {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.plans-badges span {
+  background: rgba(27, 31, 42, 0.06);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.plans-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 31, 42, 0.1);
+  background: #fff;
+  gap: 6px;
+}
+
+.plans-toggle button {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.plans-toggle button.active {
+  background: var(--brand);
+  color: #fff;
+}
+
+.plans-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.plan-card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+
+.plan-card.featured {
+  background: linear-gradient(160deg, #1c2333, #0f1320);
+  color: #fff;
+  border: none;
+}
+
+.plan-tag {
+  align-self: start;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.plan-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.plan-subtitle {
+  color: var(--muted);
+}
+
+.plan-card.featured .plan-subtitle,
+.plan-card.featured .plan-features li {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.plan-price {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.plan-price span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.plan-card.featured .plan-price span {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.plan-features {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+}
+
+.plan-features li {
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 18px;
+  position: relative;
+}
+
+.plan-features li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-2);
+  position: absolute;
+  left: 0;
+  top: 5px;
+}
+
+.plan-card.featured .plan-features li::before {
+  background: var(--brand);
+}
+
+.plans-status {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.plans-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
 .invoice-editor {
   display: grid;
   gap: 18px;
