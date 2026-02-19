@@ -19,6 +19,8 @@ const { buildInvoicesWorkbook } = require("../services/export");
 const Company = require("../models/Company");
 const ExcelJS = require("exceljs");
 const ZraConnection = require("../models/ZraConnection");
+const Branch = require("../models/Branch");
+const Product = require("../models/Product");
 const { submitInvoice, submitCancel, submitCreditNote } = require("../services/zra/client");
 const {
   buildZraInvoicePayload,
@@ -26,6 +28,7 @@ const {
   buildZraCreditPayload
 } = require("../services/zra/transform");
 const { mapZraStatus } = require("../services/zra/mapping");
+const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription);
@@ -48,6 +51,51 @@ function buildInvoiceFilter(query) {
     if (toDate) filter.issueDate.$lte = toDate;
   }
   return filter;
+}
+
+async function resolveBranch(companyId, branchId) {
+  if (!branchId) return null;
+  ensureObjectId(branchId, "branch id");
+  const branch = await Branch.findOne({ _id: branchId, companyId, isActive: true }).lean();
+  if (!branch) {
+    const err = new Error("Branch not found");
+    err.status = 400;
+    throw err;
+  }
+  return branch;
+}
+
+async function hydrateProductFields(companyId, items) {
+  const productIds = items
+    .map((item) => item.productId)
+    .filter(Boolean)
+    .map((id) => {
+      ensureObjectId(id, "product id");
+      return id;
+    });
+  if (productIds.length === 0) return items;
+
+  const products = await Product.find({ _id: { $in: productIds }, companyId }).lean();
+  const productMap = new Map(products.map((product) => [String(product._id), product]));
+
+  return items.map((item) => {
+    if (!item.productId) return item;
+    const product = productMap.get(String(item.productId));
+    if (!product) {
+      const err = new Error("Product not found");
+      err.status = 400;
+      throw err;
+    }
+    return {
+      ...item,
+      productSku: product.sku || item.productSku,
+      productName: product.name || item.productName
+    };
+  });
+}
+
+function requiresBranch(items) {
+  return items.some((item) => Boolean(item.productId));
 }
 
 // List invoices with optional filters: status, projectId, from, to, q (customerName)
@@ -102,9 +150,42 @@ router.get("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
-    const invoice = await Invoice.findOneAndDelete({ _id: req.params.id, companyId: req.user.companyId });
-    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
-    res.json({ ok: true });
+    const session = await Invoice.startSession();
+    session.startTransaction();
+    try {
+      const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(
+        session
+      );
+      if (!invoice) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      const clearedInvoice = { ...invoice.toObject(), items: [] };
+      const inventoryResult = await applyInvoiceInventory({
+        companyId: req.user.companyId,
+        invoice: clearedInvoice,
+        previousInvoice: invoice,
+        session
+      });
+      if (inventoryResult.shortages.length > 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(409).json({
+          error: "Insufficient stock to delete this invoice",
+          shortages: inventoryResult.shortages
+        });
+      }
+      await replaceInvoiceMovements({ companyId: req.user.companyId, invoice: clearedInvoice, session });
+      await invoice.deleteOne({ session });
+      await session.commitTransaction();
+      session.endSession();
+      res.json({ ok: true });
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
   } catch (err) {
     return handleRouteError(res, err, "Failed to delete invoice");
   }
@@ -401,6 +482,8 @@ const InvoiceUpdateSchema = z.object({
   shippingTaxRate: z.number().nonnegative().optional(),
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
+  invoiceType: z.enum(["sale", "purchase"]).optional(),
+  branchId: z.string().optional(),
   dueDate: z.string().optional(),
   status: z
     .enum([
@@ -419,6 +502,9 @@ const InvoiceUpdateSchema = z.object({
   vatRate: z.number().nonnegative().optional(),
   items: z.array(
     z.object({
+      productId: z.string().optional(),
+      productSku: z.string().optional(),
+      productName: z.string().optional(),
       description: z.string().min(1),
       qty: z.number().nonnegative(),
       unitPrice: z.number().nonnegative(),
@@ -441,12 +527,17 @@ const InvoiceCreateSchema = z.object({
   shippingTaxRate: z.number().nonnegative().optional(),
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
+  invoiceType: z.enum(["sale", "purchase"]).optional(),
+  branchId: z.string().optional(),
   issueDate: z.string().optional(),
   dueDate: z.string().min(1),
   status: z.enum(["draft", "sent", "paid"]).optional(),
   vatRate: z.number().nonnegative().optional(),
   items: z.array(
     z.object({
+      productId: z.string().optional(),
+      productSku: z.string().optional(),
+      productName: z.string().optional(),
       description: z.string().min(1),
       qty: z.number().nonnegative(),
       unitPrice: z.number().nonnegative(),
@@ -468,7 +559,8 @@ router.post("/", async (req, res) => {
     } else {
       invoiceNo = await nextNumber("INV", Invoice, "invoiceNo", "^INV-");
     }
-    const items = buildItems(parsed.items);
+    const hydratedItems = await hydrateProductFields(req.user.companyId, parsed.items);
+    const items = buildItems(hydratedItems);
     const vatRate = parsed.vatRate ?? 0;
     const shippingCost = parsed.shippingCost ?? 0;
     const shippingTaxRate = parsed.shippingTaxRate ?? 0;
@@ -479,35 +571,70 @@ router.post("/", async (req, res) => {
     const status = parsed.status || "sent";
     const amountPaid = status === "paid" ? total : 0;
     const balance = Math.max(0, total - amountPaid);
+    const invoiceType = parsed.invoiceType || "sale";
+    const branch = await resolveBranch(req.user.companyId, parsed.branchId);
+    if (!branch && requiresBranch(items)) {
+      return res.status(400).json({ error: "Branch is required for inventory items" });
+    }
 
-    const invoice = await Invoice.create({
-      invoiceNo,
-      companyId: req.user.companyId,
-      customerName: parsed.customerName,
-      customerPhone: parsed.customerPhone,
-      customerTpin: parsed.customerTpin,
-      billingAddress: parsed.billingAddress,
-      shippingAddress: parsed.shippingAddress,
-      sameAsBilling: parsed.sameAsBilling ?? false,
-      shipBy: parsed.shipBy,
-      trackingRef: parsed.trackingRef,
-      shippingCost,
-      shippingTaxRate,
-      projectId: parsed.projectId || null,
-      projectLabel: parsed.projectLabel,
-      issueDate,
-      dueDate,
-      status,
-      vatRate,
-      items,
-      subtotal,
-      vatAmount,
-      total,
-      amountPaid,
-      balance
-    });
+    const session = await Invoice.startSession();
+    session.startTransaction();
+    try {
+      const invoice = new Invoice({
+        invoiceNo,
+        companyId: req.user.companyId,
+        customerName: parsed.customerName,
+        customerPhone: parsed.customerPhone,
+        customerTpin: parsed.customerTpin,
+        billingAddress: parsed.billingAddress,
+        shippingAddress: parsed.shippingAddress,
+        sameAsBilling: parsed.sameAsBilling ?? false,
+        shipBy: parsed.shipBy,
+        trackingRef: parsed.trackingRef,
+        shippingCost,
+        shippingTaxRate,
+        projectId: parsed.projectId || null,
+        projectLabel: parsed.projectLabel,
+        invoiceType,
+        branchId: branch ? branch._id : null,
+        branchName: branch ? branch.name : undefined,
+        issueDate,
+        dueDate,
+        status,
+        vatRate,
+        items,
+        subtotal,
+        vatAmount,
+        total,
+        amountPaid,
+        balance
+      });
 
-    res.status(201).json({ invoice });
+      const inventoryResult = await applyInvoiceInventory({
+        companyId: req.user.companyId,
+        invoice,
+        previousInvoice: null,
+        session
+      });
+      if (inventoryResult.shortages.length > 0) {
+        await session.abortTransaction();
+        return res.status(409).json({
+          error: "Insufficient stock for this invoice",
+          shortages: inventoryResult.shortages
+        });
+      }
+
+      await invoice.save({ session });
+      await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(201).json({ invoice });
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
   } catch (err) {
     return handleRouteError(res, err, "Failed to create invoice");
   }
@@ -518,71 +645,123 @@ router.put("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
     const parsed = InvoiceUpdateSchema.parse(req.body);
-    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
-    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
-    if (invoice.lockedAt) {
-      return res.status(400).json({ error: "Invoice is locked after ZRA submission" });
-    }
-    if (["paid", "cancelled"].includes(invoice.status)) {
-      return res.status(400).json({ error: `Cannot edit invoice in status: ${invoice.status}` });
-    }
-
-    if (parsed.projectId !== undefined && parsed.projectId) {
-      ensureObjectId(parsed.projectId, "project id");
-    }
-
-    if (parsed.customerName !== undefined) invoice.customerName = parsed.customerName;
-    if (parsed.customerPhone !== undefined) invoice.customerPhone = parsed.customerPhone;
-    if (parsed.customerTpin !== undefined) invoice.customerTpin = parsed.customerTpin;
-    if (parsed.billingAddress !== undefined) invoice.billingAddress = parsed.billingAddress;
-    if (parsed.shippingAddress !== undefined) invoice.shippingAddress = parsed.shippingAddress;
-    if (parsed.sameAsBilling !== undefined) invoice.sameAsBilling = parsed.sameAsBilling;
-    if (parsed.shipBy !== undefined) invoice.shipBy = parsed.shipBy;
-    if (parsed.trackingRef !== undefined) invoice.trackingRef = parsed.trackingRef;
-    if (parsed.shippingCost !== undefined) invoice.shippingCost = parsed.shippingCost;
-    if (parsed.shippingTaxRate !== undefined) invoice.shippingTaxRate = parsed.shippingTaxRate;
-    if (parsed.projectId !== undefined) invoice.projectId = parsed.projectId || null;
-    if (parsed.projectLabel !== undefined) invoice.projectLabel = parsed.projectLabel;
-    if (parsed.dueDate !== undefined) invoice.dueDate = parseDateOrThrow(parsed.dueDate, "dueDate");
-
-    const shouldRecalc =
-      parsed.items !== undefined ||
-      parsed.vatRate !== undefined ||
-      parsed.shippingCost !== undefined ||
-      parsed.shippingTaxRate !== undefined;
-    if (parsed.items !== undefined) {
-      invoice.items = buildItems(parsed.items);
-    }
-    if (parsed.vatRate !== undefined) {
-      invoice.vatRate = parsed.vatRate;
-    }
-    if (shouldRecalc) {
-      const { subtotal, vatAmount, total } = calcTotals(
-        invoice.items,
-        invoice.vatRate,
-        invoice.shippingCost || 0,
-        invoice.shippingTaxRate || 0
+    const session = await Invoice.startSession();
+    session.startTransaction();
+    try {
+      const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(
+        session
       );
-      invoice.subtotal = subtotal;
-      invoice.vatAmount = vatAmount;
-      invoice.total = total;
-      invoice.balance = Math.max(0, invoice.total - invoice.amountPaid);
-    }
-
-    if (parsed.status !== undefined) {
-      invoice.status = parsed.status;
-      if (parsed.status === "paid") {
-        invoice.amountPaid = invoice.total;
-        invoice.balance = 0;
+      if (!invoice) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ error: "Invoice not found" });
       }
-    } else if (shouldRecalc) {
-      if (invoice.amountPaid <= 0) invoice.status = "sent";
-      else if (invoice.balance === 0) invoice.status = "paid";
-      else invoice.status = "partial";
-    }
+      if (invoice.lockedAt) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: "Invoice is locked after ZRA submission" });
+      }
+      if (["paid", "cancelled"].includes(invoice.status)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: `Cannot edit invoice in status: ${invoice.status}` });
+      }
 
-    await invoice.save();
-    res.json({ invoice });
+      const previousInvoice = invoice.toObject();
+
+      if (parsed.projectId !== undefined && parsed.projectId) {
+        ensureObjectId(parsed.projectId, "project id");
+      }
+
+      if (parsed.customerName !== undefined) invoice.customerName = parsed.customerName;
+      if (parsed.customerPhone !== undefined) invoice.customerPhone = parsed.customerPhone;
+      if (parsed.customerTpin !== undefined) invoice.customerTpin = parsed.customerTpin;
+      if (parsed.billingAddress !== undefined) invoice.billingAddress = parsed.billingAddress;
+      if (parsed.shippingAddress !== undefined) invoice.shippingAddress = parsed.shippingAddress;
+      if (parsed.sameAsBilling !== undefined) invoice.sameAsBilling = parsed.sameAsBilling;
+      if (parsed.shipBy !== undefined) invoice.shipBy = parsed.shipBy;
+      if (parsed.trackingRef !== undefined) invoice.trackingRef = parsed.trackingRef;
+      if (parsed.shippingCost !== undefined) invoice.shippingCost = parsed.shippingCost;
+      if (parsed.shippingTaxRate !== undefined) invoice.shippingTaxRate = parsed.shippingTaxRate;
+      if (parsed.projectId !== undefined) invoice.projectId = parsed.projectId || null;
+      if (parsed.projectLabel !== undefined) invoice.projectLabel = parsed.projectLabel;
+      if (parsed.invoiceType !== undefined) invoice.invoiceType = parsed.invoiceType;
+      if (parsed.branchId !== undefined) {
+        const branch = await resolveBranch(req.user.companyId, parsed.branchId || null);
+        invoice.branchId = branch ? branch._id : null;
+        invoice.branchName = branch ? branch.name : undefined;
+      }
+      if (parsed.dueDate !== undefined) invoice.dueDate = parseDateOrThrow(parsed.dueDate, "dueDate");
+
+      const shouldRecalc =
+        parsed.items !== undefined ||
+        parsed.vatRate !== undefined ||
+        parsed.shippingCost !== undefined ||
+        parsed.shippingTaxRate !== undefined;
+      if (parsed.items !== undefined) {
+        const hydrated = await hydrateProductFields(req.user.companyId, parsed.items);
+        invoice.items = buildItems(hydrated);
+      }
+      if (parsed.vatRate !== undefined) {
+        invoice.vatRate = parsed.vatRate;
+      }
+      if (shouldRecalc) {
+        const { subtotal, vatAmount, total } = calcTotals(
+          invoice.items,
+          invoice.vatRate,
+          invoice.shippingCost || 0,
+          invoice.shippingTaxRate || 0
+        );
+        invoice.subtotal = subtotal;
+        invoice.vatAmount = vatAmount;
+        invoice.total = total;
+        invoice.balance = Math.max(0, invoice.total - invoice.amountPaid);
+      }
+
+      if (requiresBranch(invoice.items) && !invoice.branchId) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: "Branch is required for inventory items" });
+      }
+
+      if (parsed.status !== undefined) {
+        invoice.status = parsed.status;
+        if (parsed.status === "paid") {
+          invoice.amountPaid = invoice.total;
+          invoice.balance = 0;
+        }
+      } else if (shouldRecalc) {
+        if (invoice.amountPaid <= 0) invoice.status = "sent";
+        else if (invoice.balance === 0) invoice.status = "paid";
+        else invoice.status = "partial";
+      }
+
+      const inventoryResult = await applyInvoiceInventory({
+        companyId: req.user.companyId,
+        invoice,
+        previousInvoice,
+        session
+      });
+      if (inventoryResult.shortages.length > 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(409).json({
+          error: "Insufficient stock for this invoice",
+          shortages: inventoryResult.shortages
+        });
+      }
+
+      await invoice.save({ session });
+      await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
+      await session.commitTransaction();
+      session.endSession();
+
+      res.json({ invoice });
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
   } catch (err) {
     return handleRouteError(res, err, "Failed to update invoice");
   }

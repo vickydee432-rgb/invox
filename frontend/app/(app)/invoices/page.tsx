@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { apiDownload, apiFetch } from "@/lib/api";
 
 type InvoiceItem = {
+  productId?: string;
+  productSku?: string;
+  productName?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -18,6 +21,9 @@ type Invoice = {
   customerTpin?: string;
   projectId?: string | null;
   projectLabel?: string;
+  invoiceType?: "sale" | "purchase";
+  branchId?: string | null;
+  branchName?: string;
   source?: "APP" | "ZRA";
   lockedAt?: string | null;
   total: number;
@@ -32,6 +38,19 @@ type Invoice = {
 type Project = {
   _id: string;
   name: string;
+};
+
+type Branch = {
+  _id: string;
+  name: string;
+};
+
+type Product = {
+  _id: string;
+  name: string;
+  sku?: string;
+  costPrice?: number;
+  salePrice?: number;
 };
 
 const LIMIT = 10;
@@ -62,6 +81,8 @@ export default function InvoicesPage() {
   const [editCustomerTpin, setEditCustomerTpin] = useState("");
   const [editProjectId, setEditProjectId] = useState("");
   const [editProjectLabel, setEditProjectLabel] = useState("");
+  const [editInvoiceType, setEditInvoiceType] = useState<"sale" | "purchase">("sale");
+  const [editBranchId, setEditBranchId] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editStatus, setEditStatus] = useState("sent");
   const [editVatRate, setEditVatRate] = useState(0);
@@ -70,6 +91,8 @@ export default function InvoicesPage() {
   ]);
   const [saving, setSaving] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const loadInvoices = async (targetPage = page) => {
     setLoading(true);
@@ -109,6 +132,23 @@ export default function InvoicesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      apiFetch<{ branches: Branch[] }>("/api/branches"),
+      apiFetch<{ products: Product[] }>("/api/products")
+    ])
+      .then(([branchData, productData]) => {
+        if (!mounted) return;
+        setBranches(branchData.branches || []);
+        setProducts(productData.products || []);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const startEdit = (invoice: Invoice) => {
     setEditId(invoice._id);
     setEditInvoiceNo(invoice.invoiceNo);
@@ -116,11 +156,16 @@ export default function InvoicesPage() {
     setEditCustomerTpin(invoice.customerTpin || "");
     setEditProjectId(invoice.projectId || "");
     setEditProjectLabel(invoice.projectLabel || "");
+    setEditInvoiceType(invoice.invoiceType || "sale");
+    setEditBranchId(invoice.branchId || "");
     setEditDueDate(toDateInputValue(invoice.dueDate));
     setEditStatus(invoice.status);
     setEditVatRate(invoice.vatRate ?? 0);
     setEditItems(
       (invoice.items || []).map((item) => ({
+        productId: item.productId,
+        productSku: item.productSku,
+        productName: item.productName,
         description: item.description,
         qty: item.qty,
         unitPrice: item.unitPrice,
@@ -137,6 +182,8 @@ export default function InvoicesPage() {
     setEditCustomerTpin("");
     setEditProjectId("");
     setEditProjectLabel("");
+    setEditInvoiceType("sale");
+    setEditBranchId("");
     setEditDueDate("");
     setEditStatus("sent");
     setEditVatRate(0);
@@ -169,6 +216,8 @@ export default function InvoicesPage() {
           customerTpin: editCustomerTpin || undefined,
           projectId: editProjectId || "",
           projectLabel: editProjectLabel || "",
+          invoiceType: editInvoiceType,
+          branchId: editBranchId || undefined,
           dueDate: editDueDate,
           status: editStatus,
           vatRate: editVatRate,
@@ -319,6 +368,24 @@ export default function InvoicesPage() {
                 </select>
               </label>
               <label className="field">
+                Invoice type
+                <select value={editInvoiceType} onChange={(e) => setEditInvoiceType(e.target.value as "sale" | "purchase")}>
+                  <option value="sale">Sale</option>
+                  <option value="purchase">Purchase</option>
+                </select>
+              </label>
+              <label className="field">
+                Branch
+                <select value={editBranchId} onChange={(e) => setEditBranchId(e.target.value)}>
+                  <option value="">Select branch</option>
+                  {branches.map((branch) => (
+                    <option key={branch._id} value={branch._id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
                 Customer TPIN
                 <input value={editCustomerTpin} onChange={(e) => setEditCustomerTpin(e.target.value)} />
               </label>
@@ -356,6 +423,43 @@ export default function InvoicesPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {editItems.map((item, index) => (
                 <div key={index} className="grid-2">
+                  <label className="field">
+                    Product
+                    <select
+                      value={item.productId || ""}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        if (!nextId) {
+                          updateItem(index, {
+                            productId: undefined,
+                            productSku: undefined,
+                            productName: undefined
+                          });
+                          return;
+                        }
+                        const product = products.find((p) => p._id === nextId);
+                        const unitPrice =
+                          editInvoiceType === "purchase"
+                            ? Number(product?.costPrice || 0)
+                            : Number(product?.salePrice || 0);
+                        updateItem(index, {
+                          productId: nextId,
+                          productSku: product?.sku,
+                          productName: product?.name,
+                          description: product?.name || item.description,
+                          unitPrice
+                        });
+                      }}
+                    >
+                      <option value="">Custom item</option>
+                      {products.map((product) => (
+                        <option key={product._id} value={product._id}>
+                          {product.name}
+                          {product.sku ? ` (${product.sku})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="field">
                     Description
                     <input
@@ -464,6 +568,8 @@ export default function InvoicesPage() {
                 <tr>
                   <th>No</th>
                   <th>Customer</th>
+                  <th>Type</th>
+                  <th>Branch</th>
                   <th>Source</th>
                   <th>Total</th>
                   <th>Paid</th>
@@ -478,6 +584,8 @@ export default function InvoicesPage() {
                   <tr key={invoice._id}>
                     <td>{invoice.invoiceNo}</td>
                     <td>{invoice.customerName}</td>
+                    <td>{invoice.invoiceType || "sale"}</td>
+                    <td>{invoice.branchName || "-"}</td>
                     <td>{invoice.source || "APP"}</td>
                     <td>{invoice.total.toFixed(2)}</td>
                     <td>{invoice.amountPaid.toFixed(2)}</td>
@@ -506,7 +614,7 @@ export default function InvoicesPage() {
                 ))}
                 {invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="muted">
+                    <td colSpan={11} className="muted">
                       No invoices yet.
                     </td>
                   </tr>

@@ -13,6 +13,9 @@ const companyRoutes = require("./routes/company");
 const zraRoutes = require("./routes/integrations/zra");
 const { billingRouter, dodoWebhookHandler } = require("./routes/billing");
 const { startZraSyncWorker } = require("./workers/zraWorker");
+const branchesRoutes = require("./routes/branches");
+const productsRoutes = require("./routes/products");
+const stockRoutes = require("./routes/stock");
 
 const app = express();
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
@@ -41,6 +44,9 @@ app.use("/api/expenses", expensesRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/integrations/zra", zraRoutes);
 app.use("/api/billing", billingRouter);
+app.use("/api/branches", branchesRoutes);
+app.use("/api/products", productsRoutes);
+app.use("/api/stock", stockRoutes);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];

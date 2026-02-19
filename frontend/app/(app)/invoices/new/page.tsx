@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 type InvoiceItem = {
+  productId?: string;
+  productSku?: string;
+  productName?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -14,6 +17,20 @@ type InvoiceItem = {
 type Project = {
   _id: string;
   name: string;
+};
+
+type Branch = {
+  _id: string;
+  name: string;
+  isDefault?: boolean;
+};
+
+type Product = {
+  _id: string;
+  name: string;
+  sku?: string;
+  costPrice?: number;
+  salePrice?: number;
 };
 
 export default function NewInvoicePage() {
@@ -46,6 +63,13 @@ export default function NewInvoicePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
   const [projectLabel, setProjectLabel] = useState("");
+  const [invoiceType, setInvoiceType] = useState<"sale" | "purchase">("sale");
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchId, setBranchId] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [stockShortages, setStockShortages] = useState<
+    { productId: string; available: number; requested: number }[]
+  >([]);
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState("sent");
   const [vatRate, setVatRate] = useState(0);
@@ -82,6 +106,27 @@ export default function NewInvoicePage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      apiFetch<{ branches: Branch[] }>("/api/branches"),
+      apiFetch<{ products: Product[] }>("/api/products")
+    ])
+      .then(([branchData, productData]) => {
+        if (!mounted) return;
+        setBranches(branchData.branches || []);
+        setProducts(productData.products || []);
+        const defaultBranch = (branchData.branches || []).find((branch) => branch.isDefault);
+        if (defaultBranch && !branchId) {
+          setBranchId(defaultBranch._id);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [branchId]);
 
   const normalizeLine = (line: string) =>
     line
@@ -297,6 +342,7 @@ export default function NewInvoicePage() {
     event.preventDefault();
     setSaving(true);
     setError("");
+    setStockShortages([]);
     try {
       await apiFetch("/api/invoices", {
         method: "POST",
@@ -314,6 +360,8 @@ export default function NewInvoicePage() {
           shippingTaxRate: Number(shippingTaxRate) || 0,
           projectId: projectId || undefined,
           projectLabel: projectLabel || undefined,
+          invoiceType,
+          branchId: branchId || undefined,
           dueDate,
           status,
           vatRate,
@@ -322,6 +370,9 @@ export default function NewInvoicePage() {
       });
       router.push("/invoices");
     } catch (err: any) {
+      if (err?.details?.shortages) {
+        setStockShortages(err.details.shortages);
+      }
       setError(err.message || "Failed to create invoice");
     } finally {
       setSaving(false);
@@ -559,6 +610,24 @@ export default function NewInvoicePage() {
                   </select>
                 </label>
                 <label className="field">
+                  Invoice type
+                  <select value={invoiceType} onChange={(e) => setInvoiceType(e.target.value as "sale" | "purchase")}>
+                    <option value="sale">Sale</option>
+                    <option value="purchase">Purchase</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Branch
+                  <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                    <option value="">Select branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch._id} value={branch._id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
                   Project
                   <select
                     value={projectId}
@@ -611,6 +680,7 @@ export default function NewInvoicePage() {
               <thead>
                 <tr>
                   <th style={{ width: 90 }}>Qty</th>
+                  <th style={{ width: 180 }}>Product</th>
                   <th>Item / Description</th>
                   <th style={{ width: 140 }}>Unit Price</th>
                   <th style={{ width: 140 }}>Discount</th>
@@ -631,6 +701,43 @@ export default function NewInvoicePage() {
                           type="number"
                           min={0}
                         />
+                      </td>
+                      <td>
+                        <select
+                          className="invoice-input"
+                          value={item.productId || ""}
+                          onChange={(e) => {
+                            const nextId = e.target.value;
+                            if (!nextId) {
+                              updateItem(index, {
+                                productId: undefined,
+                                productSku: undefined,
+                                productName: undefined
+                              });
+                              return;
+                            }
+                            const product = products.find((p) => p._id === nextId);
+                            const unitPrice =
+                              invoiceType === "purchase"
+                                ? Number(product?.costPrice || 0)
+                                : Number(product?.salePrice || 0);
+                            updateItem(index, {
+                              productId: nextId,
+                              productSku: product?.sku,
+                              productName: product?.name,
+                              description: product?.name || item.description,
+                              unitPrice
+                            });
+                          }}
+                        >
+                          <option value="">Custom item</option>
+                          {products.map((product) => (
+                            <option key={product._id} value={product._id}>
+                              {product.name}
+                              {product.sku ? ` (${product.sku})` : ""}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td>
                         <input
@@ -713,6 +820,21 @@ export default function NewInvoicePage() {
             </button>
           </div>
 
+          {stockShortages.length > 0 ? (
+            <div style={{ marginTop: 12 }}>
+              <div className="muted">Restock required before this sale:</div>
+              <ul style={{ marginTop: 8, paddingLeft: 18, listStyle: "disc" }}>
+                {stockShortages.map((item) => {
+                  const product = products.find((p) => p._id === item.productId);
+                  return (
+                    <li key={`${item.productId}-${item.requested}`} className="muted">
+                      {product?.name || "Item"} — available {item.available}, requested {item.requested}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
           {error ? <div className="muted">{error}</div> : null}
         </form>
       </section>

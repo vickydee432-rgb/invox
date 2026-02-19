@@ -22,7 +22,9 @@ export async function apiFetch<T = any>(path: string, init: RequestInit = {}): P
 
   if (!res.ok) {
     const message = data?.error || "Request failed";
-    throw new Error(message);
+    const err: any = new Error(message);
+    err.details = data;
+    throw err;
   }
 
   return data as T;
