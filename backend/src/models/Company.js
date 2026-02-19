@@ -47,8 +47,8 @@ const CompanySchema = new mongoose.Schema(
     subscriptionCycle: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
     trialEndsAt: { type: Date },
     currentPeriodEnd: { type: Date },
-    paypalSubscriptionId: { type: String, trim: true },
-    paypalPlanId: { type: String, trim: true },
+    dodoSubscriptionId: { type: String, trim: true },
+    dodoCustomerId: { type: String, trim: true },
     lastPaymentAt: { type: Date }
   },
   { timestamps: true }

@@ -1,9 +1,11 @@
 const express = require("express");
 const { z } = require("zod");
 const Company = require("../models/Company");
+const { requireAuth } = require("../middleware/auth");
 const { createCheckoutSession, verifyWebhookSignature } = require("../services/dodo");
 
 const billingRouter = express.Router();
+billingRouter.use(requireAuth);
 
 const SubscribeSchema = z.object({
   planKey: z.string().min(1),

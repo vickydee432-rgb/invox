@@ -305,8 +305,7 @@ a {
 .app-shell.read-only .content .plans-allow input,
 .app-shell.read-only .content .plans-allow select,
 .app-shell.read-only .content .plans-allow textarea,
-.app-shell.read-only .content .plans-allow button,
-.app-shell.read-only .content .plans-allow .paypal-embed button {
+.app-shell.read-only .content .plans-allow button {
   pointer-events: auto;
   opacity: 1;
   filter: none;
@@ -404,15 +403,10 @@ a {
   gap: 12px;
 }
 
-.paypal-embed {
-  min-height: 48px;
+.plan-card .button {
+  width: 100%;
+  justify-content: center;
 }
-
-.plan-helper {
-  font-size: 11px;
-  color: var(--muted);
-}
-
 .plan-card.featured {
   background: linear-gradient(160deg, #1c2333, #0f1320);
   color: #fff;

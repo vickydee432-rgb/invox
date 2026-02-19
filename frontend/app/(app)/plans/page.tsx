@@ -1,7 +1,6 @@
 "use client";
 
-import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 export default function PlansPage() {
@@ -18,17 +17,8 @@ export default function PlansPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
-  const [paypalReady, setPaypalReady] = useState(false);
-  const [paypalEmbedError, setPaypalEmbedError] = useState("");
-  const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
-  const paypalPlanIds = {
-    starter_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_STARTER_MONTHLY || "",
-    starter_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_STARTER_YEARLY || "",
-    pro_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_MONTHLY || "",
-    pro_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_PRO_YEARLY || "",
-    businessplus_monthly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_MONTHLY || "",
-    businessplus_yearly: process.env.NEXT_PUBLIC_PAYPAL_PLAN_BUSINESSPLUS_YEARLY || ""
-  };
+  const [checkoutError, setCheckoutError] = useState("");
+  const [subscribingPlan, setSubscribingPlan] = useState("");
   const pricing = {
     starter: {
       monthly: { price: "K150", note: "/month" },
@@ -43,10 +33,6 @@ export default function PlansPage() {
       yearly: { price: "K7500", note: "/year" }
     }
   };
-
-  const starterButtonRef = useRef<HTMLDivElement | null>(null);
-  const proButtonRef = useRef<HTMLDivElement | null>(null);
-  const businessButtonRef = useRef<HTMLDivElement | null>(null);
 
   const loadBillingStatus = async () => {
     setBillingLoading(true);
@@ -74,63 +60,28 @@ export default function PlansPage() {
     loadBillingStatus();
   }, []);
 
-  useEffect(() => {
-    if (!paypalReady) return;
-    const planIdStarter =
-      billingCycle === "monthly" ? paypalPlanIds.starter_monthly : paypalPlanIds.starter_yearly;
-    const planIdPro = billingCycle === "monthly" ? paypalPlanIds.pro_monthly : paypalPlanIds.pro_yearly;
-    const planIdBusiness =
-      billingCycle === "monthly" ? paypalPlanIds.businessplus_monthly : paypalPlanIds.businessplus_yearly;
-
-    if (!planIdStarter || !planIdPro || !planIdBusiness) {
-      setPaypalEmbedError("Missing PayPal plan ID for the selected plan.");
-      return;
+  const startCheckout = async (planKey: string) => {
+    setCheckoutError("");
+    setSubscribingPlan(planKey);
+    try {
+      const data = await apiFetch<{ checkoutUrl?: string }>("/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ planKey })
+      });
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        setCheckoutError("Missing checkout URL from Dodo.");
+      }
+    } catch (err: any) {
+      setCheckoutError(err.message || "Failed to start checkout");
+    } finally {
+      setSubscribingPlan("");
     }
-    setPaypalEmbedError("");
-    const paypal = (window as any).paypal;
-    if (!paypal) {
-      setPaypalEmbedError("PayPal SDK not ready.");
-      return;
-    }
-
-    const renderButton = (ref: React.MutableRefObject<HTMLDivElement | null>, planId: string) => {
-      if (!ref.current) return;
-      ref.current.innerHTML = "";
-      paypal
-        .Buttons({
-          style: {
-            layout: "vertical",
-            shape: "pill",
-            label: "subscribe"
-          },
-          createSubscription: (_data: any, actions: any) => {
-            return actions.subscription.create({ plan_id: planId });
-          },
-          onApprove: () => {
-            loadBillingStatus();
-          },
-          onError: (err: any) => {
-            setPaypalEmbedError(err?.message || "PayPal checkout failed.");
-          }
-        })
-        .render(ref.current);
-    };
-
-    renderButton(starterButtonRef, planIdStarter);
-    renderButton(proButtonRef, planIdPro);
-    renderButton(businessButtonRef, planIdBusiness);
-  }, [paypalReady, billingCycle]);
+  };
 
   return (
     <>
-      {paypalClientId ? (
-        <Script
-          src={`https://www.paypal.com/sdk/js?client-id=${paypalClientId}&vault=true&intent=subscription`}
-          strategy="afterInteractive"
-          onLoad={() => setPaypalReady(true)}
-        />
-      ) : null}
-
       <div className="plans-page plans-allow">
         <section className="plans-hero">
           <div className="plans-kicker">Small investment</div>
@@ -172,8 +123,15 @@ export default function PlansPage() {
             <div className="plan-price">
               {pricing.starter[billingCycle].price} <span>{pricing.starter[billingCycle].note}</span>
             </div>
-            <div ref={starterButtonRef} className="paypal-embed" />
-            <div className="plan-helper">PayPal button will appear here.</div>
+            <button
+              className="button"
+              type="button"
+              data-allow="true"
+              disabled={subscribingPlan === "starter"}
+              onClick={() => startCheckout(`starter_${billingCycle}`)}
+            >
+              {subscribingPlan === "starter" ? "Starting checkout..." : "Subscribe"}
+            </button>
             <ul className="plan-features">
               <li>Invoices & quotes</li>
               <li>Basic expense tracking</li>
@@ -188,8 +146,15 @@ export default function PlansPage() {
             <div className="plan-price">
               {pricing.pro[billingCycle].price} <span>{pricing.pro[billingCycle].note}</span>
             </div>
-            <div ref={proButtonRef} className="paypal-embed" />
-            <div className="plan-helper">PayPal button will appear here.</div>
+            <button
+              className="button"
+              type="button"
+              data-allow="true"
+              disabled={subscribingPlan === "pro"}
+              onClick={() => startCheckout(`pro_${billingCycle}`)}
+            >
+              {subscribingPlan === "pro" ? "Starting checkout..." : "Subscribe"}
+            </button>
             <ul className="plan-features">
               <li>Unlimited invoices & quotes</li>
               <li>Project tracking + exports</li>
@@ -205,8 +170,15 @@ export default function PlansPage() {
             <div className="plan-price">
               {pricing.businessplus[billingCycle].price} <span>{pricing.businessplus[billingCycle].note}</span>
             </div>
-            <div ref={businessButtonRef} className="paypal-embed" />
-            <div className="plan-helper">PayPal button will appear here.</div>
+            <button
+              className="button"
+              type="button"
+              data-allow="true"
+              disabled={subscribingPlan === "businessplus"}
+              onClick={() => startCheckout(`businessplus_${billingCycle}`)}
+            >
+              {subscribingPlan === "businessplus" ? "Starting checkout..." : "Subscribe"}
+            </button>
             <ul className="plan-features">
               <li>Everything in Pro</li>
               <li>ZRA Smart Invoice sync</li>
@@ -252,7 +224,7 @@ export default function PlansPage() {
               </div>
             </div>
           )}
-          {paypalEmbedError ? <div className="muted">{paypalEmbedError}</div> : null}
+          {checkoutError ? <div className="muted">{checkoutError}</div> : null}
           {billingError ? <div className="muted">{billingError}</div> : null}
         </section>
       </div>
