@@ -72,12 +72,23 @@ async function createCheckoutSession({ productId, customer, returnUrl, metadata 
   });
 }
 
+function normalizeSignature(signature) {
+  if (!signature) return signature;
+  const raw = String(signature);
+  if (raw.includes("v1=")) {
+    const match = raw.match(/v1=([a-fA-F0-9]+)/);
+    return match ? match[1] : raw;
+  }
+  return raw;
+}
+
 function verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp }) {
   const secret = process.env.DODO_PAYMENTS_WEBHOOK_KEY;
   if (!secret) return true;
   const payload = `${webhookId}.${webhookTimestamp}.${rawBody}`;
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  return expected === signature;
+  const normalized = normalizeSignature(signature);
+  return expected === normalized;
 }
 
 module.exports = { createCheckoutSession, verifyWebhookSignature };

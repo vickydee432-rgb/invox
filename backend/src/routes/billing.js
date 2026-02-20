@@ -113,12 +113,22 @@ billingRouter.post("/checkout", async (req, res) => {
 async function dodoWebhookHandler(req, res) {
   try {
     const rawBody = req.body instanceof Buffer ? req.body.toString("utf8") : JSON.stringify(req.body || {});
-    const signature = req.headers["webhook-signature"];
-    const webhookId = req.headers["webhook-id"];
-    const webhookTimestamp = req.headers["webhook-timestamp"];
-    if (!verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp })) {
-      console.error("Invalid webhook signature", { webhookId, webhookTimestamp });
-      return res.status(400).json({ error: "Invalid webhook signature" });
+    const signature =
+      req.headers["webhook-signature"] ||
+      req.headers["x-webhook-signature"] ||
+      req.headers["dodo-webhook-signature"] ||
+      req.headers["dodo-signature"];
+    const webhookId =
+      req.headers["webhook-id"] || req.headers["x-webhook-id"] || req.headers["dodo-webhook-id"];
+    const webhookTimestamp =
+      req.headers["webhook-timestamp"] ||
+      req.headers["x-webhook-timestamp"] ||
+      req.headers["dodo-webhook-timestamp"];
+    if (process.env.DODO_DISABLE_WEBHOOK_VERIFY !== "true") {
+      if (!verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp })) {
+        console.error("Invalid webhook signature", { webhookId, webhookTimestamp });
+        return res.status(400).json({ error: "Invalid webhook signature" });
+      }
     }
 
     const event = typeof req.body === "object" && !(req.body instanceof Buffer) ? req.body : JSON.parse(rawBody);
@@ -130,12 +140,16 @@ async function dodoWebhookHandler(req, res) {
       company = await Company.findById(companyId);
     } else if (payload.customer_id) {
       company = await Company.findOne({ dodoCustomerId: payload.customer_id });
+    } else if (payload.customer?.customer_id) {
+      company = await Company.findOne({ dodoCustomerId: payload.customer.customer_id });
     } else if (payload.customer?.email) {
       const user = await User.findOne({ email: String(payload.customer.email).toLowerCase() });
       if (user) company = await Company.findById(user.companyId);
     } else if (payload.email) {
       const user = await User.findOne({ email: String(payload.email).toLowerCase() });
       if (user) company = await Company.findById(user.companyId);
+    } else if (payload.subscription_id) {
+      company = await Company.findOne({ dodoSubscriptionId: payload.subscription_id });
     }
     if (!company) {
       console.warn("Webhook received but company not found", { customerId: payload.customer_id });
@@ -143,7 +157,9 @@ async function dodoWebhookHandler(req, res) {
     }
 
     if (payload.customer_id) company.dodoCustomerId = payload.customer_id;
+    if (payload.customer?.customer_id) company.dodoCustomerId = payload.customer.customer_id;
     if (payload.id) company.dodoSubscriptionId = payload.id;
+    if (payload.subscription_id) company.dodoSubscriptionId = payload.subscription_id;
     if (payload.product_id) applyPlanDetails(company, payload.product_id);
 
     const eventType = String(event.type || "").toLowerCase();
