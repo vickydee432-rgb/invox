@@ -1,6 +1,7 @@
 const express = require("express");
 const { z } = require("zod");
 const Company = require("../models/Company");
+const User = require("../models/User");
 const { requireAuth } = require("../middleware/auth");
 const { createCheckoutSession, verifyWebhookSignature } = require("../services/dodo");
 const { handleRouteError } = require("./_helpers");
@@ -116,6 +117,7 @@ async function dodoWebhookHandler(req, res) {
     const webhookId = req.headers["webhook-id"];
     const webhookTimestamp = req.headers["webhook-timestamp"];
     if (!verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp })) {
+      console.error("Invalid webhook signature", { webhookId, webhookTimestamp });
       return res.status(400).json({ error: "Invalid webhook signature" });
     }
 
@@ -128,8 +130,17 @@ async function dodoWebhookHandler(req, res) {
       company = await Company.findById(companyId);
     } else if (payload.customer_id) {
       company = await Company.findOne({ dodoCustomerId: payload.customer_id });
+    } else if (payload.customer?.email) {
+      const user = await User.findOne({ email: String(payload.customer.email).toLowerCase() });
+      if (user) company = await Company.findById(user.companyId);
+    } else if (payload.email) {
+      const user = await User.findOne({ email: String(payload.email).toLowerCase() });
+      if (user) company = await Company.findById(user.companyId);
     }
-    if (!company) return res.json({ ok: true });
+    if (!company) {
+      console.warn("Webhook received but company not found", { customerId: payload.customer_id });
+      return res.json({ ok: true });
+    }
 
     if (payload.customer_id) company.dodoCustomerId = payload.customer_id;
     if (payload.id) company.dodoSubscriptionId = payload.id;
@@ -137,6 +148,12 @@ async function dodoWebhookHandler(req, res) {
 
     const eventType = String(event.type || "").toLowerCase();
     const status = String(payload.status || "").toLowerCase();
+    console.log("Webhook event", {
+      eventType,
+      status,
+      companyId: company._id.toString(),
+      productId: payload.product_id || payload.productId
+    });
     if (eventType.includes("cancel") || status === "cancelled") company.subscriptionStatus = "cancelled";
     else if (eventType.includes("expire") || status === "expired") company.subscriptionStatus = "expired";
     else if (eventType.includes("payment_failed") || status === "past_due") company.subscriptionStatus = "past_due";
