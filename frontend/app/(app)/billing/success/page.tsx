@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 export default function BillingSuccessPage() {
   const router = useRouter();
-  const params = useSearchParams();
   const [message, setMessage] = useState("Confirming your subscription...");
 
   useEffect(() => {
@@ -36,9 +35,6 @@ export default function BillingSuccessPage() {
       <div className="panel-title">Subscription Activated</div>
       <div className="muted" style={{ marginTop: 8 }}>
         {message}
-      </div>
-      <div className="muted" style={{ marginTop: 6 }}>
-        {params.get("status") ? `Status: ${params.get("status")}` : null}
       </div>
       <button className="button" style={{ marginTop: 16 }} onClick={() => router.push("/dashboard")}>
         Go to dashboard
