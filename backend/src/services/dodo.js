@@ -33,6 +33,11 @@ async function dodoRequest(path, { method = "GET", body } = {}) {
     }
   }
   if (!res.ok) {
+    console.error("Dodo request failed", {
+      path,
+      status: res.status,
+      data
+    });
     const error = new Error(data?.message || data?.error || "Dodo request failed");
     error.status = res.status;
     error.details = data;
