@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 export default function PlansPage() {
@@ -19,6 +19,9 @@ export default function PlansPage() {
   const [billingError, setBillingError] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
   const [subscribingPlan, setSubscribingPlan] = useState("");
+  const [checkoutReady, setCheckoutReady] = useState(false);
+  const checkoutRef = useRef<any>(null);
+  const dodoMode = process.env.NEXT_PUBLIC_DODO_MODE === "live" ? "live" : "test";
   const pricing = {
     starter: {
       monthly: { price: "K150", note: "/month" },
@@ -60,6 +63,24 @@ export default function PlansPage() {
     loadBillingStatus();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    import("dodopayments-checkout")
+      .then((mod: any) => {
+        const DodoPayments = mod?.DodoPayments || mod?.default?.DodoPayments || mod?.default || mod;
+        if (!DodoPayments || !mounted) return;
+        DodoPayments.Initialize({ mode: dodoMode, displayType: "inline" });
+        checkoutRef.current = DodoPayments;
+        setCheckoutReady(true);
+      })
+      .catch(() => {
+        setCheckoutReady(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [dodoMode]);
+
   const startCheckout = async (planKey: string) => {
     setCheckoutError("");
     setSubscribingPlan(planKey);
@@ -68,10 +89,15 @@ export default function PlansPage() {
         method: "POST",
         body: JSON.stringify({ planKey })
       });
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data.checkoutUrl && checkoutRef.current) {
+        checkoutRef.current.Checkout.open({
+          checkoutUrl: data.checkoutUrl,
+          elementId: "dodo-inline-checkout"
+        });
+        const section = document.getElementById("checkout-section");
+        if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
-        setCheckoutError("Missing checkout URL from Dodo.");
+        setCheckoutError(checkoutRef.current ? "Missing checkout URL from Dodo." : "Checkout SDK not loaded.");
       }
     } catch (err: any) {
       setCheckoutError(err.message || "Failed to start checkout");
@@ -127,10 +153,10 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === "starter"}
+              disabled={subscribingPlan === `starter_${billingCycle}`}
               onClick={() => startCheckout(`starter_${billingCycle}`)}
             >
-              {subscribingPlan === "starter" ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `starter_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
               <li>Invoices & quotes</li>
@@ -150,10 +176,10 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === "pro"}
+              disabled={subscribingPlan === `pro_${billingCycle}`}
               onClick={() => startCheckout(`pro_${billingCycle}`)}
             >
-              {subscribingPlan === "pro" ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `pro_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
               <li>Unlimited invoices & quotes</li>
@@ -174,10 +200,10 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === "businessplus"}
+              disabled={subscribingPlan === `businessplus_${billingCycle}`}
               onClick={() => startCheckout(`businessplus_${billingCycle}`)}
             >
-              {subscribingPlan === "businessplus" ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `businessplus_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
               <li>Everything in Pro</li>
@@ -226,6 +252,14 @@ export default function PlansPage() {
           )}
           {checkoutError ? <div className="muted">{checkoutError}</div> : null}
           {billingError ? <div className="muted">{billingError}</div> : null}
+        </section>
+
+        <section className="panel" id="checkout-section">
+          <div className="panel-title">Secure checkout</div>
+          <div className="muted">
+            {checkoutReady ? "Complete your subscription below." : "Loading checkout..."}
+          </div>
+          <div id="dodo-inline-checkout" style={{ marginTop: 16 }} />
         </section>
       </div>
     </>
