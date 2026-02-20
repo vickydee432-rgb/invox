@@ -124,6 +124,13 @@ async function dodoWebhookHandler(req, res) {
       req.headers["webhook-timestamp"] ||
       req.headers["x-webhook-timestamp"] ||
       req.headers["dodo-webhook-timestamp"];
+    console.log({
+      hasBuffer: req.body instanceof Buffer,
+      rawLen: req.body instanceof Buffer ? req.body.length : 0,
+      webhookId: req.headers["webhook-id"],
+      webhookSignature: req.headers["webhook-signature"],
+      webhookTimestamp: req.headers["webhook-timestamp"]
+    });
     if (process.env.DODO_DISABLE_WEBHOOK_VERIFY !== "true") {
       if (!verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp })) {
         console.error("Invalid webhook signature", { webhookId, webhookTimestamp });
