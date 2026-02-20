@@ -3,14 +3,21 @@ const { z } = require("zod");
 const Company = require("../models/Company");
 const { requireAuth } = require("../middleware/auth");
 const { createCheckoutSession, verifyWebhookSignature } = require("../services/dodo");
+const { handleRouteError } = require("./_helpers");
 
 const billingRouter = express.Router();
 billingRouter.use(requireAuth);
 
-const SubscribeSchema = z.object({
-  planKey: z.string().min(1),
-  returnUrl: z.string().url().optional()
-});
+const SubscribeSchema = z
+  .object({
+    planKey: z.string().min(1).optional(),
+    product_id: z.string().min(1).optional(),
+    productId: z.string().min(1).optional(),
+    returnUrl: z.string().url().optional()
+  })
+  .refine((data) => data.planKey || data.product_id || data.productId, {
+    message: "planKey or product_id is required"
+  });
 
 const PLAN_MAP = {
   starter_monthly: process.env.DODO_PRODUCT_STARTER_MONTHLY,
@@ -60,30 +67,37 @@ billingRouter.get("/status", async (req, res) => {
 });
 
 billingRouter.post("/checkout", async (req, res) => {
-  const parsed = SubscribeSchema.parse(req.body || {});
-  const productId = PLAN_MAP[parsed.planKey];
-  if (!productId) return res.status(400).json({ error: "Invalid plan" });
+  try {
+    const parsed = SubscribeSchema.parse(req.body || {});
+    const requestedProductId = parsed.product_id || parsed.productId;
+    const planKey = parsed.planKey || "";
+    const productId = requestedProductId || PLAN_MAP[planKey];
+    if (!productId) return res.status(400).json({ error: "Invalid plan or product" });
 
-  const company = await Company.findById(req.user.companyId);
-  if (!company) return res.status(404).json({ error: "Company not found" });
+    const company = await Company.findById(req.user.companyId);
+    if (!company) return res.status(404).json({ error: "Company not found" });
 
-  const returnUrl = parsed.returnUrl || process.env.DODO_RETURN_URL || "http://localhost:3000/plans";
-  const customer = {
-    email: req.user.email,
-    name: req.user.name
-  };
-  const metadata = {
-    companyId: company._id.toString(),
-    planKey: parsed.planKey
-  };
+    const returnUrl = parsed.returnUrl || process.env.DODO_RETURN_URL || "http://localhost:3000/plans";
+    const customer = {
+      email: req.user.email,
+      name: req.user.name
+    };
+    const metadata = {
+      companyId: company._id.toString(),
+      planKey: planKey || undefined,
+      productId
+    };
 
-  const session = await createCheckoutSession({ productId, customer, returnUrl, metadata });
+    const session = await createCheckoutSession({ productId, customer, returnUrl, metadata });
 
-  company.subscriptionStatus = "pending";
-  applyPlanDetails(company, productId);
-  await company.save();
+    company.subscriptionStatus = "pending";
+    applyPlanDetails(company, productId);
+    await company.save();
 
-  res.json({ checkoutUrl: session.checkout_url || session.checkoutUrl });
+    res.json({ checkoutUrl: session.checkout_url || session.checkoutUrl });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to start checkout");
+  }
 });
 
 async function dodoWebhookHandler(req, res) {
