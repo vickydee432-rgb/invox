@@ -15,14 +15,28 @@ function getApiKey() {
 }
 
 async function dodoRequest(path, { method = "GET", body } = {}) {
-  const res = await fetch(`${getDodoBaseUrl()}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${getApiKey()}`,
-      "Content-Type": "application/json"
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+  const url = `${getDodoBaseUrl()}${path}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${getApiKey()}`,
+        "Content-Type": "application/json"
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (err) {
+    console.error("Dodo network error", {
+      url,
+      message: err?.message,
+      cause: err?.cause?.message || err?.cause?.code || err?.cause
+    });
+    const error = new Error("Dodo network error");
+    error.status = 502;
+    error.details = { url, cause: err?.cause?.message || err?.cause?.code || String(err) };
+    throw error;
+  }
   const text = await res.text();
   let data = {};
   if (text) {
@@ -34,7 +48,7 @@ async function dodoRequest(path, { method = "GET", body } = {}) {
   }
   if (!res.ok) {
     console.error("Dodo request failed", {
-      path,
+      url,
       status: res.status,
       data
     });

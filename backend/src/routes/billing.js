@@ -92,7 +92,8 @@ billingRouter.post("/checkout", async (req, res) => {
       companyId: company._id.toString(),
       planKey: planKey || undefined,
       productId,
-      returnUrl
+      returnUrl,
+      baseUrl: process.env.DODO_PAYMENTS_BASE_URL || "https://api.dodopayments.com"
     });
 
     const session = await createCheckoutSession({ productId, customer, returnUrl, metadata });
