@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 
 function getDodoBaseUrl() {
-  return process.env.DODO_PAYMENTS_BASE_URL || "https://api.dodopayments.com";
+  return process.env.DODO_PAYMENTS_BASE_URL || "https://test.dodopayments.com";
 }
 
 function getApiKey() {
