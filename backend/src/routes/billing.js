@@ -88,6 +88,13 @@ billingRouter.post("/checkout", async (req, res) => {
       productId
     };
 
+    console.log("Dodo checkout request", {
+      companyId: company._id.toString(),
+      planKey: planKey || undefined,
+      productId,
+      returnUrl
+    });
+
     const session = await createCheckoutSession({ productId, customer, returnUrl, metadata });
 
     company.subscriptionStatus = "pending";
@@ -96,6 +103,7 @@ billingRouter.post("/checkout", async (req, res) => {
 
     res.json({ checkoutUrl: session.checkout_url || session.checkoutUrl });
   } catch (err) {
+    console.error("Checkout error", err?.message || err, err?.details || "");
     return handleRouteError(res, err, "Failed to start checkout");
   }
 });
