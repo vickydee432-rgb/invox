@@ -38,6 +38,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="content">
         <Topbar />
         {children}
+        <footer className="app-footer">
+          <span className="muted">© {new Date().getFullYear()} Invox</span>
+          <div className="footer-links">
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+          </div>
+        </footer>
       </main>
     </div>
   );
