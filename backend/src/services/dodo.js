@@ -72,23 +72,43 @@ async function createCheckoutSession({ productId, customer, returnUrl, metadata 
   });
 }
 
-function normalizeSignature(signature) {
-  if (!signature) return signature;
-  const raw = String(signature);
-  if (raw.includes("v1=")) {
-    const match = raw.match(/v1=([a-fA-F0-9]+)/);
-    return match ? match[1] : raw;
-  }
-  return raw;
+function extractSignatures(signature) {
+  if (!signature) return [];
+  const raw = String(signature).trim();
+  if (!raw) return [];
+  const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
+  const signatures = [];
+  parts.forEach((part) => {
+    const [key, value] = part.split("=").map((item) => item.trim());
+    if (!value) {
+      signatures.push(part);
+      return;
+    }
+    if (key === "v1" || key === "sha256") {
+      signatures.push(value);
+      return;
+    }
+    signatures.push(value);
+  });
+  return signatures.length > 0 ? signatures : [raw];
 }
 
 function verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp }) {
   const secret = process.env.DODO_PAYMENTS_WEBHOOK_KEY;
   if (!secret) return true;
-  const payload = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  const normalized = normalizeSignature(signature);
-  return expected === normalized;
+  const payloads = [];
+  if (webhookId && webhookTimestamp) payloads.push(`${webhookId}.${webhookTimestamp}.${rawBody}`);
+  if (webhookTimestamp) payloads.push(`${webhookTimestamp}.${rawBody}`);
+  if (webhookId) payloads.push(`${webhookId}.${rawBody}`);
+  payloads.push(rawBody);
+
+  const candidates = extractSignatures(signature);
+  for (const payload of payloads) {
+    const hex = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+    const base64 = crypto.createHmac("sha256", secret).update(payload).digest("base64");
+    if (candidates.includes(hex) || candidates.includes(base64)) return true;
+  }
+  return false;
 }
 
 module.exports = { createCheckoutSession, verifyWebhookSignature };
