@@ -131,6 +131,11 @@ async function dodoWebhookHandler(req, res) {
       webhookSignature: req.headers["webhook-signature"],
       webhookTimestamp: req.headers["webhook-timestamp"]
     });
+    console.log({
+      signatureHeader: signature,
+      webhookId,
+      webhookTimestamp
+    });
     if (process.env.DODO_DISABLE_WEBHOOK_VERIFY !== "true") {
       if (!verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestamp })) {
         console.error("Invalid webhook signature", { webhookId, webhookTimestamp });
