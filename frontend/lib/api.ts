@@ -18,11 +18,19 @@ export async function apiFetch<T = any>(path: string, init: RequestInit = {}): P
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (err) {
+    data = text ? { error: text } : {};
+  }
 
   if (!res.ok) {
-    const message = data?.error || "Request failed";
-    const err: any = new Error(message);
+    let message: any = data?.error ?? data?.message ?? "Request failed";
+    if (typeof message === "object" && message) {
+      message = message.message || JSON.stringify(message);
+    }
+    const err: any = new Error(String(message));
     err.details = data;
     throw err;
   }
