@@ -7,16 +7,16 @@ import { clearToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
-const navItems = [
-  { href: "/dashboard", labelKey: "dashboard", module: "dashboard" },
-  { href: "/quotes", labelKey: "quotes", module: "quotes" },
-  { href: "/invoices", labelKey: "invoices", module: "invoices" },
-  { href: "/expenses", labelKey: "expenses", module: "expenses" },
-  { href: "/projects", labelKey: "projects", module: "projects" },
-  { href: "/inventory", labelKey: "inventory", module: "inventory" },
-  { href: "/reports", labelKey: "reports", module: "reports" },
-  { href: "/settings", labelKey: "settings", module: "settings" }
-];
+const MODULE_ROUTES: Record<string, string> = {
+  dashboard: "/dashboard",
+  quotes: "/quotes",
+  invoices: "/invoices",
+  expenses: "/expenses",
+  projects: "/projects",
+  inventory: "/inventory",
+  reports: "/reports",
+  settings: "/settings"
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -24,6 +24,15 @@ export default function Sidebar() {
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+
+  const loadWorkspace = async () => {
+    try {
+      const data = await apiFetch<{ company: any }>("/api/company/me");
+      setWorkspace(buildWorkspace(data.company));
+    } catch (err) {
+      // ignore workspace errors
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -44,22 +53,30 @@ export default function Sidebar() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    apiFetch<{ company: any }>("/api/company/me")
-      .then((data) => {
-        if (!active) return;
-        setWorkspace(buildWorkspace(data.company));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
+    loadWorkspace();
+    const handler = () => loadWorkspace();
+    window.addEventListener("workspace:updated", handler);
+    return () => window.removeEventListener("workspace:updated", handler);
   }, []);
 
   const handleLogout = () => {
     clearToken();
     router.push("/login");
   };
+
+  const buildNavModules = () => {
+    const enabledModules = workspace?.enabledModules || [];
+    const modules = ["dashboard", ...enabledModules, "settings"];
+    const filtered = modules.filter((module) => {
+      if (module === "inventory") return workspace?.inventoryEnabled;
+      if (module === "projects") return workspace?.projectTrackingEnabled;
+      return true;
+    });
+    const unique = Array.from(new Set(filtered));
+    return unique.filter((module) => MODULE_ROUTES[module]);
+  };
+
+  const navModules = buildNavModules();
 
   return (
     <header className="sidebar">
@@ -68,25 +85,16 @@ export default function Sidebar() {
         <span className="brand-tag">Studio Ledger</span>
       </div>
       <nav className="nav">
-        {navItems
-          .filter((item) => {
-            if (item.module === "dashboard" || item.module === "settings") return true;
-            if (!workspace) return true;
-            if (item.module === "inventory") return workspace.inventoryEnabled;
-            if (item.module === "projects") return workspace.projectTrackingEnabled;
-            return workspace.enabledModules.includes(item.module);
-          })
-          .map((item) => {
-            const label =
-              item.labelKey === "settings"
-                ? "Settings"
-                : workspace?.labels?.[item.labelKey] || item.labelKey;
-            return (
-              <Link key={item.href} href={item.href} className={pathname === item.href ? "active" : ""}>
-                {label}
-              </Link>
-            );
-          })}
+        {navModules.map((module) => {
+          const href = MODULE_ROUTES[module];
+          const label =
+            module === "settings" ? "Settings" : workspace?.labels?.[module] || module;
+          return (
+            <Link key={module} href={href} className={pathname === href ? "active" : ""}>
+              {label}
+            </Link>
+          );
+        })}
         {readOnly || isTrial ? (
           <Link href="/plans" className={pathname === "/plans" ? "active" : ""}>
             Plans

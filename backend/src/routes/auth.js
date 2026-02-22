@@ -45,7 +45,7 @@ const RegisterSchema = z.object({
         paymentInstructions: z.string().optional()
       })
       .optional(),
-    businessType: z.enum(["retail", "construction", "agency", "services", "freelance"]).optional()
+    businessType: z.enum(["retail", "construction", "agency", "services", "freelance"])
   })
 });
 
@@ -95,8 +95,7 @@ router.post("/register", async (req, res) => {
       subscriptionStatus: "trialing",
       trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     });
-    applyWorkspace(company, parsed.company.businessType || "construction");
-    company.workspaceConfigured = Boolean(parsed.company.businessType);
+    applyWorkspace(company, parsed.company.businessType);
     await company.save();
 
     const passwordHash = await bcrypt.hash(parsed.password, 12);

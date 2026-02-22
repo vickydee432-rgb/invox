@@ -381,6 +381,7 @@ export default function SettingsPage() {
         })
       });
       setWorkspaceSuccess("Workspace updated.");
+      window.dispatchEvent(new Event("workspace:updated"));
     } catch (err: any) {
       setWorkspaceError(err.message || "Failed to update workspace");
     } finally {
@@ -740,114 +741,116 @@ export default function SettingsPage() {
         </form>
       </section>
 
-      <section className="panel">
-        <div className="panel-title">Integrations · ZRA Smart Invoice</div>
-        <form onSubmit={handleZraConnect} style={{ display: "grid", gap: 16 }}>
-          <div className="grid-2">
-            <label className="field">
-              TPIN
-              <input value={zraTpin} onChange={(e) => setZraTpin(e.target.value)} required />
-            </label>
-            <label className="field">
-              Branch ID
-              <input value={zraBranchId} onChange={(e) => setZraBranchId(e.target.value)} required />
-            </label>
-            <label className="field">
-              Branch Name
-              <input value={zraBranchName} onChange={(e) => setZraBranchName(e.target.value)} />
-            </label>
-            <label className="field">
-              ZRA Base URL
-              <input value={zraBaseUrl} onChange={(e) => setZraBaseUrl(e.target.value)} />
-            </label>
-            <label className="field">
-              Auth Type
-              <select value={zraAuthType} onChange={(e) => setZraAuthType(e.target.value)}>
-                <option value="bearer">Bearer Token</option>
-                <option value="basic">Username/Password</option>
-                <option value="apikey">API Key</option>
-              </select>
-            </label>
-            {zraAuthType === "basic" ? (
-              <>
-                <label className="field">
-                  Username
-                  <input value={zraUsername} onChange={(e) => setZraUsername(e.target.value)} />
-                </label>
-                <label className="field">
-                  Password
-                  <input value={zraPassword} onChange={(e) => setZraPassword(e.target.value)} type="password" />
-                </label>
-              </>
-            ) : null}
-            {zraAuthType === "bearer" ? (
-              <label className="field" style={{ gridColumn: "1 / -1" }}>
-                Access Token
-                <input value={zraAccessToken} onChange={(e) => setZraAccessToken(e.target.value)} />
+      {taxEnabled ? (
+        <section className="panel">
+          <div className="panel-title">Integrations · ZRA Smart Invoice</div>
+          <form onSubmit={handleZraConnect} style={{ display: "grid", gap: 16 }}>
+            <div className="grid-2">
+              <label className="field">
+                TPIN
+                <input value={zraTpin} onChange={(e) => setZraTpin(e.target.value)} required />
               </label>
-            ) : null}
-            {zraAuthType === "apikey" ? (
-              <label className="field" style={{ gridColumn: "1 / -1" }}>
-                API Key
-                <input value={zraApiKey} onChange={(e) => setZraApiKey(e.target.value)} />
+              <label className="field">
+                Branch ID
+                <input value={zraBranchId} onChange={(e) => setZraBranchId(e.target.value)} required />
               </label>
-            ) : null}
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="button" type="submit" disabled={zraLoading}>
-              {zraLoading ? "Saving..." : "Save connection"}
-            </button>
-            <button className="button secondary" type="button" onClick={() => handleZraSync()}>
-              Sync now
-            </button>
-            {zraSuccess ? <div className="muted">{zraSuccess}</div> : null}
-            {zraError ? <div className="muted">{zraError}</div> : null}
-          </div>
-        </form>
+              <label className="field">
+                Branch Name
+                <input value={zraBranchName} onChange={(e) => setZraBranchName(e.target.value)} />
+              </label>
+              <label className="field">
+                ZRA Base URL
+                <input value={zraBaseUrl} onChange={(e) => setZraBaseUrl(e.target.value)} />
+              </label>
+              <label className="field">
+                Auth Type
+                <select value={zraAuthType} onChange={(e) => setZraAuthType(e.target.value)}>
+                  <option value="bearer">Bearer Token</option>
+                  <option value="basic">Username/Password</option>
+                  <option value="apikey">API Key</option>
+                </select>
+              </label>
+              {zraAuthType === "basic" ? (
+                <>
+                  <label className="field">
+                    Username
+                    <input value={zraUsername} onChange={(e) => setZraUsername(e.target.value)} />
+                  </label>
+                  <label className="field">
+                    Password
+                    <input value={zraPassword} onChange={(e) => setZraPassword(e.target.value)} type="password" />
+                  </label>
+                </>
+              ) : null}
+              {zraAuthType === "bearer" ? (
+                <label className="field" style={{ gridColumn: "1 / -1" }}>
+                  Access Token
+                  <input value={zraAccessToken} onChange={(e) => setZraAccessToken(e.target.value)} />
+                </label>
+              ) : null}
+              {zraAuthType === "apikey" ? (
+                <label className="field" style={{ gridColumn: "1 / -1" }}>
+                  API Key
+                  <input value={zraApiKey} onChange={(e) => setZraApiKey(e.target.value)} />
+                </label>
+              ) : null}
+            </div>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="button" type="submit" disabled={zraLoading}>
+                {zraLoading ? "Saving..." : "Save connection"}
+              </button>
+              <button className="button secondary" type="button" onClick={() => handleZraSync()}>
+                Sync now
+              </button>
+              {zraSuccess ? <div className="muted">{zraSuccess}</div> : null}
+              {zraError ? <div className="muted">{zraError}</div> : null}
+            </div>
+          </form>
 
-        <div style={{ marginTop: 18 }}>
-          <div className="panel-title" style={{ fontSize: 16 }}>
-            Connections
-          </div>
-          {zraConnections.length === 0 ? (
-            <div className="muted">No ZRA connections yet.</div>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>TPIN</th>
-                  <th>Branch</th>
-                  <th>Enabled</th>
-                  <th>Last Sync</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {zraConnections.map((conn) => (
-                  <tr key={conn.id}>
-                    <td>{conn.tpin}</td>
-                    <td>{conn.branchName || conn.branchId}</td>
-                    <td>{conn.enabled ? "Yes" : "No"}</td>
-                    <td>{conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleString() : "—"}</td>
-                    <td>{conn.lastSyncStatus || "—"}</td>
-                    <td style={{ display: "flex", gap: 8 }}>
-                      <button className="button secondary" onClick={() => handleZraSync(conn.branchId)}>
-                        Sync
-                      </button>
-                      {conn.enabled ? (
-                        <button className="button secondary" onClick={() => handleZraDisconnect(conn.branchId)}>
-                          Disable
-                        </button>
-                      ) : null}
-                    </td>
+          <div style={{ marginTop: 18 }}>
+            <div className="panel-title" style={{ fontSize: 16 }}>
+              Connections
+            </div>
+            {zraConnections.length === 0 ? (
+              <div className="muted">No ZRA connections yet.</div>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>TPIN</th>
+                    <th>Branch</th>
+                    <th>Enabled</th>
+                    <th>Last Sync</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {zraConnections.map((conn) => (
+                    <tr key={conn.id}>
+                      <td>{conn.tpin}</td>
+                      <td>{conn.branchName || conn.branchId}</td>
+                      <td>{conn.enabled ? "Yes" : "No"}</td>
+                      <td>{conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleString() : "—"}</td>
+                      <td>{conn.lastSyncStatus || "—"}</td>
+                      <td style={{ display: "flex", gap: 8 }}>
+                        <button className="button secondary" onClick={() => handleZraSync(conn.branchId)}>
+                          Sync
+                        </button>
+                        {conn.enabled ? (
+                          <button className="button secondary" onClick={() => handleZraDisconnect(conn.branchId)}>
+                            Disable
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

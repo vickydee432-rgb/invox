@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [businessType, setBusinessType] = useState("");
   const [legalName, setLegalName] = useState("");
   const [companyEmail, setCompanyEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -38,6 +39,11 @@ export default function RegisterPage() {
     event.preventDefault();
     setLoading(true);
     setError("");
+    if (!businessType) {
+      setError("Select a business type.");
+      setLoading(false);
+      return;
+    }
     try {
       const data = await apiFetch<{ token: string }>("/api/auth/register", {
         method: "POST",
@@ -47,6 +53,7 @@ export default function RegisterPage() {
           password,
           company: {
             name: companyName,
+            businessType,
             legalName: legalName || undefined,
             email: companyEmail || undefined,
             phone: phone || undefined,
@@ -74,7 +81,7 @@ export default function RegisterPage() {
         })
       });
       setToken(data.token);
-      router.push("/quotes");
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to register");
     } finally {
@@ -107,6 +114,17 @@ export default function RegisterPage() {
         <div className="panel-title" style={{ fontSize: 16, marginTop: 10 }}>
           Company Details
         </div>
+        <label className="field">
+          Business type
+          <select value={businessType} onChange={(e) => setBusinessType(e.target.value)} required>
+            <option value="">Select a business type</option>
+            <option value="retail">Retail</option>
+            <option value="construction">Construction</option>
+            <option value="agency">Agency</option>
+            <option value="services">Services</option>
+            <option value="freelance">Freelance</option>
+          </select>
+        </label>
         <label className="field">
           Company name
           <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
