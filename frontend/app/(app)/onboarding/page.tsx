@@ -26,6 +26,7 @@ export default function OnboardingPage() {
         method: "PUT",
         body: JSON.stringify({ businessType: selected })
       });
+      window.dispatchEvent(new Event("workspace:updated"));
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to save workspace settings");

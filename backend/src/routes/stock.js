@@ -5,9 +5,10 @@ const StockMovement = require("../models/StockMovement");
 const { ensureObjectId, handleRouteError, parseLimit, parsePage } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("inventory"));
 
 router.get("/", async (req, res) => {
   try {

@@ -4,9 +4,10 @@ const Expense = require("../models/Expense");
 const { ensureObjectId, parseDateOrThrow, parseOptionalDate, parseLimit, parsePage, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("expenses"));
 
 const ExpenseCreateSchema = z.object({
   title: z.string().min(1),

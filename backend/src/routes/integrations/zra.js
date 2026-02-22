@@ -2,6 +2,7 @@ const express = require("express");
 const { z } = require("zod");
 const { requireAuth } = require("../../middleware/auth");
 const { requireSubscription } = require("../../middleware/subscription");
+const { requireTaxEnabled } = require("../../middleware/workspace");
 const Company = require("../../models/Company");
 const ZraConnection = require("../../models/ZraConnection");
 const { encryptJson } = require("../../services/zra/crypto");
@@ -9,7 +10,7 @@ const { syncConnection } = require("../../services/zra/sync");
 const { handleRouteError } = require("../_helpers");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireTaxEnabled());
 
 router.use(async (req, res, next) => {
   try {

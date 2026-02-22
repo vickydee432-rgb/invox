@@ -4,9 +4,10 @@ const Branch = require("../models/Branch");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("inventory"));
 
 const BranchSchema = z.object({
   name: z.string().min(1),

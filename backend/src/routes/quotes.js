@@ -6,6 +6,7 @@ const Invoice = require("../models/Invoice");
 const { makePublicQuoteToken, verifyPublicQuoteToken } = require("../services/quotePublicLink");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 const { generateQuotePdf } = require("../services/pdf");
 const Company = require("../models/Company");
 const { buildQuotesWorkbook } = require("../services/export");
@@ -30,7 +31,10 @@ router.use((req, res, next) => {
   if (req.path.startsWith("/public/")) return next();
   return requireAuth(req, res, (err) => {
     if (err) return next(err);
-    return requireSubscription(req, res, next);
+    return requireSubscription(req, res, (subErr) => {
+      if (subErr) return next(subErr);
+      return requireModule("quotes")(req, res, next);
+    });
   });
 });
 

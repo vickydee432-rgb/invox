@@ -22,6 +22,17 @@ const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; n
   { value: "freelance", label: "Freelance", note: "Simple invoicing and expenses." }
 ];
 
+const LABEL_FIELDS: { key: string; label: string }[] = [
+  { key: "dashboard", label: "Dashboard label" },
+  { key: "quotes", label: "Quotes label" },
+  { key: "invoices", label: "Invoices label" },
+  { key: "invoiceSingular", label: "Invoice singular label" },
+  { key: "expenses", label: "Expenses label" },
+  { key: "projects", label: "Projects label" },
+  { key: "inventory", label: "Inventory label" },
+  { key: "reports", label: "Reports label" }
+];
+
 type Company = {
   name: string;
   legalName?: string;
@@ -131,6 +142,7 @@ export default function SettingsPage() {
   const [taxEnabled, setTaxEnabled] = useState(true);
   const [inventoryEnabled, setInventoryEnabled] = useState(false);
   const [projectTrackingEnabled, setProjectTrackingEnabled] = useState(true);
+  const [labels, setLabels] = useState<WorkspaceConfig["labels"]>({});
 
   useEffect(() => {
     let active = true;
@@ -198,6 +210,7 @@ export default function SettingsPage() {
       setTaxEnabled(config.taxEnabled);
       setInventoryEnabled(config.inventoryEnabled);
       setProjectTrackingEnabled(config.projectTrackingEnabled);
+      setLabels(config.labels);
     } catch (err: any) {
       setWorkspaceError(err.message || "Failed to load workspace");
     } finally {
@@ -332,6 +345,7 @@ export default function SettingsPage() {
     setTaxEnabled(config.taxEnabled);
     setInventoryEnabled(config.inventoryEnabled);
     setProjectTrackingEnabled(config.projectTrackingEnabled);
+    setLabels(config.labels);
   };
 
   const toggleModule = (moduleKey: string) => {
@@ -364,6 +378,15 @@ export default function SettingsPage() {
     });
   };
 
+  const handleLabelChange = (key: string, value: string) => {
+    setLabels((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetLabels = () => {
+    const defaults = buildWorkspace({ businessType }).labels;
+    setLabels(defaults);
+  };
+
   const handleWorkspaceSave = async (event: React.FormEvent) => {
     event.preventDefault();
     setWorkspaceSaving(true);
@@ -375,6 +398,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           businessType,
           enabledModules,
+          labels,
           taxEnabled,
           inventoryEnabled,
           projectTrackingEnabled
@@ -572,6 +596,26 @@ export default function SettingsPage() {
                   {module.label}
                 </label>
               ))}
+            </div>
+
+            <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+              Navigation Labels
+            </div>
+            <div className="grid-2">
+              {LABEL_FIELDS.map((field) => (
+                <label key={field.key} className="field">
+                  {field.label}
+                  <input
+                    value={labels[field.key] || ""}
+                    onChange={(e) => handleLabelChange(field.key, e.target.value)}
+                  />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="button secondary" type="button" onClick={resetLabels}>
+                Reset labels to defaults
+              </button>
             </div>
 
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

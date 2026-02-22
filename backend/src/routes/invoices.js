@@ -14,6 +14,7 @@ const {
 } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule, requireTaxEnabled } = require("../middleware/workspace");
 const { generateInvoicePdf } = require("../services/pdf");
 const { buildInvoicesWorkbook } = require("../services/export");
 const Company = require("../models/Company");
@@ -31,7 +32,7 @@ const { mapZraStatus } = require("../services/zra/mapping");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("invoices"));
 
 function buildInvoiceFilter(query) {
   const { status, projectId, from, to, q, source } = query;
@@ -808,7 +809,7 @@ async function resolveZraConnection(companyId, branchId) {
   return null;
 }
 
-router.post("/:id/zra/submit", async (req, res) => {
+router.post("/:id/zra/submit", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
     const parsed = ZraSubmitSchema.parse(req.body || {});
@@ -838,7 +839,7 @@ router.post("/:id/zra/submit", async (req, res) => {
   }
 });
 
-router.post("/:id/zra/cancel", async (req, res) => {
+router.post("/:id/zra/cancel", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
     const parsed = ZraSubmitSchema.parse(req.body || {});
@@ -863,7 +864,7 @@ router.post("/:id/zra/cancel", async (req, res) => {
   }
 });
 
-router.post("/:id/zra/credit-note", async (req, res) => {
+router.post("/:id/zra/credit-note", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
     const parsed = ZraSubmitSchema.parse(req.body || {});

@@ -1,6 +1,7 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 const { parseOptionalDate, handleRouteError } = require("./_helpers");
 const Invoice = require("../models/Invoice");
 const Quote = require("../models/Quote");
@@ -13,7 +14,7 @@ const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("reports"));
 
 async function buildReportData(req) {
   const company = await Company.findById(req.user.companyId).lean();

@@ -6,10 +6,11 @@ const Expense = require("../models/Expense");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 const { buildProjectExpensesWorkbook } = require("../services/export");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("projects"));
 
 const ProjectCreateSchema = z.object({
   name: z.string().min(1),

@@ -4,9 +4,10 @@ const Product = require("../models/Product");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireModule } = require("../middleware/workspace");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription);
+router.use(requireAuth, requireSubscription, requireModule("inventory"));
 
 const ProductSchema = z.object({
   name: z.string().min(1),
