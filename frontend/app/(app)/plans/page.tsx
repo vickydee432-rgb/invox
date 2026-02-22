@@ -69,7 +69,11 @@ export default function PlansPage() {
       .then((mod: any) => {
         const DodoPayments = mod?.DodoPayments || mod?.default?.DodoPayments || mod?.default || mod;
         if (!DodoPayments || !mounted) return;
-        DodoPayments.Initialize({ mode: dodoMode, displayType: "inline" });
+        DodoPayments.Initialize({
+          mode: dodoMode,
+          displayType: "inline",
+          iframeResizerOptions: { checkOrigin: false }
+        });
         checkoutRef.current = DodoPayments;
         setCheckoutReady(true);
       })
@@ -90,6 +94,8 @@ export default function PlansPage() {
         body: JSON.stringify({ planKey })
       });
       if (data.checkoutUrl && checkoutRef.current) {
+        const container = document.getElementById("dodo-inline-checkout");
+        if (container) container.innerHTML = "";
         checkoutRef.current.Checkout.open({
           checkoutUrl: data.checkoutUrl,
           elementId: "dodo-inline-checkout",
@@ -156,7 +162,7 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === `starter_${billingCycle}`}
+              disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`starter_${billingCycle}`)}
             >
               {subscribingPlan === `starter_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
@@ -179,7 +185,7 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === `pro_${billingCycle}`}
+              disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`pro_${billingCycle}`)}
             >
               {subscribingPlan === `pro_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
@@ -203,7 +209,7 @@ export default function PlansPage() {
               className="button"
               type="button"
               data-allow="true"
-              disabled={subscribingPlan === `businessplus_${billingCycle}`}
+              disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`businessplus_${billingCycle}`)}
             >
               {subscribingPlan === `businessplus_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
