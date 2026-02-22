@@ -37,6 +37,18 @@ const CompanySchema = new mongoose.Schema(
     currency: { type: String, trim: true, default: "USD" },
     address: { type: AddressSchema, default: {} },
     payment: { type: PaymentSchema, default: {} },
+    businessType: {
+      type: String,
+      enum: ["retail", "construction", "agency", "services", "freelance"],
+      default: "construction",
+      index: true
+    },
+    enabledModules: { type: [String], default: [] },
+    labels: { type: mongoose.Schema.Types.Mixed, default: {} },
+    taxEnabled: { type: Boolean, default: true },
+    inventoryEnabled: { type: Boolean, default: false },
+    projectTrackingEnabled: { type: Boolean, default: true },
+    workspaceConfigured: { type: Boolean, default: false },
     subscriptionStatus: {
       type: String,
       enum: ["trialing", "active", "past_due", "cancelled", "expired", "inactive", "pending"],

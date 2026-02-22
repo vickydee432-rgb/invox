@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type InvoiceItem = {
   productId?: string;
   productSku?: string;
   productName?: string;
+  costPrice?: number;
   description: string;
   qty: number;
   unitPrice: number;
@@ -67,6 +69,9 @@ export default function NewInvoicePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [quickProductId, setQuickProductId] = useState("");
+  const [quickQty, setQuickQty] = useState(1);
   const [stockShortages, setStockShortages] = useState<
     { productId: string; available: number; requested: number }[]
   >([]);
@@ -88,6 +93,7 @@ export default function NewInvoicePage() {
   const subtotal = itemsSubtotal + shippingValue;
   const vatAmount = (itemsSubtotal * (Number(vatRate) || 0)) / 100 + shippingVat;
   const total = subtotal + vatAmount;
+  const invoiceLabel = workspace?.labels?.invoiceSingular || "Invoice";
 
   useEffect(() => {
     if (sameAsBilling) {
@@ -106,6 +112,28 @@ export default function NewInvoicePage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!mounted) return;
+        const config = buildWorkspace(data.company);
+        setWorkspace(config);
+        if (config.businessType === "retail") {
+          setInvoiceType("sale");
+          setStatus("paid");
+          if (!dueDate) {
+            const today = new Date().toISOString().slice(0, 10);
+            setDueDate(today);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [dueDate]);
 
   useEffect(() => {
     let mounted = true;
@@ -334,6 +362,24 @@ export default function NewInvoicePage() {
     setItems((prev) => [...prev, { description: "", qty: 1, unitPrice: 0, discount: 0 }]);
   };
 
+  const addQuickSale = () => {
+    const product = products.find((p) => p._id === quickProductId);
+    if (!product) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        productId: product._id,
+        productSku: product.sku,
+        productName: product.name,
+        costPrice: Number(product.costPrice || 0),
+        description: product.name,
+        qty: Number(quickQty) || 1,
+        unitPrice: Number(product.salePrice || 0),
+        discount: 0
+      }
+    ]);
+  };
+
   const removeItem = (index: number) => {
     setItems((prev) => prev.filter((_, idx) => idx !== index));
   };
@@ -378,6 +424,18 @@ export default function NewInvoicePage() {
       setSaving(false);
     }
   };
+
+  if (workspace && !workspace.enabledModules.includes("invoices")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.invoices || "Invoices"}</div>
+        <div className="muted">Invoices are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => router.push("/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -503,11 +561,12 @@ export default function NewInvoicePage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">Create Invoice</div>
+        <div className="panel-title">Create {invoiceLabel}</div>
         <form onSubmit={handleSubmit} className="invoice-editor">
           <div className="invoice-header">
             <div className="invoice-card">
-              <div className="invoice-tabs">
+              {workspace?.businessType !== "retail" ? (
+                <div className="invoice-tabs">
                 <button
                   type="button"
                   className={activeTab === "billing" ? "active" : ""}
@@ -522,8 +581,9 @@ export default function NewInvoicePage() {
                 >
                   Shipping
                 </button>
-              </div>
-              {activeTab === "billing" ? (
+                </div>
+              ) : null}
+              {activeTab === "billing" || workspace?.businessType === "retail" ? (
                 <div className="invoice-form-grid">
                   <label className="field">
                     Customer
@@ -601,7 +661,7 @@ export default function NewInvoicePage() {
               )}
             </div>
             <div className="invoice-card">
-              <div className="invoice-pill">Invoice</div>
+              <div className="invoice-pill">{workspace?.labels?.invoiceSingular || "Invoice"}</div>
               <div className="invoice-form-grid">
                 <label className="field">
                   Create From
@@ -627,46 +687,52 @@ export default function NewInvoicePage() {
                     ))}
                   </select>
                 </label>
-                <label className="field">
-                  Project
-                  <select
-                    value={projectId}
-                    onChange={(e) => {
-                      const nextId = e.target.value;
-                      setProjectId(nextId);
-                      const match = projects.find((proj) => proj._id === nextId);
-                      setProjectLabel(match ? match.name : "");
-                    }}
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project._id} value={project._id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {workspace?.projectTrackingEnabled ? (
+                  <label className="field">
+                    Project
+                    <select
+                      value={projectId}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setProjectId(nextId);
+                        const match = projects.find((proj) => proj._id === nextId);
+                        setProjectLabel(match ? match.name : "");
+                      }}
+                    >
+                      <option value="">No project</option>
+                      {projects.map((project) => (
+                        <option key={project._id} value={project._id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <label className="field">
                   Date
                   <input value={dueDate} onChange={(e) => setDueDate(e.target.value)} type="date" required />
                 </label>
-                <label className="field">
-                  Status
-                  <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                    <option value="draft">draft</option>
-                    <option value="sent">sent</option>
-                    <option value="paid">paid</option>
-                  </select>
-                </label>
-                <label className="field">
-                  VAT rate %
-                  <input
-                    value={vatRate}
-                    onChange={(e) => setVatRate(Number(e.target.value))}
-                    type="number"
-                    min={0}
-                  />
-                </label>
+                {workspace?.businessType !== "retail" ? (
+                  <label className="field">
+                    Status
+                    <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                      <option value="draft">draft</option>
+                      <option value="sent">sent</option>
+                      <option value="paid">paid</option>
+                    </select>
+                  </label>
+                ) : null}
+                {workspace?.taxEnabled !== false ? (
+                  <label className="field">
+                    VAT rate %
+                    <input
+                      value={vatRate}
+                      onChange={(e) => setVatRate(Number(e.target.value))}
+                      type="number"
+                      min={0}
+                    />
+                  </label>
+                ) : null}
                 <label className="field">
                   Invoice number
                   <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
@@ -674,6 +740,39 @@ export default function NewInvoicePage() {
               </div>
             </div>
           </div>
+
+          {workspace?.businessType === "retail" ? (
+            <div className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title" style={{ fontSize: 16 }}>
+                Quick Sale
+              </div>
+              <div className="grid-2">
+                <label className="field">
+                  Product
+                  <select value={quickProductId} onChange={(e) => setQuickProductId(e.target.value)}>
+                    <option value="">Select product</option>
+                    {products.map((product) => (
+                      <option key={product._id} value={product._id}>
+                        {product.name} {product.sku ? `(${product.sku})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Quantity
+                  <input
+                    type="number"
+                    min={1}
+                    value={quickQty}
+                    onChange={(e) => setQuickQty(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+              <button className="button secondary" type="button" onClick={addQuickSale} disabled={!quickProductId}>
+                Add sale item
+              </button>
+            </div>
+          ) : null}
 
           <div className="invoice-table-wrap">
             <table className="invoice-table">
@@ -683,14 +782,18 @@ export default function NewInvoicePage() {
                   <th style={{ width: 180 }}>Product</th>
                   <th>Item / Description</th>
                   <th style={{ width: 140 }}>Unit Price</th>
+                  {workspace?.businessType === "retail" ? <th style={{ width: 120 }}>Cost</th> : null}
                   <th style={{ width: 140 }}>Discount</th>
                   <th style={{ width: 140 }}>Total</th>
+                  {workspace?.businessType === "retail" ? <th style={{ width: 140 }}>Profit</th> : null}
                   <th style={{ width: 120 }} />
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, index) => {
                   const lineTotal = Math.max(0, item.qty * item.unitPrice - (item.discount || 0));
+                  const costTotal = Math.max(0, (item.costPrice || 0) * item.qty);
+                  const profitTotal = lineTotal - costTotal;
                   return (
                     <tr key={index}>
                       <td>
@@ -725,6 +828,7 @@ export default function NewInvoicePage() {
                               productId: nextId,
                               productSku: product?.sku,
                               productName: product?.name,
+                              costPrice: Number(product?.costPrice || 0),
                               description: product?.name || item.description,
                               unitPrice
                             });
@@ -757,6 +861,9 @@ export default function NewInvoicePage() {
                           min={0}
                         />
                       </td>
+                      {workspace?.businessType === "retail" ? (
+                        <td className="invoice-total">{(item.costPrice || 0).toFixed(2)}</td>
+                      ) : null}
                       <td>
                         <input
                           className="invoice-input"
@@ -767,6 +874,9 @@ export default function NewInvoicePage() {
                         />
                       </td>
                       <td className="invoice-total">{lineTotal.toFixed(2)}</td>
+                      {workspace?.businessType === "retail" ? (
+                        <td className="invoice-total">{profitTotal.toFixed(2)}</td>
+                      ) : null}
                       <td>
                         {items.length > 1 ? (
                           <button
@@ -796,14 +906,18 @@ export default function NewInvoicePage() {
                 <span>Subtotal</span>
                 <strong>{itemsSubtotal.toFixed(2)}</strong>
               </div>
-              <div>
-                <span>Shipping</span>
-                <strong>{shippingValue.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>VAT</span>
-                <strong>{vatAmount.toFixed(2)}</strong>
-              </div>
+              {workspace?.businessType !== "retail" ? (
+                <div>
+                  <span>Shipping</span>
+                  <strong>{shippingValue.toFixed(2)}</strong>
+                </div>
+              ) : null}
+              {workspace?.taxEnabled !== false ? (
+                <div>
+                  <span>VAT</span>
+                  <strong>{vatAmount.toFixed(2)}</strong>
+                </div>
+              ) : null}
               <div className="invoice-summary-total">
                 <span>Total</span>
                 <strong>{total.toFixed(2)}</strong>
@@ -813,7 +927,7 @@ export default function NewInvoicePage() {
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <button className="button" type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Create invoice"}
+              {saving ? "Saving..." : `Create ${invoiceLabel}`}
             </button>
             <button className="button secondary" type="button" onClick={() => router.push("/invoices")}>
               Cancel

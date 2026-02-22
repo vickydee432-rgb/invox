@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiDownload, apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type InvoiceItem = {
   productId?: string;
@@ -93,6 +94,7 @@ export default function InvoicesPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const loadInvoices = async (targetPage = page) => {
     setLoading(true);
@@ -146,6 +148,19 @@ export default function InvoicesPage() {
       .catch(() => {});
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -291,6 +306,18 @@ export default function InvoicesPage() {
     }
   };
 
+  if (workspace && !workspace.enabledModules.includes("invoices")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.invoices || "Invoices"}</div>
+        <div className="muted">Invoices are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => (window.location.href = "/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
+
   return (
     <>
       <section className="panel">
@@ -298,7 +325,7 @@ export default function InvoicesPage() {
         <form onSubmit={handlePayment} style={{ display: "grid", gap: 16 }}>
           <div className="grid-2">
             <label className="field">
-              Invoice
+              {workspace?.labels?.invoiceSingular || "Invoice"}
               <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
                 {invoices.map((inv) => (
                   <option key={inv._id} value={inv._id}>
@@ -326,7 +353,9 @@ export default function InvoicesPage() {
 
       <section className="panel">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div className="panel-title">{editId ? "Edit Invoice" : "Edit an Invoice"}</div>
+          <div className="panel-title">
+            {editId ? `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}` : `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}`}
+          </div>
           {editId ? (
             <button className="button secondary" type="button" onClick={() => setShowEdit((prev) => !prev)}>
               {showEdit ? "Hide" : "Open"}
@@ -348,25 +377,27 @@ export default function InvoicesPage() {
                   required
                 />
               </label>
-              <label className="field">
-                Project
-                <select
-                  value={editProjectId}
-                  onChange={(e) => {
-                    const nextId = e.target.value;
-                    setEditProjectId(nextId);
-                    const match = projects.find((proj) => proj._id === nextId);
-                    setEditProjectLabel(match ? match.name : "");
-                  }}
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project._id} value={project._id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {workspace?.projectTrackingEnabled ? (
+                <label className="field">
+                  Project
+                  <select
+                    value={editProjectId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setEditProjectId(nextId);
+                      const match = projects.find((proj) => proj._id === nextId);
+                      setEditProjectLabel(match ? match.name : "");
+                    }}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project._id} value={project._id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className="field">
                 Invoice type
                 <select value={editInvoiceType} onChange={(e) => setEditInvoiceType(e.target.value as "sale" | "purchase")}>
@@ -409,15 +440,17 @@ export default function InvoicesPage() {
                   <option value="cancelled">cancelled</option>
                 </select>
               </label>
-              <label className="field">
-                VAT rate %
-                <input
-                  value={editVatRate}
-                  onChange={(e) => setEditVatRate(Number(e.target.value))}
-                  type="number"
-                  min={0}
-                />
-              </label>
+              {workspace?.taxEnabled !== false ? (
+                <label className="field">
+                  VAT rate %
+                  <input
+                    value={editVatRate}
+                    onChange={(e) => setEditVatRate(Number(e.target.value))}
+                    type="number"
+                    min={0}
+                  />
+                </label>
+              ) : null}
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -541,14 +574,14 @@ export default function InvoicesPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">Invoices</div>
+        <div className="panel-title">{workspace?.labels?.invoices || "Invoices"}</div>
         {loading ? (
           <div className="muted">Loading invoices...</div>
         ) : (
           <>
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
               <Link className="button" href="/invoices/new">
-                Create invoice
+                {workspace?.labels?.invoiceSingular ? `Create ${workspace.labels.invoiceSingular}` : "Create invoice"}
               </Link>
               <label className="field" style={{ minWidth: 160 }}>
                 Source
@@ -598,7 +631,7 @@ export default function InvoicesPage() {
                       <button className="button secondary" onClick={() => startEdit(invoice)}>
                         Edit
                       </button>
-                      {invoice.source !== "ZRA" && !invoice.lockedAt ? (
+                      {workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
                         <button className="button secondary" onClick={() => handleSubmitZra(invoice)}>
                           Submit ZRA
                         </button>

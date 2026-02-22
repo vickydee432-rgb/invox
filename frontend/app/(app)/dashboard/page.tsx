@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Summary = {
   quotes_count: number;
@@ -28,6 +29,14 @@ type ReportData = {
   summary: Summary;
   series: SeriesRow[];
   range: { from: string | null; to: string | null };
+  businessType?: string;
+  retail?: {
+    sales_today: number;
+    expenses_today: number;
+    profit_today: number;
+    stock_value: number;
+    low_stock_count: number;
+  } | null;
 };
 
 const formatMoney = (value: number) => value.toFixed(2);
@@ -35,6 +44,8 @@ const formatMoney = (value: number) => value.toFixed(2);
 export default function DashboardPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [retailSummary, setRetailSummary] = useState<ReportData["retail"]>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -50,6 +61,7 @@ export default function DashboardPage() {
       const data = await apiFetch<ReportData>(`/api/reports/overview?${params.toString()}`);
       setSummary(data.summary);
       setSeries(data.series || []);
+      setRetailSummary(data.retail || null);
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard");
     } finally {
@@ -59,6 +71,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleApply = () => {
@@ -74,7 +99,7 @@ export default function DashboardPage() {
   return (
     <>
       <section className="panel">
-        <div className="panel-title">Dashboard</div>
+        <div className="panel-title">{workspace?.labels?.dashboard || "Dashboard"}</div>
         <div className="grid-2">
           <label className="field">
             From
@@ -102,36 +127,70 @@ export default function DashboardPage() {
           <div className="muted">Loading stats...</div>
         ) : (
           <div className="stat-grid">
-            <div className="stat-card">
-              <div className="muted">Quotes total</div>
-              <div className="stat-value">{formatMoney(summary.quotes_total)}</div>
-              <div className="muted">Count: {summary.quotes_count}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Invoices billed</div>
-              <div className="stat-value">{formatMoney(summary.invoices_billed_total)}</div>
-              <div className="muted">Count: {summary.invoices_count}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Invoices paid</div>
-              <div className="stat-value">{formatMoney(summary.invoices_paid_total)}</div>
-              <div className="muted">Outstanding: {formatMoney(summary.invoices_outstanding)}</div>
-            </div>
+            {workspace?.businessType === "retail" && retailSummary ? (
+              <>
+                <div className="stat-card">
+                  <div className="muted">Sales today</div>
+                  <div className="stat-value">{formatMoney(retailSummary.sales_today)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Expenses today</div>
+                  <div className="stat-value">{formatMoney(retailSummary.expenses_today)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Profit today</div>
+                  <div className="stat-value">{formatMoney(retailSummary.profit_today)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Stock value</div>
+                  <div className="stat-value">{formatMoney(retailSummary.stock_value)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Low stock items</div>
+                  <div className="stat-value">{retailSummary.low_stock_count}</div>
+                </div>
+              </>
+            ) : null}
+            {workspace?.enabledModules.includes("quotes") ? (
+              <div className="stat-card">
+                <div className="muted">Quotes total</div>
+                <div className="stat-value">{formatMoney(summary.quotes_total)}</div>
+                <div className="muted">Count: {summary.quotes_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">{workspace?.labels?.invoices || "Invoices"} billed</div>
+                <div className="stat-value">{formatMoney(summary.invoices_billed_total)}</div>
+                <div className="muted">Count: {summary.invoices_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">{workspace?.labels?.invoices || "Invoices"} paid</div>
+                <div className="stat-value">{formatMoney(summary.invoices_paid_total)}</div>
+                <div className="muted">Outstanding: {formatMoney(summary.invoices_outstanding)}</div>
+              </div>
+            ) : null}
             <div className="stat-card">
               <div className="muted">Expenses total</div>
               <div className="stat-value">{formatMoney(summary.expenses_total)}</div>
               <div className="muted">Count: {summary.expenses_count}</div>
             </div>
-            <div className="stat-card">
-              <div className="muted">Profit on paid</div>
-              <div className="stat-value">{formatMoney(summary.profit_on_paid)}</div>
-              <div className="muted">Profit on billed: {formatMoney(summary.profit_on_billed)}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Overdue invoices</div>
-              <div className="stat-value">{summary.overdue_count}</div>
-              <div className="muted">Needs follow-up</div>
-            </div>
+            {workspace?.enabledModules.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">Profit on paid</div>
+                <div className="stat-value">{formatMoney(summary.profit_on_paid)}</div>
+                <div className="muted">Profit on billed: {formatMoney(summary.profit_on_billed)}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">Overdue {workspace?.labels?.invoices || "Invoices"}</div>
+                <div className="stat-value">{summary.overdue_count}</div>
+                <div className="muted">Needs follow-up</div>
+              </div>
+            ) : null}
           </div>
         )}
       </section>

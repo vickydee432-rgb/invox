@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Expense = {
   _id: string;
@@ -41,6 +42,7 @@ export default function ExpensesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState("");
   const [applyToAll, setApplyToAll] = useState(false);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const loadExpenses = async (
     targetPage = page,
@@ -78,10 +80,31 @@ export default function ExpensesPage() {
   };
 
   useEffect(() => {
-    loadExpenses(page, query, categoryFilter, filterProjectId, fromDate, toDate);
-  }, [page, query, categoryFilter, filterProjectId, fromDate, toDate]);
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
+    if (workspace && !workspace.enabledModules.includes("expenses")) {
+      setLoading(false);
+      return;
+    }
+    loadExpenses(page, query, categoryFilter, filterProjectId, fromDate, toDate);
+  }, [page, query, categoryFilter, filterProjectId, fromDate, toDate, workspace]);
+
+  useEffect(() => {
+    if (workspace?.projectTrackingEnabled === false) {
+      setProjects([]);
+      return;
+    }
     const loadProjects = async () => {
       try {
         const data = await apiFetch<{ projects: Project[] }>("/api/projects");
@@ -91,7 +114,7 @@ export default function ExpensesPage() {
       }
     };
     loadProjects();
-  }, []);
+  }, [workspace?.projectTrackingEnabled]);
 
   const allVisibleSelected = useMemo(() => {
     if (expenses.length === 0) return false;
@@ -187,10 +210,24 @@ export default function ExpensesPage() {
     }
   };
 
+  if (workspace && !workspace.enabledModules.includes("expenses")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.expenses || "Expenses"}</div>
+        <div className="muted">Expenses are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => router.push("/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
+
+  const isRetail = workspace?.businessType === "retail";
+
   return (
     <>
       <section className="panel">
-        <div className="panel-title">Expenses</div>
+        <div className="panel-title">{workspace?.labels?.expenses || "Expenses"}</div>
         {loading ? (
           <div className="muted">Loading expenses...</div>
         ) : (
@@ -202,19 +239,31 @@ export default function ExpensesPage() {
               </label>
               <label className="field" style={{ flex: "1 1 180px" }}>
                 Category
-                <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Supplies" />
+                {isRetail ? (
+                  <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <option value="">All categories</option>
+                    <option value="stock purchase">Stock purchase</option>
+                    <option value="utilities">Utilities</option>
+                    <option value="transport">Transport</option>
+                    <option value="other">Other</option>
+                  </select>
+                ) : (
+                  <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Supplies" />
+                )}
               </label>
-              <label className="field" style={{ minWidth: 220 }}>
-                Project
-                <select value={filterProjectId} onChange={(e) => setFilterProjectId(e.target.value)}>
-                  <option value="">All projects</option>
-                  {projects.map((project) => (
-                    <option key={project._id} value={project._id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {workspace?.projectTrackingEnabled ? (
+                <label className="field" style={{ minWidth: 220 }}>
+                  Project
+                  <select value={filterProjectId} onChange={(e) => setFilterProjectId(e.target.value)}>
+                    <option value="">All projects</option>
+                    {projects.map((project) => (
+                      <option key={project._id} value={project._id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className="field" style={{ minWidth: 160 }}>
                 From
                 <input value={fromDate} onChange={(e) => setFromDate(e.target.value)} type="date" />
@@ -230,36 +279,38 @@ export default function ExpensesPage() {
                 Clear
               </button>
               <button className="button" onClick={() => router.push("/expenses/new")}>
-                Create expense
+                {isRetail ? "Quick add expense" : "Create expense"}
               </button>
               {error ? <div className="muted">{error}</div> : null}
             </div>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-              <label className="field" style={{ minWidth: 220 }}>
-                Add to project
-                <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                  <option value="">Select project</option>
-                  {projects.map((project) => (
-                    <option key={project._id} value={project._id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input type="checkbox" checked={applyToAll} onChange={(e) => setApplyToAll(e.target.checked)} />
-                Apply to all filtered results
-              </label>
-              <button className="button" onClick={handleAssign} disabled={assigning}>
-                {assigning ? "Updating..." : "Add to project"}
-              </button>
-              {assignSuccess ? <div className="muted">{assignSuccess}</div> : null}
-              {assignError ? <div className="muted">{assignError}</div> : null}
-              {!applyToAll && selectedIds.length > 0 ? (
-                <div className="muted">Selected: {selectedIds.length}</div>
-              ) : null}
-            </div>
+            {workspace?.projectTrackingEnabled ? (
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+                <label className="field" style={{ minWidth: 220 }}>
+                  Add to project
+                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                    <option value="">Select project</option>
+                    {projects.map((project) => (
+                      <option key={project._id} value={project._id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="checkbox" checked={applyToAll} onChange={(e) => setApplyToAll(e.target.checked)} />
+                  Apply to all filtered results
+                </label>
+                <button className="button" onClick={handleAssign} disabled={assigning}>
+                  {assigning ? "Updating..." : "Add to project"}
+                </button>
+                {assignSuccess ? <div className="muted">{assignSuccess}</div> : null}
+                {assignError ? <div className="muted">{assignError}</div> : null}
+                {!applyToAll && selectedIds.length > 0 ? (
+                  <div className="muted">Selected: {selectedIds.length}</div>
+                ) : null}
+              </div>
+            ) : null}
 
             <table className="table">
               <thead>
@@ -271,7 +322,7 @@ export default function ExpensesPage() {
                   <th>Category</th>
                   <th>Amount</th>
                   <th>Date</th>
-                  <th>Project</th>
+                  {workspace?.projectTrackingEnabled ? <th>Project</th> : null}
                   <th>Action</th>
                 </tr>
               </thead>
@@ -290,7 +341,7 @@ export default function ExpensesPage() {
                     <td>{expense.category}</td>
                     <td>{expense.amount.toFixed(2)}</td>
                     <td>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td>{expense.projectLabel || "-"}</td>
+                    {workspace?.projectTrackingEnabled ? <td>{expense.projectLabel || "-"}</td> : null}
                     <td>
                       <button
                         className="button secondary"
@@ -306,7 +357,7 @@ export default function ExpensesPage() {
                 ))}
                 {expenses.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="muted">
+                    <td colSpan={workspace?.projectTrackingEnabled ? 7 : 6} className="muted">
                       No expenses yet.
                     </td>
                   </tr>

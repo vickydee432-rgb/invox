@@ -5,6 +5,10 @@ const { parseOptionalDate, handleRouteError } = require("./_helpers");
 const Invoice = require("../models/Invoice");
 const Quote = require("../models/Quote");
 const Expense = require("../models/Expense");
+const Stock = require("../models/Stock");
+const Product = require("../models/Product");
+const StockMovement = require("../models/StockMovement");
+const Company = require("../models/Company");
 const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
 
@@ -12,6 +16,8 @@ const router = express.Router();
 router.use(requireAuth, requireSubscription);
 
 async function buildReportData(req) {
+  const company = await Company.findById(req.user.companyId).lean();
+  const businessType = company?.businessType || "construction";
   const fromDate = parseOptionalDate(req.query.from, "from");
   const toDate = parseOptionalDate(req.query.to, "to");
 
@@ -124,6 +130,71 @@ async function buildReportData(req) {
 
   const series = Array.from(seriesMap.values()).sort((a, b) => a.month.localeCompare(b.month));
 
+  let retail = null;
+  if (businessType === "retail") {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const [salesTodayAgg, expensesTodayAgg, cogsAgg, stockValueAgg, lowStockAgg] =
+      await Promise.all([
+        Invoice.aggregate([
+          { $match: { companyId: req.user.companyId, invoiceType: "sale", issueDate: { $gte: start, $lt: end } } },
+          { $group: { _id: null, total: { $sum: "$total" } } }
+        ]),
+        Expense.aggregate([
+          { $match: { companyId: req.user.companyId, date: { $gte: start, $lt: end } } },
+          { $group: { _id: null, total: { $sum: "$amount" } } }
+        ]),
+        StockMovement.aggregate([
+          { $match: { companyId: req.user.companyId, type: "sale", createdAt: { $gte: start, $lt: end } } },
+          { $group: { _id: null, totalCost: { $sum: "$totalCost" } } }
+        ]),
+        Stock.aggregate([
+          { $match: { companyId: req.user.companyId } },
+          { $group: { _id: null, value: { $sum: { $multiply: ["$onHand", "$avgCost"] } } } }
+        ]),
+        Stock.aggregate([
+          { $match: { companyId: req.user.companyId } },
+          {
+            $lookup: {
+              from: Product.collection.name,
+              localField: "productId",
+              foreignField: "_id",
+              as: "product"
+            }
+          },
+          { $unwind: "$product" },
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $gt: ["$product.reorderLevel", 0] },
+                  { $lte: ["$onHand", "$product.reorderLevel"] }
+                ]
+              }
+            }
+          },
+          { $count: "count" }
+        ])
+      ]);
+
+    const salesToday = salesTodayAgg[0]?.total || 0;
+    const expensesToday = expensesTodayAgg[0]?.total || 0;
+    const cogsToday = cogsAgg[0]?.totalCost || 0;
+    const stockValue = stockValueAgg[0]?.value || 0;
+    const lowStockCount = lowStockAgg[0]?.count || 0;
+
+    retail = {
+      sales_today: salesToday,
+      expenses_today: expensesToday,
+      profit_today: salesToday - expensesToday - cogsToday,
+      stock_value: stockValue,
+      low_stock_count: lowStockCount
+    };
+  }
+
   return {
     range: {
       from: fromDate ? fromDate.toISOString() : null,
@@ -142,7 +213,9 @@ async function buildReportData(req) {
       profit_on_billed: invoiceTotals.billed - expenseTotals.total,
       overdue_count: overdueCount
     },
-    series
+    series,
+    businessType,
+    retail
   };
 }
 

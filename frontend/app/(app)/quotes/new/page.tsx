@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type QuoteItem = {
   description: string;
@@ -21,6 +22,20 @@ export default function NewQuotePage() {
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const updateItem = (index: number, patch: Partial<QuoteItem>) => {
     setItems((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item)));
@@ -55,6 +70,18 @@ export default function NewQuotePage() {
       setSaving(false);
     }
   };
+
+  if (workspace && !workspace.enabledModules.includes("quotes")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.quotes || "Quotes"}</div>
+        <div className="muted">Quotes are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => router.push("/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="panel">

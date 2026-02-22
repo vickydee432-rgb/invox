@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Branch = {
   _id: string;
@@ -40,6 +41,7 @@ export default function InventoryPage() {
   const [stock, setStock] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const [branchForm, setBranchForm] = useState({
     id: "",
@@ -90,12 +92,42 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    loadAll();
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
+    if (workspace && !workspace.inventoryEnabled) {
+      setLoading(false);
+      return;
+    }
+    loadAll();
+  }, [workspace]);
+
+  useEffect(() => {
+    if (workspace && !workspace.inventoryEnabled) return;
     loadStock(stockBranchId || undefined);
-  }, [stockBranchId]);
+  }, [stockBranchId, workspace]);
+
+  if (workspace && !workspace.inventoryEnabled) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.inventory || "Inventory"}</div>
+        <div className="muted">Inventory is disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => (window.location.href = "/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
 
   const resetBranchForm = () =>
     setBranchForm({

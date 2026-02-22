@@ -5,16 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clearToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/quotes", label: "Quotes" },
-  { href: "/invoices", label: "Invoices" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/projects", label: "Projects" },
-  { href: "/inventory", label: "Inventory" },
-  { href: "/reports", label: "Reports" },
-  { href: "/settings", label: "Settings" }
+  { href: "/dashboard", labelKey: "dashboard", module: "dashboard" },
+  { href: "/quotes", labelKey: "quotes", module: "quotes" },
+  { href: "/invoices", labelKey: "invoices", module: "invoices" },
+  { href: "/expenses", labelKey: "expenses", module: "expenses" },
+  { href: "/projects", labelKey: "projects", module: "projects" },
+  { href: "/inventory", labelKey: "inventory", module: "inventory" },
+  { href: "/reports", labelKey: "reports", module: "reports" },
+  { href: "/settings", labelKey: "settings", module: "settings" }
 ];
 
 export default function Sidebar() {
@@ -22,6 +23,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -41,6 +43,19 @@ export default function Sidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleLogout = () => {
     clearToken();
     router.push("/login");
@@ -53,11 +68,25 @@ export default function Sidebar() {
         <span className="brand-tag">Studio Ledger</span>
       </div>
       <nav className="nav">
-        {navItems.map((item) => (
-          <Link key={item.href} href={item.href} className={pathname === item.href ? "active" : ""}>
-            {item.label}
-          </Link>
-        ))}
+        {navItems
+          .filter((item) => {
+            if (item.module === "dashboard" || item.module === "settings") return true;
+            if (!workspace) return true;
+            if (item.module === "inventory") return workspace.inventoryEnabled;
+            if (item.module === "projects") return workspace.projectTrackingEnabled;
+            return workspace.enabledModules.includes(item.module);
+          })
+          .map((item) => {
+            const label =
+              item.labelKey === "settings"
+                ? "Settings"
+                : workspace?.labels?.[item.labelKey] || item.labelKey;
+            return (
+              <Link key={item.href} href={item.href} className={pathname === item.href ? "active" : ""}>
+                {label}
+              </Link>
+            );
+          })}
         {readOnly || isTrial ? (
           <Link href="/plans" className={pathname === "/plans" ? "active" : ""}>
             Plans

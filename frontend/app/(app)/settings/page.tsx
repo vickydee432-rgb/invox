@@ -3,6 +3,24 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+
+const MODULE_OPTIONS = [
+  { key: "quotes", label: "Quotes" },
+  { key: "invoices", label: "Invoices" },
+  { key: "expenses", label: "Expenses" },
+  { key: "projects", label: "Projects" },
+  { key: "inventory", label: "Inventory" },
+  { key: "reports", label: "Reports" }
+];
+
+const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; note: string }[] = [
+  { value: "retail", label: "Retail", note: "Sales receipts, inventory, quick expenses." },
+  { value: "construction", label: "Construction", note: "Quotes → invoices, projects, VAT/ZRA." },
+  { value: "agency", label: "Agency", note: "Projects + client billing with quotes." },
+  { value: "services", label: "Services", note: "Invoices + expenses, no projects." },
+  { value: "freelance", label: "Freelance", note: "Simple invoicing and expenses." }
+];
 
 type Company = {
   name: string;
@@ -104,6 +122,15 @@ export default function SettingsPage() {
   const [zraPassword, setZraPassword] = useState("");
   const [zraAccessToken, setZraAccessToken] = useState("");
   const [zraApiKey, setZraApiKey] = useState("");
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceSaving, setWorkspaceSaving] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [workspaceSuccess, setWorkspaceSuccess] = useState("");
+  const [businessType, setBusinessType] = useState<WorkspaceConfig["businessType"]>("construction");
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [taxEnabled, setTaxEnabled] = useState(true);
+  const [inventoryEnabled, setInventoryEnabled] = useState(false);
+  const [projectTrackingEnabled, setProjectTrackingEnabled] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -144,6 +171,42 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const loadWorkspace = async () => {
+    setWorkspaceLoading(true);
+    setWorkspaceError("");
+    try {
+      const data = await apiFetch<{
+        businessType: WorkspaceConfig["businessType"];
+        enabledModules: string[];
+        labels: Record<string, string>;
+        taxEnabled: boolean;
+        inventoryEnabled: boolean;
+        projectTrackingEnabled: boolean;
+      }>("/api/company/workspace");
+      const config = buildWorkspace({
+        businessType: data.businessType,
+        enabledModules: data.enabledModules,
+        labels: data.labels,
+        taxEnabled: data.taxEnabled,
+        inventoryEnabled: data.inventoryEnabled,
+        projectTrackingEnabled: data.projectTrackingEnabled
+      });
+      setBusinessType(config.businessType);
+      setEnabledModules(config.enabledModules);
+      setTaxEnabled(config.taxEnabled);
+      setInventoryEnabled(config.inventoryEnabled);
+      setProjectTrackingEnabled(config.projectTrackingEnabled);
+    } catch (err: any) {
+      setWorkspaceError(err.message || "Failed to load workspace");
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkspace();
   }, []);
 
   const loadBillingStatus = async () => {
@@ -262,6 +325,69 @@ export default function SettingsPage() {
     }
   };
 
+  const handleBusinessTypeChange = (nextType: WorkspaceConfig["businessType"]) => {
+    const config = buildWorkspace({ businessType: nextType });
+    setBusinessType(config.businessType);
+    setEnabledModules(config.enabledModules);
+    setTaxEnabled(config.taxEnabled);
+    setInventoryEnabled(config.inventoryEnabled);
+    setProjectTrackingEnabled(config.projectTrackingEnabled);
+  };
+
+  const toggleModule = (moduleKey: string) => {
+    setEnabledModules((prev) => {
+      const hasModule = prev.includes(moduleKey);
+      const next = hasModule ? prev.filter((key) => key !== moduleKey) : [...prev, moduleKey];
+      if (moduleKey === "inventory") setInventoryEnabled(!hasModule);
+      if (moduleKey === "projects") setProjectTrackingEnabled(!hasModule);
+      return next;
+    });
+  };
+
+  const handleInventoryToggle = (checked: boolean) => {
+    setInventoryEnabled(checked);
+    setEnabledModules((prev) => {
+      const hasModule = prev.includes("inventory");
+      if (checked && !hasModule) return [...prev, "inventory"];
+      if (!checked && hasModule) return prev.filter((key) => key !== "inventory");
+      return prev;
+    });
+  };
+
+  const handleProjectToggle = (checked: boolean) => {
+    setProjectTrackingEnabled(checked);
+    setEnabledModules((prev) => {
+      const hasModule = prev.includes("projects");
+      if (checked && !hasModule) return [...prev, "projects"];
+      if (!checked && hasModule) return prev.filter((key) => key !== "projects");
+      return prev;
+    });
+  };
+
+  const handleWorkspaceSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setWorkspaceSaving(true);
+    setWorkspaceError("");
+    setWorkspaceSuccess("");
+    try {
+      await apiFetch("/api/company/workspace", {
+        method: "PUT",
+        body: JSON.stringify({
+          businessType,
+          enabledModules,
+          taxEnabled,
+          inventoryEnabled,
+          projectTrackingEnabled
+        })
+      });
+      setWorkspaceSuccess("Workspace updated.");
+    } catch (err: any) {
+      setWorkspaceError(err.message || "Failed to update workspace");
+    } finally {
+      setWorkspaceSaving(false);
+    }
+  };
+
   const handleZraConnect = async (event: React.FormEvent) => {
     event.preventDefault();
     setZraError("");
@@ -323,6 +449,8 @@ export default function SettingsPage() {
     }
   };
 
+  const businessNote = BUSINESS_TYPES.find((item) => item.value === businessType)?.note;
+
   if (loading) {
     return (
       <section className="panel">
@@ -379,6 +507,83 @@ export default function SettingsPage() {
               {billingError ? <div className="muted">{billingError}</div> : null}
             </div>
           </>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Workspace Mode</div>
+        {workspaceLoading ? (
+          <div className="muted">Loading workspace...</div>
+        ) : (
+          <form onSubmit={handleWorkspaceSave} style={{ display: "grid", gap: 16 }}>
+            <label className="field">
+              Business type
+              <select
+                value={businessType}
+                onChange={(e) => handleBusinessTypeChange(e.target.value as WorkspaceConfig["businessType"])}
+              >
+                {BUSINESS_TYPES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {businessNote ? <div className="muted">{businessNote}</div> : null}
+
+            <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+              Feature Flags
+            </div>
+            <div className="grid-2">
+              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
+                Tax / VAT enabled
+              </label>
+              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={inventoryEnabled}
+                  onChange={(e) => handleInventoryToggle(e.target.checked)}
+                />
+                Inventory enabled
+              </label>
+              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={projectTrackingEnabled}
+                  onChange={(e) => handleProjectToggle(e.target.checked)}
+                />
+                Project tracking enabled
+              </label>
+            </div>
+
+            <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+              Enabled Modules
+            </div>
+            <div className="grid-2">
+              {MODULE_OPTIONS.map((module) => (
+                <label key={module.key} className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={enabledModules.includes(module.key)}
+                    onChange={() => toggleModule(module.key)}
+                  />
+                  {module.label}
+                </label>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="button" type="submit" disabled={workspaceSaving}>
+                {workspaceSaving ? "Saving..." : "Save workspace"}
+              </button>
+              <button className="button secondary" type="button" onClick={loadWorkspace}>
+                Reset to saved
+              </button>
+              {workspaceSuccess ? <div className="muted">{workspaceSuccess}</div> : null}
+              {workspaceError ? <div className="muted">{workspaceError}</div> : null}
+            </div>
+          </form>
         )}
       </section>
 

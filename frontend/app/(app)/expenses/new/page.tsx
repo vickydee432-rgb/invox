@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 export default function NewExpensePage() {
   const router = useRouter();
@@ -20,6 +21,28 @@ export default function NewExpensePage() {
   const [projectLabel, setProjectLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState("");
+
+  useState(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (!date) setDate(today);
+  });
+
+  useState(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        const config = buildWorkspace(data.company);
+        setWorkspace(config);
+        if (config.businessType === "retail" && !category) setCategory("stock purchase");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  });
 
   const handlePasteSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -66,7 +89,8 @@ export default function NewExpensePage() {
           category,
           amount,
           date,
-          projectLabel: projectLabel || undefined
+          projectLabel: projectLabel || undefined,
+          receipts: receiptUrl ? [{ url: receiptUrl }] : undefined
         })
       });
       router.push("/expenses");
@@ -76,6 +100,18 @@ export default function NewExpensePage() {
       setSaving(false);
     }
   };
+
+  if (workspace && !workspace.enabledModules.includes("expenses")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.expenses || "Expenses"}</div>
+        <div className="muted">Expenses are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => router.push("/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -147,7 +183,9 @@ export default function NewExpensePage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">Create Expense</div>
+        <div className="panel-title">
+          {workspace?.businessType === "retail" ? "Quick Add Expense" : "Create Expense"}
+        </div>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
           <div className="grid-2">
             <label className="field">
@@ -156,7 +194,16 @@ export default function NewExpensePage() {
             </label>
             <label className="field">
               Category
-              <input value={category} onChange={(e) => setCategory(e.target.value)} required />
+              {workspace?.businessType === "retail" ? (
+                <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+                  <option value="stock purchase">Stock purchase</option>
+                  <option value="utilities">Utilities</option>
+                  <option value="transport">Transport</option>
+                  <option value="other">Other</option>
+                </select>
+              ) : (
+                <input value={category} onChange={(e) => setCategory(e.target.value)} required />
+              )}
             </label>
             <label className="field">
               Amount
@@ -172,10 +219,18 @@ export default function NewExpensePage() {
               Date
               <input value={date} onChange={(e) => setDate(e.target.value)} type="date" required />
             </label>
-            <label className="field">
-              Project label (optional)
-              <input value={projectLabel} onChange={(e) => setProjectLabel(e.target.value)} />
-            </label>
+            {workspace?.projectTrackingEnabled ? (
+              <label className="field">
+                Project label (optional)
+                <input value={projectLabel} onChange={(e) => setProjectLabel(e.target.value)} />
+              </label>
+            ) : null}
+            {workspace?.businessType === "retail" ? (
+              <label className="field">
+                Receipt image URL (optional)
+                <input value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} />
+              </label>
+            ) : null}
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <button className="button" type="submit" disabled={saving}>

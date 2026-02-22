@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiDownload, apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Quote = {
   _id: string;
@@ -23,6 +24,7 @@ export default function QuotesPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [shareLink, setShareLink] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const loadQuotes = async (targetPage = page) => {
     setLoading(true);
@@ -46,6 +48,19 @@ export default function QuotesPage() {
   useEffect(() => {
     loadQuotes(page);
   }, [page]);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSend = async (id: string) => {
     try {
@@ -90,9 +105,21 @@ export default function QuotesPage() {
     }
   };
 
+  if (workspace && !workspace.enabledModules.includes("quotes")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.quotes || "Quotes"}</div>
+        <div className="muted">Quotes are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => router.push("/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section className="panel">
-      <div className="panel-title">Quotes</div>
+      <div className="panel-title">{workspace?.labels?.quotes || "Quotes"}</div>
       {loading ? (
         <div className="muted">Loading quotes...</div>
       ) : (

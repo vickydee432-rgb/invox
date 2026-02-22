@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const { applyWorkspace } = require("../services/workspace");
 const { handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 
@@ -43,7 +44,8 @@ const RegisterSchema = z.object({
         mobileMoney: z.string().optional(),
         paymentInstructions: z.string().optional()
       })
-      .optional()
+      .optional(),
+    businessType: z.enum(["retail", "construction", "agency", "services", "freelance"]).optional()
   })
 });
 
@@ -79,7 +81,7 @@ router.post("/register", async (req, res) => {
     const existing = await User.findOne({ email: parsed.email.toLowerCase() }).lean();
     if (existing) return res.status(409).json({ error: "Email already in use" });
 
-    const company = await Company.create({
+    const company = new Company({
       name: parsed.company.name.trim(),
       legalName: parsed.company.legalName,
       logoUrl: parsed.company.logoUrl,
@@ -93,6 +95,9 @@ router.post("/register", async (req, res) => {
       subscriptionStatus: "trialing",
       trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     });
+    applyWorkspace(company, parsed.company.businessType || "construction");
+    company.workspaceConfigured = Boolean(parsed.company.businessType);
+    await company.save();
 
     const passwordHash = await bcrypt.hash(parsed.password, 12);
     const user = await User.create({

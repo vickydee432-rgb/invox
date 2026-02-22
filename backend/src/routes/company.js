@@ -4,6 +4,7 @@ const Company = require("../models/Company");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { handleRouteError } = require("./_helpers");
+const { applyWorkspace } = require("../services/workspace");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription);
@@ -40,6 +41,15 @@ const CompanyUpdateSchema = z.object({
     .optional()
 });
 
+const WorkspaceUpdateSchema = z.object({
+  businessType: z.enum(["retail", "construction", "agency", "services", "freelance"]),
+  enabledModules: z.array(z.string()).optional(),
+  labels: z.record(z.string()).optional(),
+  taxEnabled: z.boolean().optional(),
+  inventoryEnabled: z.boolean().optional(),
+  projectTrackingEnabled: z.boolean().optional()
+});
+
 router.get("/me", async (req, res) => {
   try {
     const company = await Company.findById(req.user.companyId).lean();
@@ -71,6 +81,37 @@ router.put("/me", async (req, res) => {
     res.json({ company });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update company");
+  }
+});
+
+router.get("/workspace", async (req, res) => {
+  try {
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    res.json({
+      businessType: company.businessType,
+      enabledModules: company.enabledModules || [],
+      labels: company.labels || {},
+      taxEnabled: company.taxEnabled ?? true,
+      inventoryEnabled: company.inventoryEnabled ?? false,
+      projectTrackingEnabled: company.projectTrackingEnabled ?? true,
+      workspaceConfigured: company.workspaceConfigured ?? false
+    });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to load workspace settings");
+  }
+});
+
+router.put("/workspace", async (req, res) => {
+  try {
+    const parsed = WorkspaceUpdateSchema.parse(req.body);
+    const company = await Company.findById(req.user.companyId);
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    applyWorkspace(company, parsed.businessType, parsed);
+    await company.save();
+    res.json({ company });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to update workspace settings");
   }
 });
 

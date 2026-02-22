@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiDownload, apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Summary = {
   quotes_count: number;
@@ -17,6 +18,14 @@ type Summary = {
   overdue_count: number;
 };
 
+type RetailSummary = {
+  sales_today: number;
+  expenses_today: number;
+  profit_today: number;
+  stock_value: number;
+  low_stock_count: number;
+};
+
 type SeriesRow = {
   month: string;
   billed: number;
@@ -27,6 +36,8 @@ type SeriesRow = {
 export default function ReportsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [retailSummary, setRetailSummary] = useState<RetailSummary | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -41,11 +52,15 @@ export default function ReportsPage() {
 
     const query = params.toString();
     try {
-      const data = await apiFetch<{ summary: Summary; series: SeriesRow[] }>(
-        `/api/reports/overview${query ? `?${query}` : ""}`
-      );
+      const data = await apiFetch<{
+        summary: Summary;
+        series: SeriesRow[];
+        businessType?: string;
+        retail?: RetailSummary | null;
+      }>(`/api/reports/overview${query ? `?${query}` : ""}`);
       setSummary(data.summary);
       setSeries(data.series || []);
+      setRetailSummary(data.retail || null);
     } catch (err: any) {
       setError(err.message || "Failed to load reports");
     } finally {
@@ -85,10 +100,38 @@ export default function ReportsPage() {
     loadReports();
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const invoiceLabel = workspace?.labels?.invoices || "Invoices";
+  const quoteLabel = workspace?.labels?.quotes || "Quotes";
+
+  if (workspace && !workspace.enabledModules.includes("reports")) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace?.labels?.reports || "Reports"}</div>
+        <div className="muted">Reports are disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => (window.location.href = "/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
+
   return (
     <>
       <section className="panel">
-        <div className="panel-title">Reports</div>
+        <div className="panel-title">{workspace?.labels?.reports || "Reports"}</div>
         <div className="grid-2">
           <label className="field">
             From
@@ -119,35 +162,69 @@ export default function ReportsPage() {
           <div className="muted">Loading summary...</div>
         ) : summary ? (
           <div className="stat-grid">
-            <div className="stat-card">
-              <div className="muted">Quotes total</div>
-              <div className="stat-value">{summary.quotes_total.toFixed(2)}</div>
-              <div className="muted">Count: {summary.quotes_count}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Invoices billed</div>
-              <div className="stat-value">{summary.invoices_billed_total.toFixed(2)}</div>
-              <div className="muted">Count: {summary.invoices_count}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Invoices paid</div>
-              <div className="stat-value">{summary.invoices_paid_total.toFixed(2)}</div>
-              <div className="muted">Outstanding: {summary.invoices_outstanding.toFixed(2)}</div>
-            </div>
+            {workspace?.businessType === "retail" && retailSummary ? (
+              <>
+                <div className="stat-card">
+                  <div className="muted">Sales today</div>
+                  <div className="stat-value">{retailSummary.sales_today.toFixed(2)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Expenses today</div>
+                  <div className="stat-value">{retailSummary.expenses_today.toFixed(2)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Profit today</div>
+                  <div className="stat-value">{retailSummary.profit_today.toFixed(2)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Stock value</div>
+                  <div className="stat-value">{retailSummary.stock_value.toFixed(2)}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="muted">Low stock items</div>
+                  <div className="stat-value">{retailSummary.low_stock_count}</div>
+                </div>
+              </>
+            ) : null}
+            {workspace?.enabledModules?.includes("quotes") ? (
+              <div className="stat-card">
+                <div className="muted">{quoteLabel} total</div>
+                <div className="stat-value">{summary.quotes_total.toFixed(2)}</div>
+                <div className="muted">Count: {summary.quotes_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules?.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">{invoiceLabel} billed</div>
+                <div className="stat-value">{summary.invoices_billed_total.toFixed(2)}</div>
+                <div className="muted">Count: {summary.invoices_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules?.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">{invoiceLabel} paid</div>
+                <div className="stat-value">{summary.invoices_paid_total.toFixed(2)}</div>
+                <div className="muted">Outstanding: {summary.invoices_outstanding.toFixed(2)}</div>
+              </div>
+            ) : null}
             <div className="stat-card">
               <div className="muted">Expenses</div>
               <div className="stat-value">{summary.expenses_total.toFixed(2)}</div>
               <div className="muted">Count: {summary.expenses_count}</div>
             </div>
-            <div className="stat-card">
-              <div className="muted">Profit (paid)</div>
-              <div className="stat-value">{summary.profit_on_paid.toFixed(2)}</div>
-              <div className="muted">Overdue: {summary.overdue_count}</div>
-            </div>
-            <div className="stat-card">
-              <div className="muted">Profit (billed)</div>
-              <div className="stat-value">{summary.profit_on_billed.toFixed(2)}</div>
-            </div>
+            {workspace?.enabledModules?.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">Profit (paid)</div>
+                <div className="stat-value">{summary.profit_on_paid.toFixed(2)}</div>
+                <div className="muted">Overdue: {summary.overdue_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules?.includes("invoices") ? (
+              <div className="stat-card">
+                <div className="muted">Profit (billed)</div>
+                <div className="stat-value">{summary.profit_on_billed.toFixed(2)}</div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="muted">No summary available.</div>

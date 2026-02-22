@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiDownload, apiFetch } from "@/lib/api";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Project = {
   _id: string;
@@ -33,6 +34,7 @@ export default function ProjectsPage() {
   const [openingBalance, setOpeningBalance] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -50,6 +52,19 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -137,6 +152,18 @@ export default function ProjectsPage() {
     }
   };
 
+  if (workspace && !workspace.projectTrackingEnabled) {
+    return (
+      <section className="panel">
+        <div className="panel-title">{workspace.labels?.projects || "Projects"}</div>
+        <div className="muted">Project tracking is disabled for this workspace.</div>
+        <button className="button" type="button" onClick={() => (window.location.href = "/settings")}>
+          Update workspace
+        </button>
+      </section>
+    );
+  }
+
   return (
     <>
       <section className="panel">
@@ -219,7 +246,7 @@ export default function ProjectsPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">Projects</div>
+        <div className="panel-title">{workspace?.labels?.projects || "Projects"}</div>
         {loading ? (
           <div className="muted">Loading projects...</div>
         ) : (

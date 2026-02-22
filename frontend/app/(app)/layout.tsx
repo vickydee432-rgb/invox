@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import { getToken } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [readOnly, setReadOnly] = useState(false);
 
   useEffect(() => {
@@ -31,6 +32,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: { workspaceConfigured?: boolean } }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        if (!data.company?.workspaceConfigured && pathname !== "/onboarding") {
+          router.replace("/onboarding");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [pathname, router]);
 
   return (
     <div className={`app-shell${readOnly ? " read-only" : ""}`}>
