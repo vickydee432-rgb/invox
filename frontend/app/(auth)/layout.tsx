@@ -16,6 +16,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="badge">Built for small teams and solo operators</div>
       </section>
       <section className="auth-card">{children}</section>
+      <footer className="app-footer">
+        <span className="muted">© {new Date().getFullYear()} Invox</span>
+        <div className="footer-links">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+        </div>
+      </footer>
     </div>
   );
 }
