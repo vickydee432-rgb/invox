@@ -285,6 +285,10 @@ export default function InvoicesPage() {
     }
   };
 
+  const handlePrintReceipt = (invoice: Invoice) => {
+    window.open(`/invoices/${invoice._id}/receipt`, "_blank");
+  };
+
   const handleDelete = async (invoice: Invoice) => {
     const ok = window.confirm(`Delete invoice ${invoice.invoiceNo}? This cannot be undone.`);
     if (!ok) return;
@@ -631,6 +635,11 @@ export default function InvoicesPage() {
                       <button className="button secondary" onClick={() => startEdit(invoice)}>
                         Edit
                       </button>
+                      {workspace?.businessType === "retail" && invoice.invoiceType !== "purchase" ? (
+                        <button className="button secondary" onClick={() => handlePrintReceipt(invoice)}>
+                          Print
+                        </button>
+                      ) : null}
                       {workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
                         <button className="button secondary" onClick={() => handleSubmitZra(invoice)}>
                           Submit ZRA

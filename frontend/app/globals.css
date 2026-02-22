@@ -693,6 +693,95 @@ a {
   font-weight: 700;
 }
 
+.receipt-page {
+  display: grid;
+  gap: 16px;
+}
+
+.receipt-toolbar {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.receipt-sheet {
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  background: #fff;
+}
+
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.receipt-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.receipt-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.receipt-block {
+  text-align: right;
+}
+
+.receipt-label {
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.receipt-divider {
+  height: 1px;
+  background: rgba(27, 31, 42, 0.12);
+  margin: 14px 0;
+}
+
+.receipt-section {
+  display: grid;
+  gap: 4px;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.receipt-table th,
+.receipt-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(27, 31, 42, 0.12);
+  text-align: left;
+}
+
+.receipt-totals {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.receipt-totals div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.receipt-total-row {
+  font-weight: 700;
+}
+
 .pulse {
   animation: pulse 6s ease-in-out infinite;
 }
@@ -846,6 +935,15 @@ a {
     width: 100%;
   }
 
+  .receipt-sheet {
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .receipt-block {
+    text-align: left;
+  }
+
   .app-footer {
     flex-direction: column;
     align-items: flex-start;
@@ -890,6 +988,10 @@ a {
     text-align: center;
   }
 
+  .receipt-toolbar {
+    justify-content: stretch;
+  }
+
   .nav-actions {
     justify-content: stretch;
   }
@@ -907,5 +1009,38 @@ a {
   .invoice-tabs button {
     font-size: 11px;
     padding: 6px 10px;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .sidebar,
+  .topbar,
+  .app-footer,
+  .receipt-toolbar {
+    display: none !important;
+  }
+
+  .app-shell {
+    padding: 0;
+  }
+
+  .content {
+    max-width: none;
+    margin: 0;
+  }
+
+  .panel {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .receipt-sheet {
+    border: none;
+    box-shadow: none;
   }
 }
