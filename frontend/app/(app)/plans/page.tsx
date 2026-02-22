@@ -24,16 +24,16 @@ export default function PlansPage() {
   const dodoMode = process.env.NEXT_PUBLIC_DODO_MODE === "test" ? "test" : "live";
   const pricing = {
     starter: {
-      monthly: { price: "K150", note: "/month" },
-      yearly: { price: "K1500", note: "/year" }
+      monthly: { price: "$10.99", note: "/month" },
+      yearly: { price: "$119.99", note: "/year" }
     },
     pro: {
-      monthly: { price: "K350", note: "/month" },
-      yearly: { price: "K3500", note: "/year" }
+      monthly: { price: "$19.99", note: "/month" },
+      yearly: { price: "$239.99", note: "/year" }
     },
     businessplus: {
-      monthly: { price: "K750", note: "/month" },
-      yearly: { price: "K7500", note: "/year" }
+      monthly: { price: "$39.99", note: "/month" },
+      yearly: { price: "$479.99", note: "/year" }
     }
   };
 
