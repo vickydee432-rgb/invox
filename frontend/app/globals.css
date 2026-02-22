@@ -176,6 +176,21 @@ a {
   letter-spacing: 0;
 }
 
+.field.error input,
+.field.error select,
+.field.error textarea {
+  border-color: #d65b5b;
+  box-shadow: 0 0 0 2px rgba(214, 91, 91, 0.15);
+}
+
+.field-error {
+  color: #d65b5b;
+  font-size: 12px;
+  margin-top: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .button {
   background: var(--brand);
   color: #fff;
@@ -693,6 +708,111 @@ a {
   font-weight: 700;
 }
 
+.mobile-dashboard {
+  display: none;
+}
+
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.icon-button {
+  border: none;
+  background: #fff;
+  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.mobile-balance-card {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.mobile-balance {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+
+.mobile-action-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mobile-action {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.mobile-section {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.link-button {
+  border: none;
+  background: #fff;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+}
+
+.mobile-amount {
+  font-weight: 700;
+}
+
 .receipt-page {
   display: grid;
   gap: 16px;
@@ -845,6 +965,23 @@ a {
 }
 
 @media (max-width: 720px) {
+  .dashboard-desktop {
+    display: none;
+  }
+
+  .mobile-dashboard {
+    display: grid;
+    gap: 16px;
+  }
+
+  .mobile-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-balance {
+    font-size: 24px;
+  }
+
   .app-shell {
     padding: 14px;
     gap: 14px;

@@ -33,14 +33,23 @@ export default function RegisterPage() {
   const [mobileMoney, setMobileMoney] = useState("");
   const [paymentInstructions, setPaymentInstructions] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError("");
-    if (!businessType) {
-      setError("Select a business type.");
+    const nextErrors: Record<string, string> = {};
+    if (!name.trim()) nextErrors.name = "Name is required.";
+    if (!email.trim()) nextErrors.email = "Email is required.";
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) nextErrors.email = "Enter a valid email.";
+    if (!password.trim()) nextErrors.password = "Password is required.";
+    if (password && password.length < 8) nextErrors.password = "Password must be at least 8 characters.";
+    if (!companyName.trim()) nextErrors.companyName = "Company name is required.";
+    if (!businessType) nextErrors.businessType = "Select a business type.";
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
       setLoading(false);
       return;
     }
@@ -94,15 +103,17 @@ export default function RegisterPage() {
       <h2 className="panel-title">Create your account</h2>
       <p className="muted">Add your user and company details to get started.</p>
       <form onSubmit={handleSubmit} style={{ marginTop: 20, display: "grid", gap: 14 }}>
-        <label className="field">
+        <label className={`field${fieldErrors.name ? " error" : ""}`}>
           Name
           <input value={name} onChange={(e) => setName(e.target.value)} required />
+          {fieldErrors.name ? <span className="field-error">{fieldErrors.name}</span> : null}
         </label>
-        <label className="field">
+        <label className={`field${fieldErrors.email ? " error" : ""}`}>
           Email
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+          {fieldErrors.email ? <span className="field-error">{fieldErrors.email}</span> : null}
         </label>
-        <label className="field">
+        <label className={`field${fieldErrors.password ? " error" : ""}`}>
           Password
           <input
             value={password}
@@ -110,11 +121,12 @@ export default function RegisterPage() {
             type="password"
             required
           />
+          {fieldErrors.password ? <span className="field-error">{fieldErrors.password}</span> : null}
         </label>
         <div className="panel-title" style={{ fontSize: 16, marginTop: 10 }}>
           Company Details
         </div>
-        <label className="field">
+        <label className={`field${fieldErrors.businessType ? " error" : ""}`}>
           Business type
           <select value={businessType} onChange={(e) => setBusinessType(e.target.value)} required>
             <option value="">Select a business type</option>
@@ -124,10 +136,12 @@ export default function RegisterPage() {
             <option value="services">Services</option>
             <option value="freelance">Freelance</option>
           </select>
+          {fieldErrors.businessType ? <span className="field-error">{fieldErrors.businessType}</span> : null}
         </label>
-        <label className="field">
+        <label className={`field${fieldErrors.companyName ? " error" : ""}`}>
           Company name
           <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+          {fieldErrors.companyName ? <span className="field-error">{fieldErrors.companyName}</span> : null}
         </label>
         <label className="field">
           Legal name (optional)
