@@ -262,8 +262,12 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    loadZraStatus();
-  }, []);
+    if (taxEnabled) {
+      loadZraStatus();
+    } else {
+      setZraConnections([]);
+    }
+  }, [taxEnabled]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

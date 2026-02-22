@@ -738,6 +738,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .grid-two {
+    grid-template-columns: 1fr;
+  }
+
   .invoice-header {
     grid-template-columns: 1fr;
   }
@@ -748,5 +752,160 @@ a {
 
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .sidebar {
+    position: static;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .brand {
+    font-size: 22px;
+  }
+
+  .nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav a {
+    white-space: nowrap;
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .nav-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .content {
+    gap: 16px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .topbar {
+    padding: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar .badge {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table th,
+  .table td {
+    white-space: nowrap;
+  }
+
+  .invoice-table-wrap {
+    overflow-x: auto;
+  }
+
+  .invoice-table {
+    min-width: 680px;
+  }
+
+  .invoice-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invoice-actions {
+    flex-wrap: wrap;
+  }
+
+  .invoice-summary {
+    width: 100%;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .footer-links {
+    flex-wrap: wrap;
+  }
+
+  .plans-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .plans-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .panel {
+    padding: 16px;
+  }
+
+  .topbar p {
+    display: none;
+  }
+
+  .topbar .panel-title {
+    font-size: 18px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .nav-actions {
+    justify-content: stretch;
+  }
+
+  .nav-actions .button {
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 6px;
+    font-size: 13px;
+  }
+
+  .invoice-tabs button {
+    font-size: 11px;
+    padding: 6px 10px;
   }
 }

@@ -137,6 +137,13 @@ export default function NewInvoicePage() {
 
   useEffect(() => {
     let mounted = true;
+    if (workspace && !workspace.inventoryEnabled) {
+      setBranches([]);
+      setProducts([]);
+      return () => {
+        mounted = false;
+      };
+    }
     Promise.all([
       apiFetch<{ branches: Branch[] }>("/api/branches"),
       apiFetch<{ products: Product[] }>("/api/products")
@@ -154,7 +161,7 @@ export default function NewInvoicePage() {
     return () => {
       mounted = false;
     };
-  }, [branchId]);
+  }, [branchId, workspace]);
 
   const normalizeLine = (line: string) =>
     line

@@ -21,7 +21,7 @@ export default function PlansPage() {
   const [subscribingPlan, setSubscribingPlan] = useState("");
   const [checkoutReady, setCheckoutReady] = useState(false);
   const checkoutRef = useRef<any>(null);
-  const dodoMode = process.env.NEXT_PUBLIC_DODO_MODE === "live" ? "live" : "test";
+  const dodoMode = process.env.NEXT_PUBLIC_DODO_MODE === "test" ? "test" : "live";
   const pricing = {
     starter: {
       monthly: { price: "K150", note: "/month" },
@@ -92,7 +92,10 @@ export default function PlansPage() {
       if (data.checkoutUrl && checkoutRef.current) {
         checkoutRef.current.Checkout.open({
           checkoutUrl: data.checkoutUrl,
-          elementId: "dodo-inline-checkout"
+          elementId: "dodo-inline-checkout",
+          iframeResizerOptions: {
+            checkOrigin: false
+          }
         });
         const section = document.getElementById("checkout-section");
         if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
