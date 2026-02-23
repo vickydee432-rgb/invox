@@ -28,7 +28,7 @@ const iconProps = {
   strokeLinejoin: "round"
 };
 
-const ICONS: Record<string, JSX.Element> = {
+const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
     <svg {...iconProps}>
       <path d="M3 10.5L12 3l9 7.5" />
