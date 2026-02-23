@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   description: "Invoices, quotes, expenses, and projects in one workspace."
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sora.variable} ${prata.variable}`}>

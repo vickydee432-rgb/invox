@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import MobileNav from "@/components/MobileNav";
 import Topbar from "@/components/Topbar";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -62,6 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </footer>
       </main>
+      <MobileNav />
     </div>
   );
 }

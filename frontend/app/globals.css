@@ -712,6 +712,10 @@ a {
   display: none;
 }
 
+.mobile-nav {
+  display: none;
+}
+
 .mobile-header {
   display: flex;
   align-items: center;
@@ -965,6 +969,63 @@ a {
 }
 
 @media (max-width: 720px) {
+  body {
+    background: #cfd3d8;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .content {
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+    max-width: 520px;
+  }
+
+  .mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    position: fixed;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    left: 16px;
+    right: 16px;
+    background: #f7f7f8;
+    border-radius: 26px;
+    padding: 10px 12px;
+    box-shadow: 0 22px 42px rgba(24, 33, 46, 0.2);
+    border: 1px solid rgba(20, 24, 34, 0.08);
+    z-index: 20;
+  }
+
+  .mobile-nav a {
+    display: grid;
+    gap: 6px;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5f6671;
+  }
+
+  .mobile-nav a.active {
+    color: var(--ink);
+  }
+
+  .mobile-nav-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 16px;
+    background: #fff;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 10px 22px rgba(24, 33, 46, 0.14);
+  }
+
+  .mobile-nav a.active .mobile-nav-icon {
+    background: rgba(240, 93, 35, 0.15);
+    color: var(--brand);
+  }
+
   .dashboard-desktop {
     display: none;
   }
@@ -983,7 +1044,7 @@ a {
   }
 
   .app-shell {
-    padding: 14px;
+    padding: 16px;
     gap: 14px;
   }
 
