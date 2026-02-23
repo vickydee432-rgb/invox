@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
+import MobileHeader from "@/components/MobileHeader";
 import Topbar from "@/components/Topbar";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -53,6 +54,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className={`app-shell${readOnly ? " read-only" : ""}`}>
       <Sidebar />
       <main className="content">
+        <MobileHeader />
         <Topbar />
         {children}
         <footer className="app-footer">
