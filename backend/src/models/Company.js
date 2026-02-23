@@ -52,7 +52,7 @@ const CompanySchema = new mongoose.Schema(
     subscriptionStatus: {
       type: String,
       enum: ["trialing", "active", "past_due", "cancelled", "expired", "inactive", "pending"],
-      default: "trialing",
+      default: "pending",
       index: true
     },
     subscriptionPlan: { type: String, enum: ["starter", "pro", "businessplus"], default: "pro" },

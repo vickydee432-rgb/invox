@@ -92,8 +92,7 @@ router.post("/register", async (req, res) => {
       currency: parsed.company.currency || "USD",
       address: parsed.company.address || {},
       payment: parsed.company.payment || {},
-      subscriptionStatus: "trialing",
-      trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+      subscriptionStatus: "pending"
     });
     applyWorkspace(company, parsed.company.businessType);
     await company.save();
