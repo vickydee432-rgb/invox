@@ -26,7 +26,7 @@ const iconProps = {
   strokeWidth: 1.8,
   strokeLinecap: "round",
   strokeLinejoin: "round"
-};
+} as const;
 
 const ICONS: Record<string, React.ReactNode> = {
   dashboard: (
