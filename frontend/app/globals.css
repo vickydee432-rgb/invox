@@ -1024,8 +1024,7 @@ a {
 
   .auth-card {
     padding: 20px 16px 40px;
-    align-items: stretch;
-    justify-content: flex-start;
+    display: block;
   }
 
   .card {
