@@ -324,50 +324,55 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <section className="panel">
-        <div className="panel-title">Update Payment</div>
-        <form onSubmit={handlePayment} style={{ display: "grid", gap: 16 }}>
-          <div className="grid-2">
-            <label className="field">
-              {workspace?.labels?.invoiceSingular || "Invoice"}
-              <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-                {invoices.map((inv) => (
-                  <option key={inv._id} value={inv._id}>
-                    {inv.invoiceNo} · {inv.customerName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Amount paid
-              <input
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(Number(e.target.value))}
-                type="number"
-                min={0}
-                required
-              />
-            </label>
-          </div>
-          <button className="button" type="submit" disabled={updating || !selectedId}>
-            {updating ? "Updating..." : "Save payment"}
-          </button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div className="panel-title">
-            {editId ? `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}` : `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}`}
-          </div>
-          {editId ? (
-            <button className="button secondary" type="button" onClick={() => setShowEdit((prev) => !prev)}>
-              {showEdit ? "Hide" : "Open"}
+      <details className="panel mobile-collapse">
+        <summary>Update Payment</summary>
+        <div className="mobile-collapse-body">
+          <div className="panel-title">Update Payment</div>
+          <form onSubmit={handlePayment} style={{ display: "grid", gap: 16 }}>
+            <div className="grid-2">
+              <label className="field">
+                {workspace?.labels?.invoiceSingular || "Invoice"}
+                <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+                  {invoices.map((inv) => (
+                    <option key={inv._id} value={inv._id}>
+                      {inv.invoiceNo} · {inv.customerName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Amount paid
+                <input
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(Number(e.target.value))}
+                  type="number"
+                  min={0}
+                  required
+                />
+              </label>
+            </div>
+            <button className="button" type="submit" disabled={updating || !selectedId}>
+              {updating ? "Updating..." : "Save payment"}
             </button>
-          ) : null}
+          </form>
         </div>
-        {showEdit && editId ? (
-          <form onSubmit={handleEditSubmit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
+      </details>
+
+      <details className="panel mobile-collapse" open={Boolean(editId && showEdit)}>
+        <summary>{editId ? `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}` : `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}`}</summary>
+        <div className="mobile-collapse-body">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div className="panel-title">
+              {editId ? `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}` : `Edit ${workspace?.labels?.invoiceSingular || "Invoice"}`}
+            </div>
+            {editId ? (
+              <button className="button secondary edit-toggle" type="button" onClick={() => setShowEdit((prev) => !prev)}>
+                {showEdit ? "Hide" : "Open"}
+              </button>
+            ) : null}
+          </div>
+          {showEdit && editId ? (
+            <form onSubmit={handleEditSubmit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
             <div className="grid-2">
               <label className="field">
                 Invoice number
@@ -569,13 +574,14 @@ export default function InvoicesPage() {
               ) : null}
             </div>
           </form>
-        ) : (
-          <div className="muted" style={{ marginTop: 12 }}>
-            Select an invoice and click Edit to open.
-          </div>
-        )}
-        {error ? <div className="muted">{error}</div> : null}
-      </section>
+          ) : (
+            <div className="muted" style={{ marginTop: 12 }}>
+              Select an invoice and click Edit to open.
+            </div>
+          )}
+          {error ? <div className="muted">{error}</div> : null}
+        </div>
+      </details>
 
       <section className="panel">
         <div className="panel-title">{workspace?.labels?.invoices || "Invoices"}</div>
@@ -583,7 +589,7 @@ export default function InvoicesPage() {
           <div className="muted">Loading invoices...</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+            <div className="action-row" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
               <Link className="button" href="/invoices/new">
                 {workspace?.labels?.invoiceSingular ? `Create ${workspace.labels.invoiceSingular}` : "Create invoice"}
               </Link>

@@ -232,7 +232,10 @@ export default function ExpensesPage() {
           <div className="muted">Loading expenses...</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+            <div
+              className="filter-row"
+              style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}
+            >
               <label className="field" style={{ flex: "1 1 240px" }}>
                 Search keyword
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. shantumbu" />
@@ -285,7 +288,10 @@ export default function ExpensesPage() {
             </div>
 
             {workspace?.projectTrackingEnabled ? (
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+              <div
+                className="assign-row"
+                style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}
+              >
                 <label className="field" style={{ minWidth: 220 }}>
                   Add to project
                   <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
