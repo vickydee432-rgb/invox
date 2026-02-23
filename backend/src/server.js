@@ -16,6 +16,7 @@ const { startZraSyncWorker } = require("./workers/zraWorker");
 const branchesRoutes = require("./routes/branches");
 const productsRoutes = require("./routes/products");
 const stockRoutes = require("./routes/stock");
+const usersRoutes = require("./routes/users");
 
 const app = express();
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
@@ -44,6 +45,7 @@ app.use("/api/expenses", expensesRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/integrations/zra", zraRoutes);
 app.use("/api/billing", billingRouter);
+app.use("/api/users", usersRoutes);
 app.use("/api/branches", branchesRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/stock", stockRoutes);

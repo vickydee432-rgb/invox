@@ -102,13 +102,14 @@ router.post("/register", async (req, res) => {
       name: parsed.name.trim(),
       email: parsed.email.toLowerCase(),
       passwordHash,
-      companyId: company._id
+      companyId: company._id,
+      role: "owner"
     });
 
     const token = signToken(user);
     res.status(201).json({
       token,
-      user: { _id: user._id, name: user.name, email: user.email, companyId: user.companyId }
+      user: { _id: user._id, name: user.name, email: user.email, companyId: user.companyId, role: user.role }
     });
   } catch (err) {
     return handleRouteError(res, err, "Failed to register");
@@ -125,7 +126,7 @@ router.post("/login", async (req, res) => {
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = signToken(user);
-    res.json({ token, user: { _id: user._id, name: user.name, email: user.email } });
+    res.json({ token, user: { _id: user._id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     return handleRouteError(res, err, "Failed to login");
   }

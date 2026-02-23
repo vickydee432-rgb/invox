@@ -61,6 +61,22 @@ type Company = {
   };
 };
 
+type TeamUser = {
+  _id: string;
+  name: string;
+  email: string;
+  role: "owner" | "admin" | "member";
+  createdAt?: string;
+};
+
+type TeamInvite = {
+  _id: string;
+  email: string;
+  role: "owner" | "admin" | "member";
+  createdAt?: string;
+  expiresAt?: string;
+};
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,9 +119,20 @@ export default function SettingsPage() {
     readOnly: boolean;
     trialEndsAt?: string;
     currentPeriodEnd?: string;
+    seatLimit?: number | null;
+    seatsUsed?: number;
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
+  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
+  const [teamInvites, setTeamInvites] = useState<TeamInvite[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState("");
+  const [teamSuccess, setTeamSuccess] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviteLink, setInviteLink] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState<"owner" | "admin" | "member">("member");
   const [zraConnections, setZraConnections] = useState<
     {
       id: string;
@@ -222,6 +249,47 @@ export default function SettingsPage() {
     loadWorkspace();
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ user: { role?: "owner" | "admin" | "member" } }>("/api/auth/me")
+      .then((data) => {
+        if (!active) return;
+        if (data.user?.role) setCurrentUserRole(data.user.role);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadTeam = async () => {
+    setTeamLoading(true);
+    setTeamError("");
+    try {
+      const data = await apiFetch<{
+        users: TeamUser[];
+        invites: TeamInvite[];
+        seatLimit?: number | null;
+        seatsUsed?: number;
+      }>("/api/users");
+      setTeamUsers(data.users || []);
+      setTeamInvites(data.invites || []);
+      setBillingStatus((prev) =>
+        prev
+          ? { ...prev, seatLimit: data.seatLimit ?? prev.seatLimit, seatsUsed: data.seatsUsed ?? prev.seatsUsed }
+          : prev
+      );
+    } catch (err: any) {
+      setTeamError(err.message || "Failed to load team");
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTeam();
+  }, []);
+
   const loadBillingStatus = async () => {
     setBillingLoading(true);
     setBillingError("");
@@ -235,6 +303,8 @@ export default function SettingsPage() {
         readOnly: boolean;
         trialEndsAt?: string;
         currentPeriodEnd?: string;
+        seatLimit?: number | null;
+        seatsUsed?: number;
       }>("/api/billing/status");
       setBillingStatus(data);
     } catch (err: any) {
@@ -478,6 +548,68 @@ export default function SettingsPage() {
     }
   };
 
+  const canManageTeam = currentUserRole === "owner" || currentUserRole === "admin";
+  const canChangeRoles = currentUserRole === "owner";
+
+  const handleInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setTeamError("");
+    setTeamSuccess("");
+    setInviteLink("");
+    try {
+      const data = await apiFetch<{ inviteUrl: string; emailSent: boolean }>("/api/users/invite", {
+        method: "POST",
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole })
+      });
+      setInviteEmail("");
+      setInviteLink(data.inviteUrl);
+      setTeamSuccess(data.emailSent ? "Invite sent." : "Invite created. Copy the link below.");
+      await loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || "Failed to send invite");
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    setTeamError("");
+    setTeamSuccess("");
+    try {
+      await apiFetch("/api/users/invite/revoke", {
+        method: "POST",
+        body: JSON.stringify({ inviteId })
+      });
+      setTeamSuccess("Invite revoked.");
+      await loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || "Failed to revoke invite");
+    }
+  };
+
+  const handleRoleUpdate = async (userId: string, role: "owner" | "admin" | "member") => {
+    setTeamError("");
+    setTeamSuccess("");
+    try {
+      await apiFetch("/api/users/role", {
+        method: "PUT",
+        body: JSON.stringify({ userId, role })
+      });
+      setTeamSuccess("Role updated.");
+      await loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || "Failed to update role");
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setTeamSuccess("Invite link copied.");
+    } catch {
+      setTeamSuccess("Copy failed. Select and copy the link manually.");
+    }
+  };
+
   const businessNote = BUSINESS_TYPES.find((item) => item.value === businessType)?.note;
 
   if (loading) {
@@ -533,8 +665,151 @@ export default function SettingsPage() {
                   Refresh status
                 </button>
               </div>
+              <div className="muted">
+                Seats used: {billingStatus?.seatsUsed ?? "—"} /{" "}
+                {billingStatus?.seatLimit === null ? "Unlimited" : billingStatus?.seatLimit ?? "—"}
+              </div>
               {billingError ? <div className="muted">{billingError}</div> : null}
             </div>
+          </>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Team</div>
+        <div className="muted">
+          Seats used: {billingStatus?.seatsUsed ?? "—"} /{" "}
+          {billingStatus?.seatLimit === null ? "Unlimited" : billingStatus?.seatLimit ?? "—"}
+        </div>
+        {teamLoading ? (
+          <div className="muted" style={{ marginTop: 12 }}>
+            Loading team...
+          </div>
+        ) : (
+          <>
+            {canManageTeam ? (
+              <form onSubmit={handleInvite} style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                <div className="grid-2">
+                  <label className="field">
+                    Invite email
+                    <input
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      type="email"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    Role
+                    <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}>
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </label>
+                </div>
+                <button className="button" type="submit">
+                  Send invite
+                </button>
+                {inviteLink ? (
+                  <div className="field">
+                    Invite link
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <input value={inviteLink} readOnly />
+                      <button className="button secondary" type="button" onClick={copyInvite}>
+                        Copy link
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </form>
+            ) : (
+              <div className="muted" style={{ marginTop: 12 }}>
+                Only admins can invite teammates.
+              </div>
+            )}
+
+            {teamError ? <div className="muted" style={{ marginTop: 10 }}>{teamError}</div> : null}
+            {teamSuccess ? <div className="muted" style={{ marginTop: 10 }}>{teamSuccess}</div> : null}
+
+            <div className="panel-title" style={{ fontSize: 16, marginTop: 18 }}>
+              Active users
+            </div>
+            <table className="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamUsers.map((user) => (
+                    <tr key={user._id}>
+                      <td>{user.name}</td>
+                      <td>{user.email}</td>
+                      <td>
+                        {canChangeRoles && user.role !== "owner" ? (
+                          <select
+                            value={user.role}
+                            onChange={(e) => handleRoleUpdate(user._id, e.target.value as "admin" | "member")}
+                          >
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          user.role
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {teamUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="muted">
+                        No users found.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+
+            <div className="panel-title" style={{ fontSize: 16, marginTop: 18 }}>
+              Pending invites
+            </div>
+            <table className="table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Expires</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamInvites.map((invite) => (
+                    <tr key={invite._id}>
+                      <td>{invite.email}</td>
+                      <td>{invite.role}</td>
+                      <td>{invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "—"}</td>
+                      <td>
+                        {canManageTeam ? (
+                          <button className="button secondary" type="button" onClick={() => handleRevokeInvite(invite._id)}>
+                            Revoke
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {teamInvites.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        No pending invites.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
           </>
         )}
       </section>

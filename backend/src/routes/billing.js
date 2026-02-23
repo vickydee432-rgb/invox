@@ -4,6 +4,7 @@ const Company = require("../models/Company");
 const User = require("../models/User");
 const { requireAuth } = require("../middleware/auth");
 const { createCheckoutSession, verifyWebhookSignature } = require("../services/dodo");
+const { getSeatLimit, countSeatsUsed } = require("../services/planLimits");
 const { handleRouteError } = require("./_helpers");
 
 const billingRouter = express.Router();
@@ -58,11 +59,15 @@ billingRouter.get("/status", async (req, res) => {
   const company = await Company.findById(req.user.companyId).lean();
   if (!company) return res.status(404).json({ error: "Company not found" });
   const access = computeAccess(company);
+  const seatLimit = getSeatLimit(company);
+  const seatsUsed = await countSeatsUsed(company._id);
   res.json({
     status: company.subscriptionStatus || "trialing",
     plan: company.subscriptionPlan || null,
     billingCycle: company.subscriptionCycle || null,
     dodoSubscriptionId: company.dodoSubscriptionId || null,
+    seatLimit,
+    seatsUsed,
     ...access
   });
 });
