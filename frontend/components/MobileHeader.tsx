@@ -15,7 +15,7 @@ const iconProps = {
   strokeWidth: 2,
   strokeLinecap: "round",
   strokeLinejoin: "round"
-};
+} as const;
 
 const BackIcon = () => (
   <svg {...iconProps}>
