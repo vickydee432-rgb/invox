@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Sora, Prata } from "next/font/google";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -18,7 +19,14 @@ const prata = Prata({
 
 export const metadata: Metadata = {
   title: "Invox",
-  description: "Invoices, quotes, expenses, and projects in one workspace."
+  description: "Invoices, quotes, expenses, and projects in one workspace.",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#f05d23",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Invox"
+  }
 };
 
 export const viewport = {
@@ -29,7 +37,10 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sora.variable} ${prata.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }
