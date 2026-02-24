@@ -92,7 +92,11 @@ router.post("/register", async (req, res) => {
       currency: parsed.company.currency || "USD",
       address: parsed.company.address || {},
       payment: parsed.company.payment || {},
-      subscriptionStatus: "pending"
+      subscriptionStatus: "pending",
+      subscriptionPlan: null,
+      subscriptionCycle: null,
+      currentPeriodEnd: null,
+      trialEndsAt: null
     });
     applyWorkspace(company, parsed.company.businessType);
     await company.save();

@@ -223,45 +223,52 @@ export default function PlansPage() {
           </article>
         </section>
 
-        <section className="plans-status">
-          {billingLoading ? (
-            <div className="muted">Loading subscription...</div>
-          ) : (
-            <div className="plans-status-grid">
-              <div>
-                <div className="muted">Status</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
-              </div>
-              <div>
-                <div className="muted">Plan</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.plan ? `${billingStatus.plan} · ${billingStatus?.billingCycle}` : "—"}
+        {billingStatus?.status !== "pending" ? (
+          <section className="plans-status">
+            {billingLoading ? (
+              <div className="muted">Loading subscription...</div>
+            ) : (
+              <div className="plans-status-grid">
+                <div>
+                  <div className="muted">Status</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
+                </div>
+                <div>
+                  <div className="muted">Plan</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.plan ? `${billingStatus.plan} · ${billingStatus?.billingCycle}` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="muted">Trial Ends</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.trialEndsAt ? new Date(billingStatus.trialEndsAt).toLocaleDateString() : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="muted">Current Period End</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.currentPeriodEnd
+                      ? new Date(billingStatus.currentPeriodEnd).toLocaleDateString()
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
+                    Refresh status
+                  </button>
                 </div>
               </div>
-              <div>
-                <div className="muted">Trial Ends</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.trialEndsAt ? new Date(billingStatus.trialEndsAt).toLocaleDateString() : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="muted">Current Period End</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.currentPeriodEnd
-                    ? new Date(billingStatus.currentPeriodEnd).toLocaleDateString()
-                    : "—"}
-                </div>
-              </div>
-              <div>
-                <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
-                  Refresh status
-                </button>
-              </div>
-            </div>
-          )}
-          {checkoutError ? <div className="muted">{checkoutError}</div> : null}
-          {billingError ? <div className="muted">{billingError}</div> : null}
-        </section>
+            )}
+            {checkoutError ? <div className="muted">{checkoutError}</div> : null}
+            {billingError ? <div className="muted">{billingError}</div> : null}
+          </section>
+        ) : (
+          <section className="plans-status">
+            {checkoutError ? <div className="muted">{checkoutError}</div> : null}
+            {billingError ? <div className="muted">{billingError}</div> : null}
+          </section>
+        )}
 
         <section className="panel" id="checkout-section">
           <div className="panel-title">Secure checkout</div>

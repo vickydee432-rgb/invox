@@ -611,6 +611,7 @@ export default function SettingsPage() {
   };
 
   const businessNote = BUSINESS_TYPES.find((item) => item.value === businessType)?.note;
+  const isPending = billingStatus?.status === "pending";
 
   if (loading) {
     return (
@@ -629,32 +630,38 @@ export default function SettingsPage() {
           <div className="muted">Loading subscription...</div>
         ) : (
           <>
-            <div className="grid-2">
-              <div>
-                <div className="muted">Status</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
+            {isPending ? (
+              <div className="muted">
+                Your account is in read-only mode until a subscription is activated. Choose a plan to unlock full access.
               </div>
-              <div>
-                <div className="muted">Plan</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.plan ? `${billingStatus.plan} · ${billingStatus?.billingCycle}` : "—"}
+            ) : (
+              <div className="grid-2">
+                <div>
+                  <div className="muted">Status</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>{billingStatus?.status || "trialing"}</div>
+                </div>
+                <div>
+                  <div className="muted">Plan</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.plan ? `${billingStatus.plan} · ${billingStatus?.billingCycle}` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="muted">Trial Ends</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.trialEndsAt ? new Date(billingStatus.trialEndsAt).toLocaleDateString() : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="muted">Current Period End</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {billingStatus?.currentPeriodEnd
+                      ? new Date(billingStatus.currentPeriodEnd).toLocaleDateString()
+                      : "—"}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="muted">Trial Ends</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.trialEndsAt ? new Date(billingStatus.trialEndsAt).toLocaleDateString() : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="muted">Current Period End</div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>
-                  {billingStatus?.currentPeriodEnd
-                    ? new Date(billingStatus.currentPeriodEnd).toLocaleDateString()
-                    : "—"}
-                </div>
-              </div>
-            </div>
+            )}
 
             <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

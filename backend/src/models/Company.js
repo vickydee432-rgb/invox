@@ -55,8 +55,8 @@ const CompanySchema = new mongoose.Schema(
       default: "pending",
       index: true
     },
-    subscriptionPlan: { type: String, enum: ["starter", "pro", "businessplus"], default: "pro" },
-    subscriptionCycle: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
+    subscriptionPlan: { type: String, enum: ["starter", "pro", "businessplus"], default: null },
+    subscriptionCycle: { type: String, enum: ["monthly", "yearly"], default: null },
     trialEndsAt: { type: Date },
     currentPeriodEnd: { type: Date },
     dodoSubscriptionId: { type: String, trim: true },
