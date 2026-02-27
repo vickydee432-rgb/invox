@@ -1,5 +1,5 @@
-const CACHE_NAME = "invox-pwa-v1";
-const CORE_ASSETS = ["/", "/dashboard", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = "invox-pwa-v2";
+const CORE_ASSETS = ["/", "/dashboard", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,6 +22,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
+  if (url.pathname.startsWith("/_next/")) return;
   if (url.pathname.startsWith("/api/")) {
     return;
   }
