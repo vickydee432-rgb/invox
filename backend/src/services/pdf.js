@@ -1,4 +1,5 @@
 const PDFDocument = require("pdfkit");
+const { hydrateCompanySensitive } = require("./companySensitive");
 
 function formatDate(value) {
   if (!value) return "-";
@@ -121,13 +122,14 @@ function renderPaymentBlock(doc, company, y) {
 }
 
 function generateQuotePdf(res, quote, company) {
+  const safeCompany = hydrateCompanySensitive(company);
   const doc = new PDFDocument({ margin: 50 });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="quote-${quote.quoteNo}.pdf"`);
   doc.pipe(res);
 
   doc.fontSize(24).font("Helvetica-Bold").text("Quote", 50, 50);
-  renderCompanyBlock(doc, company);
+  renderCompanyBlock(doc, safeCompany);
   doc.fontSize(12).font("Helvetica").text(`Quote No: ${quote.quoteNo}`, 50, 86);
   doc.text(`Customer: ${quote.customerName}`, 50, 104);
   doc.text(`Issue Date: ${formatDate(quote.issueDate)}`, 50, 122);
@@ -146,19 +148,20 @@ function generateQuotePdf(res, quote, company) {
 
   y = renderNotes(doc, y + 12, "Notes", quote.notes);
   y = renderNotes(doc, y + 6, "Terms", quote.terms);
-  renderPaymentBlock(doc, company, y + 6);
+  renderPaymentBlock(doc, safeCompany, y + 6);
 
   doc.end();
 }
 
 function generateInvoicePdf(res, invoice, company) {
+  const safeCompany = hydrateCompanySensitive(company);
   const doc = new PDFDocument({ margin: 50 });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="invoice-${invoice.invoiceNo}.pdf"`);
   doc.pipe(res);
 
   doc.fontSize(24).font("Helvetica-Bold").text("Invoice", 50, 50);
-  renderCompanyBlock(doc, company);
+  renderCompanyBlock(doc, safeCompany);
   doc.fontSize(12).font("Helvetica").text(`Invoice No: ${invoice.invoiceNo}`, 50, 86);
   doc.text(`Customer: ${invoice.customerName}`, 50, 104);
   if (invoice.customerTpin) {
@@ -182,7 +185,7 @@ function generateInvoicePdf(res, invoice, company) {
   doc.fontSize(11).font("Helvetica-Bold").text("Payments", 50, y + 12);
   doc.font("Helvetica").fontSize(10).text(`Amount paid: ${invoice.amountPaid.toFixed(2)}`, 50, y + 28);
   doc.text(`Balance: ${invoice.balance.toFixed(2)}`, 50, y + 44);
-  renderPaymentBlock(doc, company, y + 70);
+  renderPaymentBlock(doc, safeCompany, y + 70);
 
   doc.end();
 }

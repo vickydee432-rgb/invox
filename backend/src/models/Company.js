@@ -25,6 +25,15 @@ const PaymentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const EncryptedSchema = new mongoose.Schema(
+  {
+    cipherText: { type: String, trim: true },
+    iv: { type: String, trim: true },
+    tag: { type: String, trim: true }
+  },
+  { _id: false }
+);
+
 const CompanySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -37,6 +46,10 @@ const CompanySchema = new mongoose.Schema(
     currency: { type: String, trim: true, default: "USD" },
     address: { type: AddressSchema, default: {} },
     payment: { type: PaymentSchema, default: {} },
+    taxIdEncrypted: { type: EncryptedSchema, default: undefined },
+    paymentEncrypted: { type: EncryptedSchema, default: undefined },
+    dataRegion: { type: String, trim: true, default: "global", index: true },
+    dataRetentionDays: { type: Number, default: 365 },
     businessType: {
       type: String,
       enum: ["retail", "construction", "agency", "services", "freelance"],

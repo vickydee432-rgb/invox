@@ -5,6 +5,7 @@ const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { handleRouteError } = require("./_helpers");
 const { applyWorkspace } = require("../services/workspace");
+const { setCompanySensitive, sanitizeCompany } = require("../services/companySensitive");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription);
@@ -18,6 +19,8 @@ const CompanyUpdateSchema = z.object({
   website: z.string().optional(),
   taxId: z.string().optional(),
   currency: z.string().optional(),
+  dataRegion: z.string().optional(),
+  dataRetentionDays: z.number().int().min(30).max(3650).optional(),
   address: z
     .object({
       line1: z.string().optional(),
@@ -54,7 +57,8 @@ router.get("/me", async (req, res) => {
   try {
     const company = await Company.findById(req.user.companyId).lean();
     if (!company) return res.status(404).json({ error: "Company not found" });
-    res.json({ company });
+    const revealSensitive = ["owner", "admin"].includes(req.user.role);
+    res.json({ company: sanitizeCompany(company, { revealSensitive }) });
   } catch (err) {
     return handleRouteError(res, err, "Failed to load company");
   }
@@ -72,13 +76,17 @@ router.put("/me", async (req, res) => {
     if (parsed.email !== undefined) company.email = parsed.email.toLowerCase();
     if (parsed.phone !== undefined) company.phone = parsed.phone;
     if (parsed.website !== undefined) company.website = parsed.website;
-    if (parsed.taxId !== undefined) company.taxId = parsed.taxId;
+    if (parsed.taxId !== undefined || parsed.payment !== undefined) {
+      setCompanySensitive(company, { taxId: parsed.taxId, payment: parsed.payment });
+    }
     if (parsed.currency !== undefined) company.currency = parsed.currency;
     if (parsed.address !== undefined) company.address = parsed.address;
-    if (parsed.payment !== undefined) company.payment = parsed.payment;
+    if (parsed.dataRegion !== undefined) company.dataRegion = parsed.dataRegion;
+    if (parsed.dataRetentionDays !== undefined) company.dataRetentionDays = parsed.dataRetentionDays;
 
     await company.save();
-    res.json({ company });
+    const revealSensitive = ["owner", "admin"].includes(req.user.role);
+    res.json({ company: sanitizeCompany(company.toObject(), { revealSensitive }) });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update company");
   }

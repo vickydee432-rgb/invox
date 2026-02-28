@@ -17,6 +17,7 @@ const branchesRoutes = require("./routes/branches");
 const productsRoutes = require("./routes/products");
 const stockRoutes = require("./routes/stock");
 const usersRoutes = require("./routes/users");
+const { shouldAuditRequest, logAuditFromRequest } = require("./services/audit");
 
 const app = express();
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
@@ -32,6 +33,14 @@ app.use(
 );
 app.post("/api/billing/dodo/webhook", express.raw({ type: "application/json" }), dodoWebhookHandler);
 app.use(express.json({ limit: "10mb" }));
+app.use((req, res, next) => {
+  if (!shouldAuditRequest(req)) return next();
+  res.on("finish", () => {
+    if (res.statusCode >= 400) return;
+    logAuditFromRequest(req, res);
+  });
+  return next();
+});
 
 app.get("/", (_, res) => res.json({ ok: true, name: "invox-api" }));
 app.get("/health", (_, res) => res.json({ ok: true, uptime: process.uptime() }));

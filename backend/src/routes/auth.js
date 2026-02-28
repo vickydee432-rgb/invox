@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const { applyWorkspace } = require("../services/workspace");
+const { setCompanySensitive } = require("../services/companySensitive");
 const { handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 
@@ -88,16 +89,15 @@ router.post("/register", async (req, res) => {
       email: parsed.company.email?.toLowerCase(),
       phone: parsed.company.phone,
       website: parsed.company.website,
-      taxId: parsed.company.taxId,
       currency: parsed.company.currency || "USD",
       address: parsed.company.address || {},
-      payment: parsed.company.payment || {},
       subscriptionStatus: "pending",
       subscriptionPlan: null,
       subscriptionCycle: null,
       currentPeriodEnd: null,
       trialEndsAt: null
     });
+    setCompanySensitive(company, { taxId: parsed.company.taxId, payment: parsed.company.payment });
     applyWorkspace(company, parsed.company.businessType);
     await company.save();
 
