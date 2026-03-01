@@ -18,6 +18,9 @@ function setCompanySensitive(company, { taxId, payment } = {}) {
     }
   } catch (err) {
     console.error("Sensitive encryption failed", err?.message || err);
+    if (process.env.NODE_ENV === "production") {
+      throw err;
+    }
     if (taxId !== undefined) company.taxId = taxId;
     if (payment !== undefined) company.payment = payment;
   }

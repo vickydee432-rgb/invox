@@ -150,7 +150,8 @@ router.post("/register", authLimiter, authSlowDown, async (req, res) => {
       email: parsed.email.toLowerCase(),
       passwordHash,
       companyId: company._id,
-      role: "owner"
+      role: "owner",
+      passwordChangedAt: new Date()
     });
 
     const token = signToken(user);
@@ -244,6 +245,7 @@ router.put("/password", requireAuth, async (req, res) => {
     if (!ok) return res.status(401).json({ error: "Current password is incorrect" });
 
     user.passwordHash = await bcrypt.hash(parsed.newPassword, 12);
+    user.passwordChangedAt = new Date();
     await user.save();
     res.json({ ok: true });
   } catch (err) {
@@ -263,7 +265,7 @@ router.post("/forgot", authLimiter, authSlowDown, async (req, res) => {
     user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
 
-    res.json({ ok: true, resetToken: token });
+    res.json({ ok: true });
   } catch (err) {
     return handleRouteError(res, err, "Failed to request password reset");
   }
@@ -281,6 +283,7 @@ router.post("/reset", authLimiter, authSlowDown, async (req, res) => {
     if (!user) return res.status(400).json({ error: "Invalid or expired reset token" });
 
     user.passwordHash = await bcrypt.hash(parsed.newPassword, 12);
+    user.passwordChangedAt = new Date();
     user.resetTokenHash = undefined;
     user.resetTokenExpires = undefined;
     await user.save();

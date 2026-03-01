@@ -17,6 +17,12 @@ async function requireAuth(req, res, next) {
       .select("_id name email companyId role mfaEnabled")
       .lean();
     if (!user) return res.status(401).json({ error: "Invalid auth token" });
+    if (user.passwordChangedAt && payload.iat) {
+      const issuedAt = payload.iat * 1000;
+      if (issuedAt < new Date(user.passwordChangedAt).getTime()) {
+        return res.status(401).json({ error: "Token expired" });
+      }
+    }
     req.user = user;
     return next();
   } catch (err) {

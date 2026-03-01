@@ -72,7 +72,8 @@ router.post("/invite/accept", async (req, res) => {
       email: invite.email,
       passwordHash,
       companyId: invite.companyId,
-      role: invite.role || "member"
+      role: invite.role || "member",
+      passwordChangedAt: new Date()
     });
 
     invite.acceptedAt = new Date();

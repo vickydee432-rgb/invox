@@ -23,6 +23,7 @@ const { shouldAuditRequest, logAuditFromRequest } = require("./services/audit");
 const { apiLimiter } = require("./middleware/rateLimit");
 
 const app = express();
+app.set("trust proxy", 1);
 const corsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
   .split(",")
   .map((origin) => origin.trim())
@@ -73,6 +74,10 @@ app.use("/api/uploads", uploadsRoutes);
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];
 const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+if (process.env.NODE_ENV === "production") {
+  const hasEncryptionKey = Boolean(process.env.DATA_ENCRYPTION_KEY || process.env.ZRA_CREDENTIALS_KEY);
+  if (!hasEncryptionKey) missingEnv.push("DATA_ENCRYPTION_KEY");
+}
 if (missingEnv.length > 0) {
   console.error(`❌ Missing required env vars: ${missingEnv.join(", ")}`);
   process.exit(1);

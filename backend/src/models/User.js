@@ -14,6 +14,7 @@ const UserSchema = new mongoose.Schema(
     mfaSecret: { type: String, trim: true },
     mfaTempSecret: { type: String, trim: true },
     mfaBackupCodes: { type: [String], default: [] },
+    passwordChangedAt: { type: Date },
     resetTokenHash: { type: String, index: true },
     resetTokenExpires: { type: Date }
   },

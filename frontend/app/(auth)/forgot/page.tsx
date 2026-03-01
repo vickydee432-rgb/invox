@@ -9,21 +9,18 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [resetToken, setResetToken] = useState("");
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
-    setResetToken("");
     try {
-      const data = await apiFetch<{ resetToken?: string }>("/api/auth/forgot", {
+      await apiFetch("/api/auth/forgot", {
         method: "POST",
         body: JSON.stringify({ email })
       });
-      setSuccess("If the account exists, a reset token has been generated.");
-      if (data.resetToken) setResetToken(data.resetToken);
+      setSuccess("If the account exists, a reset link has been sent.");
     } catch (err: any) {
       setError(err.message || "Failed to request reset");
     } finally {
@@ -42,11 +39,6 @@ export default function ForgotPasswordPage() {
         </label>
         {error ? <div className="muted">{error}</div> : null}
         {success ? <div className="muted">{success}</div> : null}
-        {resetToken ? (
-          <div className="muted" style={{ wordBreak: "break-all" }}>
-            Reset token: <strong>{resetToken}</strong>
-          </div>
-        ) : null}
         <button className="button" type="submit" disabled={loading}>
           {loading ? "Requesting..." : "Request reset"}
         </button>
