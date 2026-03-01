@@ -1,5 +1,6 @@
 const PDFDocument = require("pdfkit");
-const { hydrateCompanySensitive } = require("./companySensitive");
+const companySensitive = require("./companySensitive");
+const hydrateCompanySensitive = companySensitive.hydrateCompanySensitive;
 
 function formatDate(value) {
   if (!value) return "-";
