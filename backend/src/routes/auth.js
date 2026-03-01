@@ -12,6 +12,7 @@ const { setCompanySensitive } = require("../services/companySensitive");
 const { handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { authLimiter, authSlowDown } = require("../middleware/rateLimit");
+const { sendMail, buildResetEmail } = require("../services/email");
 
 const router = express.Router();
 
@@ -264,6 +265,22 @@ router.post("/forgot", authLimiter, authSlowDown, async (req, res) => {
     user.resetTokenHash = tokenHash;
     user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
+
+    const base =
+      process.env.APP_BASE_URL ||
+      process.env.PUBLIC_APP_URL ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:3000";
+    const resetUrl = `${base.replace(/\\/$/, "")}/reset?email=${encodeURIComponent(
+      user.email
+    )}&token=${encodeURIComponent(token)}`;
+    const message = buildResetEmail({ resetUrl, token, email: user.email });
+    await sendMail({
+      to: user.email,
+      subject: message.subject,
+      text: message.text,
+      html: message.html
+    });
 
     res.json({ ok: true });
   } catch (err) {
