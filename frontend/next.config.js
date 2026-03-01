@@ -6,7 +6,7 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "script-src 'self' https://checkout.dodopayments.com https://test.checkout.dodopayments.com",
+  "script-src 'self' 'unsafe-inline' https://checkout.dodopayments.com https://test.checkout.dodopayments.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https:",
