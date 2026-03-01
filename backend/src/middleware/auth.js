@@ -13,7 +13,9 @@ async function requireAuth(req, res, next) {
     if (!secret) return res.status(500).json({ error: "Server misconfigured" });
 
     const payload = jwt.verify(token, secret);
-    const user = await User.findById(payload.sub).select("_id name email companyId role").lean();
+    const user = await User.findById(payload.sub)
+      .select("_id name email companyId role mfaEnabled")
+      .lean();
     if (!user) return res.status(401).json({ error: "Invalid auth token" });
     req.user = user;
     return next();

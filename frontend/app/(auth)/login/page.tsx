@@ -10,6 +10,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [backupCode, setBackupCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -20,12 +23,18 @@ export default function LoginPage() {
     try {
       const data = await apiFetch<{ token: string }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, mfaCode: mfaCode || undefined, backupCode: backupCode || undefined })
       });
       setToken(data.token);
       router.push("/quotes");
     } catch (err: any) {
-      setError(err.message || "Failed to login");
+      const details = err?.details;
+      if (details?.mfaRequired) {
+        setMfaRequired(true);
+        setError("Enter your 6‑digit authenticator code to continue.");
+      } else {
+        setError(err.message || "Failed to login");
+      }
     } finally {
       setLoading(false);
     }
@@ -49,6 +58,18 @@ export default function LoginPage() {
             required
           />
         </label>
+        {mfaRequired ? (
+          <>
+            <label className="field">
+              MFA Code
+              <input value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} type="text" inputMode="numeric" />
+            </label>
+            <label className="field">
+              Backup Code (optional)
+              <input value={backupCode} onChange={(e) => setBackupCode(e.target.value)} type="text" />
+            </label>
+          </>
+        ) : null}
         <div className="muted" style={{ textAlign: "right" }}>
           <Link href="/forgot">Forgot password?</Link>
         </div>

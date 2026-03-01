@@ -335,6 +335,13 @@ a {
   text-transform: uppercase;
 }
 
+.panel-subtle {
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

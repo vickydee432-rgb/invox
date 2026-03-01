@@ -110,6 +110,16 @@ export default function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaError, setMfaError] = useState("");
+  const [mfaSuccess, setMfaSuccess] = useState("");
+  const [mfaSetup, setMfaSetup] = useState<{ qrDataUrl?: string; otpauthUrl?: string } | null>(null);
+  const [mfaToken, setMfaToken] = useState("");
+  const [mfaBackupCodes, setMfaBackupCodes] = useState<string[]>([]);
+  const [mfaDisablePassword, setMfaDisablePassword] = useState("");
+  const [mfaDisableToken, setMfaDisableToken] = useState("");
+  const [mfaDisableBackupCode, setMfaDisableBackupCode] = useState("");
   const [billingStatus, setBillingStatus] = useState<{
     status: string;
     plan: string | null;
@@ -207,6 +217,19 @@ export default function SettingsPage() {
       .finally(() => {
         if (active) setLoading(false);
       });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ user: { mfaEnabled?: boolean } }>("/api/auth/me")
+      .then((data) => {
+        if (!active) return;
+        setMfaEnabled(Boolean(data.user?.mfaEnabled));
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -409,6 +432,73 @@ export default function SettingsPage() {
       setPasswordError(err.message || "Failed to update password");
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleMfaSetup = async () => {
+    setMfaLoading(true);
+    setMfaError("");
+    setMfaSuccess("");
+    try {
+      const data = await apiFetch<{ otpauthUrl: string; qrDataUrl: string }>("/api/auth/mfa/setup", {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      setMfaSetup({ otpauthUrl: data.otpauthUrl, qrDataUrl: data.qrDataUrl });
+      setMfaSuccess("Scan the QR code and enter the 6‑digit code.");
+    } catch (err: any) {
+      setMfaError(err.message || "Failed to start MFA setup");
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleMfaVerify = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMfaLoading(true);
+    setMfaError("");
+    setMfaSuccess("");
+    try {
+      const data = await apiFetch<{ backupCodes: string[] }>("/api/auth/mfa/verify", {
+        method: "POST",
+        body: JSON.stringify({ token: mfaToken })
+      });
+      setMfaEnabled(true);
+      setMfaSetup(null);
+      setMfaToken("");
+      setMfaBackupCodes(data.backupCodes || []);
+      setMfaSuccess("MFA enabled. Save your backup codes.");
+    } catch (err: any) {
+      setMfaError(err.message || "Failed to verify MFA");
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleMfaDisable = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMfaLoading(true);
+    setMfaError("");
+    setMfaSuccess("");
+    try {
+      await apiFetch("/api/auth/mfa/disable", {
+        method: "POST",
+        body: JSON.stringify({
+          password: mfaDisablePassword,
+          token: mfaDisableToken || undefined,
+          backupCode: mfaDisableBackupCode || undefined
+        })
+      });
+      setMfaEnabled(false);
+      setMfaBackupCodes([]);
+      setMfaDisablePassword("");
+      setMfaDisableToken("");
+      setMfaDisableBackupCode("");
+      setMfaSuccess("MFA disabled.");
+    } catch (err: any) {
+      setMfaError(err.message || "Failed to disable MFA");
+    } finally {
+      setMfaLoading(false);
     }
   };
 
@@ -1069,6 +1159,83 @@ export default function SettingsPage() {
             {passwordError ? <div className="muted">{passwordError}</div> : null}
           </div>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Security · Two-Factor Authentication</div>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          Protect your account with an authenticator app (Google Authenticator, Authy, 1Password).
+        </p>
+        <div className="muted" style={{ marginBottom: 12 }}>
+          Status: <strong>{mfaEnabled ? "Enabled" : "Disabled"}</strong>
+        </div>
+
+        {!mfaEnabled ? (
+          <div style={{ display: "grid", gap: 16 }}>
+            <button className="button" type="button" onClick={handleMfaSetup} disabled={mfaLoading}>
+              {mfaLoading ? "Starting..." : "Start MFA Setup"}
+            </button>
+            {mfaSetup?.qrDataUrl ? (
+              <div style={{ display: "grid", gap: 12 }}>
+                <img src={mfaSetup.qrDataUrl} alt="MFA QR code" style={{ width: 180 }} />
+                <div className="muted">Scan the QR code, then enter the 6‑digit code below.</div>
+                <form onSubmit={handleMfaVerify} style={{ display: "grid", gap: 12, maxWidth: 320 }}>
+                  <label className="field">
+                    MFA Code
+                    <input value={mfaToken} onChange={(e) => setMfaToken(e.target.value)} />
+                  </label>
+                  <button className="button" type="submit" disabled={mfaLoading}>
+                    {mfaLoading ? "Verifying..." : "Enable MFA"}
+                  </button>
+                </form>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {mfaEnabled ? (
+          <form onSubmit={handleMfaDisable} style={{ display: "grid", gap: 12, maxWidth: 420 }}>
+            <label className="field">
+              Password
+              <input
+                value={mfaDisablePassword}
+                onChange={(e) => setMfaDisablePassword(e.target.value)}
+                type="password"
+                required
+              />
+            </label>
+            <label className="field">
+              MFA Code
+              <input value={mfaDisableToken} onChange={(e) => setMfaDisableToken(e.target.value)} />
+            </label>
+            <label className="field">
+              Backup Code (optional)
+              <input value={mfaDisableBackupCode} onChange={(e) => setMfaDisableBackupCode(e.target.value)} />
+            </label>
+            <button className="button ghost" type="submit" disabled={mfaLoading}>
+              {mfaLoading ? "Disabling..." : "Disable MFA"}
+            </button>
+          </form>
+        ) : null}
+
+        {mfaBackupCodes.length > 0 ? (
+          <div className="panel-subtle" style={{ marginTop: 16 }}>
+            <div className="panel-title" style={{ fontSize: 14 }}>
+              Backup Codes
+            </div>
+            <div className="muted" style={{ marginBottom: 8 }}>
+              Save these codes. Each can be used once.
+            </div>
+            <div style={{ display: "grid", gap: 6, fontFamily: "monospace" }}>
+              {mfaBackupCodes.map((code) => (
+                <div key={code}>{code}</div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {mfaSuccess ? <div className="muted" style={{ marginTop: 12 }}>{mfaSuccess}</div> : null}
+        {mfaError ? <div className="muted" style={{ marginTop: 12 }}>{mfaError}</div> : null}
       </section>
 
       {taxEnabled ? (
