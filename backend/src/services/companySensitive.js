@@ -17,7 +17,7 @@ function setCompanySensitive(company, { taxId, payment } = {}) {
       company.payment = undefined;
     }
   } catch (err) {
-    console.error(\"Sensitive encryption failed\", err?.message || err);
+    console.error("Sensitive encryption failed", err?.message || err);
     if (taxId !== undefined) company.taxId = taxId;
     if (payment !== undefined) company.payment = payment;
   }
