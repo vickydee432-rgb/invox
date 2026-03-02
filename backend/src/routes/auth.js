@@ -271,7 +271,7 @@ router.post("/forgot", authLimiter, authSlowDown, async (req, res) => {
       process.env.PUBLIC_APP_URL ||
       process.env.FRONTEND_URL ||
       "http://localhost:3000";
-    const resetUrl = `${base.replace(/\\/$/, "")}/reset?email=${encodeURIComponent(
+    const resetUrl = `${base.replace(/\/$/, "")}/reset?email=${encodeURIComponent(
       user.email
     )}&token=${encodeURIComponent(token)}`;
     const message = buildResetEmail({ resetUrl, token, email: user.email });
