@@ -112,7 +112,7 @@ export default function InventoryScanPage() {
         await instance.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: 220 },
-          (decodedText) => {
+          (decodedText: string) => {
             handleScan(decodedText);
           }
         );
