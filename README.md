@@ -101,6 +101,14 @@ Bulk paste format (one per line):
 - `Title | Amount | Category | Date` (recommended)
 - `Title Amount Category Date`
 
+### Inventory & Products
+- `GET  /api/products?search=` search by name, sku, barcode
+- `GET  /api/products/lookup?barcode=` lookup by barcode
+- `POST /api/products` create product (supports `barcode`)
+- `PUT  /api/products/:id` update product (supports `barcode`)
+- `PATCH /api/products/:id` update product (supports `barcode`)
+- `POST /api/inventory/adjust` adjust stock + logs
+
 ### Reports
 - `GET /api/reports/overview?from&to` summary + monthly series
 - `GET /api/reports/export.xlsx?from&to` export Excel
@@ -111,3 +119,8 @@ Bulk paste format (one per line):
   For high concurrency, switch to a `counters` collection.
 - Set `AUTH_JWT_SECRET` and `PUBLIC_QUOTE_TOKEN_SECRET` to long random values.
 - `PUBLIC_APP_URL` is used to generate shareable quote links.
+
+## Barcode scanning tips
+- USB/Bluetooth scanners usually act like a keyboard. Click the “Scan barcode” input, scan, and the scanner will send an Enter key.
+- The Inventory Scanner page (`/inventory/scan`) also supports camera scanning. Grant camera permission when prompted.
+- If a barcode is not found, use the “Create product” action to prefill the barcode in the product form.

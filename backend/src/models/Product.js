@@ -5,6 +5,7 @@ const ProductSchema = new mongoose.Schema(
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true },
+    barcode: { type: String, trim: true },
     description: { type: String, trim: true },
     category: { type: String, trim: true },
     unit: { type: String, trim: true }, // e.g. bag, pcs, litre
@@ -17,6 +18,7 @@ const ProductSchema = new mongoose.Schema(
 );
 
 ProductSchema.index({ companyId: 1, sku: 1 }, { unique: true, sparse: true });
+ProductSchema.index({ companyId: 1, barcode: 1 }, { unique: true, sparse: true });
 ProductSchema.index({ companyId: 1, name: 1 });
 
 module.exports = mongoose.model("Product", ProductSchema);

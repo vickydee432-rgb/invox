@@ -19,6 +19,7 @@ const productsRoutes = require("./routes/products");
 const stockRoutes = require("./routes/stock");
 const usersRoutes = require("./routes/users");
 const uploadsRoutes = require("./routes/uploads");
+const inventoryRoutes = require("./routes/inventory");
 const { shouldAuditRequest, logAuditFromRequest } = require("./services/audit");
 const { apiLimiter } = require("./middleware/rateLimit");
 
@@ -70,6 +71,7 @@ app.use("/api/branches", branchesRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/stock", stockRoutes);
 app.use("/api/uploads", uploadsRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];

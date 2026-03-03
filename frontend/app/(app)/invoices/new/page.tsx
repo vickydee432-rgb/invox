@@ -31,6 +31,7 @@ type Product = {
   _id: string;
   name: string;
   sku?: string;
+  barcode?: string;
   costPrice?: number;
   salePrice?: number;
 };
@@ -72,6 +73,10 @@ export default function NewInvoicePage() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [quickProductId, setQuickProductId] = useState("");
   const [quickQty, setQuickQty] = useState(1);
+  const [scanValue, setScanValue] = useState("");
+  const [scanError, setScanError] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [lastScan, setLastScan] = useState("");
   const [stockShortages, setStockShortages] = useState<
     { productId: string; available: number; requested: number }[]
   >([]);
@@ -385,6 +390,46 @@ export default function NewInvoicePage() {
         discount: 0
       }
     ]);
+  };
+
+  const handleBarcodeScan = async () => {
+    const code = scanValue.trim();
+    if (!code) return;
+    setLastScan(code);
+    setScanLoading(true);
+    setScanError("");
+    try {
+      const data = await apiFetch<{ product: Product }>(
+        `/api/products/lookup?barcode=${encodeURIComponent(code)}`
+      );
+      const product = data.product;
+      setItems((prev) => {
+        const idx = prev.findIndex((item) => item.productId === product._id);
+        if (idx >= 0) {
+          return prev.map((item, i) =>
+            i === idx ? { ...item, qty: Number(item.qty || 0) + 1 } : item
+          );
+        }
+        return [
+          ...prev,
+          {
+            productId: product._id,
+            productSku: product.sku,
+            productName: product.name,
+            costPrice: Number(product.costPrice || 0),
+            description: product.name,
+            qty: 1,
+            unitPrice: Number(product.salePrice || 0),
+            discount: 0
+          }
+        ];
+      });
+      setScanValue("");
+    } catch (err: any) {
+      setScanError(err.message || "Product not found");
+    } finally {
+      setScanLoading(false);
+    }
   };
 
   const removeItem = (index: number) => {
@@ -778,6 +823,46 @@ export default function NewInvoicePage() {
               <button className="button secondary" type="button" onClick={addQuickSale} disabled={!quickProductId}>
                 Add sale item
               </button>
+            </div>
+          ) : null}
+
+          {workspace?.inventoryEnabled ? (
+            <div className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title" style={{ fontSize: 16 }}>
+                Scan to add item
+              </div>
+              <div className="grid-2">
+                <label className="field">
+                  Scan barcode
+                  <input
+                    value={scanValue}
+                    onChange={(e) => setScanValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleBarcodeScan();
+                      }
+                    }}
+                    placeholder="Focus and scan (press Enter)"
+                  />
+                </label>
+                <div className="field" style={{ alignSelf: "end" }}>
+                  <button className="button secondary" type="button" onClick={handleBarcodeScan} disabled={scanLoading}>
+                    {scanLoading ? "Looking up..." : "Add by barcode"}
+                  </button>
+                </div>
+              </div>
+              {scanError ? <div className="muted" style={{ marginTop: 10 }}>{scanError}</div> : null}
+              {scanError && lastScan ? (
+                <button
+                  className="button ghost"
+                  type="button"
+                  style={{ marginTop: 8 }}
+                  onClick={() => router.push(`/inventory?barcode=${encodeURIComponent(lastScan)}`)}
+                >
+                  Create product
+                </button>
+              ) : null}
             </div>
           ) : null}
 

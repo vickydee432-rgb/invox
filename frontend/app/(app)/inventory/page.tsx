@@ -17,6 +17,7 @@ type Product = {
   _id: string;
   name: string;
   sku?: string;
+  barcode?: string;
   description?: string;
   category?: string;
   unit?: string;
@@ -54,15 +55,26 @@ export default function InventoryPage() {
     id: "",
     name: "",
     sku: "",
+    barcode: "",
     category: "",
     unit: "",
     costPrice: 0,
     salePrice: 0,
     reorderLevel: 0
   });
+  const [barcodeScan, setBarcodeScan] = useState("");
   const [stockBranchId, setStockBranchId] = useState("");
 
   const activeBranches = useMemo(() => branches.filter((b) => b.isActive !== false), [branches]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const barcode = params.get("barcode");
+    if (barcode) {
+      setProductForm((prev) => ({ ...prev, id: "", barcode }));
+    }
+  }, []);
 
   const loadAll = async () => {
     setLoading(true);
@@ -143,6 +155,7 @@ export default function InventoryPage() {
       id: "",
       name: "",
       sku: "",
+      barcode: "",
       category: "",
       unit: "",
       costPrice: 0,
@@ -212,6 +225,7 @@ export default function InventoryPage() {
       const payload = {
         name: productForm.name,
         sku: productForm.sku || undefined,
+        barcode: productForm.barcode || undefined,
         category: productForm.category || undefined,
         unit: productForm.unit || undefined,
         costPrice: Number(productForm.costPrice) || 0,
@@ -242,6 +256,7 @@ export default function InventoryPage() {
       id: product._id,
       name: product.name || "",
       sku: product.sku || "",
+      barcode: product.barcode || "",
       category: product.category || "",
       unit: product.unit || "",
       costPrice: Number(product.costPrice || 0),
@@ -362,7 +377,12 @@ export default function InventoryPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">Products</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div className="panel-title">Products</div>
+          <a className="button ghost" href="/inventory/scan">
+            Scan inventory
+          </a>
+        </div>
         <form onSubmit={saveProduct} className="grid-two">
           <label className="field">
             Product name
@@ -377,6 +397,31 @@ export default function InventoryPage() {
             <input
               value={productForm.sku}
               onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))}
+            />
+          </label>
+          <label className="field">
+            Barcode
+            <input
+              value={productForm.barcode}
+              onChange={(e) => setProductForm((prev) => ({ ...prev, barcode: e.target.value }))}
+              placeholder="Optional"
+            />
+          </label>
+          <label className="field">
+            Scan barcode here
+            <input
+              value={barcodeScan}
+              onChange={(e) => setBarcodeScan(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const code = barcodeScan.trim();
+                  if (!code) return;
+                  setProductForm((prev) => ({ ...prev, barcode: code }));
+                  setBarcodeScan("");
+                }
+              }}
+              placeholder="Focus and scan"
             />
           </label>
           <label className="field">

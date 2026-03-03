@@ -12,6 +12,7 @@ router.use(requireAuth, requireSubscription, requireModule("inventory"));
 const ProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),
   unit: z.string().optional(),
@@ -21,14 +22,28 @@ const ProductSchema = z.object({
   isActive: z.boolean().optional()
 });
 
+router.get("/lookup", async (req, res) => {
+  try {
+    const barcode = String(req.query.barcode || "").trim();
+    if (!barcode) return res.status(400).json({ error: "barcode is required" });
+    const product = await Product.findOne({ companyId: req.user.companyId, barcode }).lean();
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    res.json({ product });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to lookup product");
+  }
+});
+
 router.get("/", async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, search } = req.query;
+    const term = String(search || q || "").trim();
     const filter = { companyId: req.user.companyId };
-    if (q) {
+    if (term) {
       filter.$or = [
-        { name: { $regex: String(q), $options: "i" } },
-        { sku: { $regex: String(q), $options: "i" } }
+        { name: { $regex: term, $options: "i" } },
+        { sku: { $regex: term, $options: "i" } },
+        { barcode: { $regex: term, $options: "i" } }
       ];
     }
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
@@ -45,6 +60,7 @@ router.post("/", async (req, res) => {
       companyId: req.user.companyId,
       name: parsed.name,
       sku: parsed.sku,
+      barcode: parsed.barcode,
       description: parsed.description,
       category: parsed.category,
       unit: parsed.unit,
@@ -55,11 +71,17 @@ router.post("/", async (req, res) => {
     });
     res.status(201).json({ product });
   } catch (err) {
+    if (err?.code === 11000 && err?.keyPattern?.barcode) {
+      return res.status(409).json({ error: "Barcode already used by another product" });
+    }
+    if (err?.code === 11000 && err?.keyPattern?.sku) {
+      return res.status(409).json({ error: "SKU already used by another product" });
+    }
     return handleRouteError(res, err, "Failed to create product");
   }
 });
 
-router.put("/:id", async (req, res) => {
+const updateProductHandler = async (req, res) => {
   try {
     ensureObjectId(req.params.id, "product id");
     const parsed = ProductSchema.parse(req.body);
@@ -67,6 +89,7 @@ router.put("/:id", async (req, res) => {
     if (!product) return res.status(404).json({ error: "Product not found" });
     product.name = parsed.name ?? product.name;
     product.sku = parsed.sku ?? product.sku;
+    product.barcode = parsed.barcode ?? product.barcode;
     product.description = parsed.description ?? product.description;
     product.category = parsed.category ?? product.category;
     product.unit = parsed.unit ?? product.unit;
@@ -77,9 +100,18 @@ router.put("/:id", async (req, res) => {
     await product.save();
     res.json({ product });
   } catch (err) {
+    if (err?.code === 11000 && err?.keyPattern?.barcode) {
+      return res.status(409).json({ error: "Barcode already used by another product" });
+    }
+    if (err?.code === 11000 && err?.keyPattern?.sku) {
+      return res.status(409).json({ error: "SKU already used by another product" });
+    }
     return handleRouteError(res, err, "Failed to update product");
   }
-});
+};
+
+router.put("/:id", updateProductHandler);
+router.patch("/:id", updateProductHandler);
 
 router.delete("/:id", async (req, res) => {
   try {
