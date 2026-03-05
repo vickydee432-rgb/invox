@@ -57,6 +57,16 @@ export default function BarcodeCamera({
   const qrRef = useRef<any>(null);
   const lastScanRef = useRef<{ value: string; ts: number } | null>(null);
   const [lastValue, setLastValue] = useState("");
+  const onScanRef = useRef(onScan);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     if (!active) return;
@@ -107,7 +117,7 @@ export default function BarcodeCamera({
           if (last && last.value === value && now - last.ts < 1000) return;
           lastScanRef.current = { value, ts: now };
           setLastValue(value);
-          onScan(value);
+          onScanRef.current?.(value);
         };
         try {
           await instance.start(cameraTarget as any, startConfig, onDecoded);
@@ -127,7 +137,7 @@ export default function BarcodeCamera({
           video.style.objectFit = "cover";
         }
       } catch (err: any) {
-        onError?.(err?.message || "Camera scanning unavailable in this browser.");
+        onErrorRef.current?.(err?.message || "Camera scanning unavailable in this browser.");
       }
     };
 
@@ -136,12 +146,23 @@ export default function BarcodeCamera({
     return () => {
       mounted = false;
       if (qrRef.current) {
-        qrRef.current.stop().catch(() => undefined);
-        qrRef.current.clear().catch(() => undefined);
+        const instance = qrRef.current;
         qrRef.current = null;
+        void (async () => {
+          try {
+            await instance.stop();
+          } catch {
+            // ignore stop failures
+          }
+          try {
+            await instance.clear();
+          } catch {
+            // ignore clear failures
+          }
+        })();
       }
     };
-  }, [active, elementId, fps, onError, onScan]);
+  }, [active, elementId, fps, mode]);
 
   if (!active) return null;
 
