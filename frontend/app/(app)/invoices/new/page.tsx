@@ -858,7 +858,12 @@ function NewInvoicePageContent() {
                   />
                 </label>
                 <div className="field" style={{ alignSelf: "end" }}>
-                  <button className="button secondary" type="button" onClick={handleBarcodeScan} disabled={scanLoading}>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => handleBarcodeScan()}
+                    disabled={scanLoading}
+                  >
                     {scanLoading ? "Looking up..." : "Add by barcode"}
                   </button>
                 </div>
