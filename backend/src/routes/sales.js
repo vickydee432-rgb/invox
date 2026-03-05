@@ -204,8 +204,9 @@ router.post("/", async (req, res) => {
 
     const session = await Sale.startSession();
     session.startTransaction();
+    let sale;
     try {
-      const sale = new Sale({
+      sale = new Sale({
         saleNo,
         companyId: req.user.companyId,
         workspaceId: String(req.user.companyId),
@@ -250,14 +251,22 @@ router.post("/", async (req, res) => {
         note: sale.saleNo
       });
       await session.commitTransaction();
-      session.endSession();
-      await logSaleChange({ sale, operation: "create", req });
-      return res.status(201).json({ sale });
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
       throw err;
+    } finally {
+      session.endSession();
     }
+    if (sale) {
+      try {
+        await logSaleChange({ sale, operation: "create", req });
+      } catch (err) {
+        // ignore log failures
+      }
+    }
+    return res.status(201).json({ sale });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create sale");
   }
@@ -269,11 +278,13 @@ router.put("/:id", async (req, res) => {
     const parsed = SaleUpdateSchema.parse(req.body);
     const session = await Sale.startSession();
     session.startTransaction();
+    let sale;
     try {
-      const sale = await Sale.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(session);
+      sale = await Sale.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(session);
       if (!sale) {
-        await session.abortTransaction();
-        session.endSession();
+        if (session.inTransaction()) {
+          await session.abortTransaction();
+        }
         return res.status(404).json({ error: "Sale not found" });
       }
 
@@ -339,14 +350,22 @@ router.put("/:id", async (req, res) => {
         note: sale.saleNo
       });
       await session.commitTransaction();
-      session.endSession();
-      await logSaleChange({ sale, operation: "update", req });
-      res.json({ sale });
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
       throw err;
+    } finally {
+      session.endSession();
     }
+    if (sale) {
+      try {
+        await logSaleChange({ sale, operation: "update", req });
+      } catch (err) {
+        // ignore log failures
+      }
+    }
+    res.json({ sale });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update sale");
   }
@@ -357,11 +376,13 @@ router.delete("/:id", async (req, res) => {
     ensureObjectId(req.params.id, "sale id");
     const session = await Sale.startSession();
     session.startTransaction();
+    let sale;
     try {
-      const sale = await Sale.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(session);
+      sale = await Sale.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(session);
       if (!sale) {
-        await session.abortTransaction();
-        session.endSession();
+        if (session.inTransaction()) {
+          await session.abortTransaction();
+        }
         return res.status(404).json({ error: "Sale not found" });
       }
 
@@ -374,7 +395,6 @@ router.delete("/:id", async (req, res) => {
       });
       if (inventoryResult.shortages.length > 0) {
         await session.abortTransaction();
-        session.endSession();
         return res.status(409).json({
           error: "Insufficient stock to delete this sale",
           shortages: inventoryResult.shortages
@@ -395,14 +415,22 @@ router.delete("/:id", async (req, res) => {
       sale.deviceId = String(req.headers["x-device-id"] || "server");
       await sale.save({ session });
       await session.commitTransaction();
-      session.endSession();
-      await logSaleChange({ sale, operation: "delete", req });
-      res.json({ ok: true });
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
       throw err;
+    } finally {
+      session.endSession();
     }
+    if (sale) {
+      try {
+        await logSaleChange({ sale, operation: "delete", req });
+      } catch (err) {
+        // ignore log failures
+      }
+    }
+    res.json({ ok: true });
   } catch (err) {
     return handleRouteError(res, err, "Failed to delete sale");
   }
