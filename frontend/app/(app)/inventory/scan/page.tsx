@@ -328,7 +328,7 @@ export default function InventoryScanPage() {
               <input value={createForm.unit} onChange={(e) => setCreateForm((p) => ({ ...p, unit: e.target.value }))} />
             </label>
             <label className="field">
-              Cost price
+              Order price
               <input type="number" value={createForm.costPrice} onChange={(e) => setCreateForm((p) => ({ ...p, costPrice: Number(e.target.value) }))} />
             </label>
             <label className="field">

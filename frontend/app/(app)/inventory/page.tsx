@@ -508,7 +508,7 @@ export default function InventoryPage() {
             />
           </label>
           <label className="field">
-            Cost price
+            Order price
             <input
               type="number"
               min={0}
