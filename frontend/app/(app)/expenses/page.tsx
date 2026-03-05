@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { getDb } from "@/lib/db";
+import { BaseRecord, getDb } from "@/lib/db";
 import { getDeviceId } from "@/lib/device";
 import { enqueueChange } from "@/lib/sync";
 import { getSyncContext } from "@/lib/syncContext";
@@ -21,6 +21,8 @@ type Expense = {
   deletedAt?: string | null;
   version?: number;
 };
+
+type ExpenseRecord = Expense & BaseRecord;
 
 type Project = {
   _id: string;
@@ -102,12 +104,12 @@ export default function ExpensesPage() {
         return;
       }
       const db = getDb(context.companyId, getDeviceId());
-      const queryLocal = async () => {
-        let items = await db.expenses
+      const queryLocal = async (): Promise<ExpenseRecord[]> => {
+        let items = (await db.expenses
           .where("companyId")
           .equals(context.companyId)
           .and((exp: any) => exp.workspaceId === context.workspaceId && !exp.deletedAt)
-          .toArray();
+          .toArray()) as ExpenseRecord[];
         if (keyword) {
           const lower = keyword.toLowerCase();
           items = items.filter((exp: any) => String(exp.title || "").toLowerCase().includes(lower));
