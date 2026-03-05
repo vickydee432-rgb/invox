@@ -1,6 +1,8 @@
 const express = require("express");
 const { z } = require("zod");
 const Product = require("../models/Product");
+const Branch = require("../models/Branch");
+const Stock = require("../models/Stock");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
@@ -21,6 +23,74 @@ const ProductSchema = z.object({
   reorderLevel: z.number().nonnegative().optional(),
   isActive: z.boolean().optional()
 });
+
+async function seedBranchStock(companyId, branch) {
+  if (!branch || branch.isActive === false) return;
+  const products = await Product.find({ companyId, isActive: { $ne: false } })
+    .select("_id costPrice")
+    .lean();
+  if (!products.length) return;
+  const productIds = products.map((product) => product._id);
+  const existing = await Stock.find({
+    companyId,
+    branchId: branch._id,
+    productId: { $in: productIds }
+  })
+    .select("productId")
+    .lean();
+  const existingIds = new Set(existing.map((row) => String(row.productId)));
+  const rows = products
+    .filter((product) => !existingIds.has(String(product._id)))
+    .map((product) => ({
+      companyId,
+      branchId: branch._id,
+      productId: product._id,
+      onHand: 0,
+      avgCost: Number(product.costPrice || 0)
+    }));
+  if (rows.length) {
+    await Stock.insertMany(rows);
+  }
+}
+
+async function getActiveBranches(companyId) {
+  const branches = await Branch.find({ companyId, isActive: { $ne: false } });
+  if (branches.length > 0) return { branches, createdBranch: null };
+
+  const branch = await Branch.create({
+    companyId,
+    name: "Main Branch",
+    isDefault: true,
+    isActive: true
+  });
+  await seedBranchStock(companyId, branch);
+  return { branches: [branch], createdBranch: branch };
+}
+
+async function seedProductStock(companyId, product) {
+  const { branches } = await getActiveBranches(companyId);
+  const branchIds = branches.map((branch) => branch._id);
+  const existing = await Stock.find({
+    companyId,
+    productId: product._id,
+    branchId: { $in: branchIds }
+  })
+    .select("branchId")
+    .lean();
+  const existingIds = new Set(existing.map((row) => String(row.branchId)));
+  const rows = branchIds
+    .filter((branchId) => !existingIds.has(String(branchId)))
+    .map((branchId) => ({
+      companyId,
+      branchId,
+      productId: product._id,
+      onHand: 0,
+      avgCost: Number(product.costPrice || 0)
+    }));
+  if (rows.length) {
+    await Stock.insertMany(rows);
+  }
+}
 
 router.get("/lookup", async (req, res) => {
   try {
@@ -69,6 +139,7 @@ router.post("/", async (req, res) => {
       reorderLevel: parsed.reorderLevel ?? 0,
       isActive: parsed.isActive ?? true
     });
+    await seedProductStock(req.user.companyId, product);
     res.status(201).json({ product });
   } catch (err) {
     if (err?.code === 11000 && err?.keyPattern?.barcode) {

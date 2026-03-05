@@ -26,25 +26,38 @@ async function buildReportData(req) {
   const invoiceMatch = { companyId: req.user.companyId };
   const quoteMatch = { companyId: req.user.companyId };
   const expenseMatch = { companyId: req.user.companyId };
+  const salesMatch = { companyId: req.user.companyId, deletedAt: null };
 
   if (fromDate || toDate) {
     invoiceMatch.issueDate = {};
     quoteMatch.issueDate = {};
     expenseMatch.date = {};
+    salesMatch.issueDate = {};
 
     if (fromDate) {
       invoiceMatch.issueDate.$gte = fromDate;
       quoteMatch.issueDate.$gte = fromDate;
       expenseMatch.date.$gte = fromDate;
+      salesMatch.issueDate.$gte = fromDate;
     }
     if (toDate) {
       invoiceMatch.issueDate.$lte = toDate;
       quoteMatch.issueDate.$lte = toDate;
       expenseMatch.date.$lte = toDate;
+      salesMatch.issueDate.$lte = toDate;
     }
   }
 
-  const [quoteAgg, invoiceAgg, expenseAgg, overdueCount, billedPaidByMonth, expensesByMonth] =
+  const [
+    quoteAgg,
+    invoiceAgg,
+    expenseAgg,
+    salesAgg,
+    overdueCount,
+    billedPaidByMonth,
+    salesByMonth,
+    expensesByMonth
+  ] =
     await Promise.all([
       Quote.aggregate([
         { $match: quoteMatch },
@@ -78,6 +91,18 @@ async function buildReportData(req) {
           }
         }
       ]),
+      Sale.aggregate([
+        { $match: salesMatch },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            total: { $sum: "$total" },
+            paid: { $sum: "$amountPaid" },
+            outstanding: { $sum: "$balance" }
+          }
+        }
+      ]),
       Invoice.countDocuments({
         ...invoiceMatch,
         balance: { $gt: 0 },
@@ -90,6 +115,17 @@ async function buildReportData(req) {
             _id: { $dateToString: { format: "%Y-%m", date: "$issueDate" } },
             billed: { $sum: "$total" },
             paid: { $sum: "$amountPaid" }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+      Sale.aggregate([
+        { $match: salesMatch },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m", date: "$issueDate" } },
+            sales: { $sum: "$total" },
+            salesPaid: { $sum: "$amountPaid" }
           }
         },
         { $sort: { _id: 1 } }
@@ -109,6 +145,7 @@ async function buildReportData(req) {
   const quoteTotals = quoteAgg[0] || { count: 0, total: 0 };
   const invoiceTotals = invoiceAgg[0] || { count: 0, billed: 0, paid: 0, outstanding: 0 };
   const expenseTotals = expenseAgg[0] || { count: 0, total: 0 };
+  const salesTotals = salesAgg[0] || { count: 0, total: 0, paid: 0, outstanding: 0 };
 
   const seriesMap = new Map();
   billedPaidByMonth.forEach((row) => {
@@ -116,15 +153,32 @@ async function buildReportData(req) {
       month: row._id,
       billed: row.billed || 0,
       paid: row.paid || 0,
-      expenses: 0
+      expenses: 0,
+      sales: 0,
+      salesPaid: 0
     });
+  });
+  salesByMonth.forEach((row) => {
+    const existing = seriesMap.get(row._id) || {
+      month: row._id,
+      billed: 0,
+      paid: 0,
+      expenses: 0,
+      sales: 0,
+      salesPaid: 0
+    };
+    existing.sales = row.sales || 0;
+    existing.salesPaid = row.salesPaid || 0;
+    seriesMap.set(row._id, existing);
   });
   expensesByMonth.forEach((row) => {
     const existing = seriesMap.get(row._id) || {
       month: row._id,
       billed: 0,
       paid: 0,
-      expenses: 0
+      expenses: 0,
+      sales: 0,
+      salesPaid: 0
     };
     existing.expenses = row.expenses || 0;
     seriesMap.set(row._id, existing);
@@ -205,6 +259,10 @@ async function buildReportData(req) {
     summary: {
       quotes_count: quoteTotals.count,
       quotes_total: quoteTotals.total,
+      sales_count: salesTotals.count,
+      sales_total: salesTotals.total,
+      sales_paid_total: salesTotals.paid,
+      sales_outstanding: salesTotals.outstanding,
       invoices_count: invoiceTotals.count,
       invoices_billed_total: invoiceTotals.billed,
       invoices_paid_total: invoiceTotals.paid,

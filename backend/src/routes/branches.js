@@ -1,6 +1,8 @@
 const express = require("express");
 const { z } = require("zod");
 const Branch = require("../models/Branch");
+const Product = require("../models/Product");
+const Stock = require("../models/Stock");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
@@ -16,6 +18,36 @@ const BranchSchema = z.object({
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional()
 });
+
+async function seedBranchStock(companyId, branch) {
+  if (!branch || branch.isActive === false) return;
+  const products = await Product.find({ companyId, isActive: { $ne: false } })
+    .select("_id costPrice")
+    .lean();
+  if (!products.length) return;
+
+  const productIds = products.map((product) => product._id);
+  const existing = await Stock.find({
+    companyId,
+    branchId: branch._id,
+    productId: { $in: productIds }
+  })
+    .select("productId")
+    .lean();
+  const existingIds = new Set(existing.map((row) => String(row.productId)));
+  const rows = products
+    .filter((product) => !existingIds.has(String(product._id)))
+    .map((product) => ({
+      companyId,
+      branchId: branch._id,
+      productId: product._id,
+      onHand: 0,
+      avgCost: Number(product.costPrice || 0)
+    }));
+  if (rows.length) {
+    await Stock.insertMany(rows);
+  }
+}
 
 router.get("/", async (req, res) => {
   try {
@@ -40,6 +72,7 @@ router.post("/", async (req, res) => {
       isDefault: parsed.isDefault ?? false,
       isActive: parsed.isActive ?? true
     });
+    await seedBranchStock(req.user.companyId, branch);
     res.status(201).json({ branch });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create branch");

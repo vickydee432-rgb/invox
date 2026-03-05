@@ -85,10 +85,17 @@ function buildReportsWorkbook(summary, series) {
   });
 
   const seriesSheet = workbook.addWorksheet("Monthly");
+  const hasSales = (series || []).some((row) => row.sales !== undefined || row.salesPaid !== undefined);
   seriesSheet.columns = [
     { header: "Month", key: "month", width: 12 },
     { header: "Billed", key: "billed", width: 14 },
     { header: "Paid", key: "paid", width: 14 },
+    ...(hasSales
+      ? [
+          { header: "Sales", key: "sales", width: 14 },
+          { header: "Sales Paid", key: "salesPaid", width: 14 }
+        ]
+      : []),
     { header: "Expenses", key: "expenses", width: 14 }
   ];
 
@@ -97,6 +104,8 @@ function buildReportsWorkbook(summary, series) {
       month: row.month,
       billed: row.billed,
       paid: row.paid,
+      sales: row.sales ?? 0,
+      salesPaid: row.salesPaid ?? 0,
       expenses: row.expenses
     });
   });

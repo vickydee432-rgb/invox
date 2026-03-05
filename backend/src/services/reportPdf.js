@@ -45,10 +45,17 @@ function generateReportsPdf(res, { summary, series, range }) {
   doc.fontSize(12).font("Helvetica-Bold").text("Monthly Trend", 50, y);
   y += 18;
   doc.fontSize(10).font("Helvetica");
+  const hasSales = (series || []).some((row) => row.sales !== undefined || row.salesPaid !== undefined);
   doc.text("Month", 50, y);
   doc.text("Billed", 180, y);
   doc.text("Paid", 300, y);
-  doc.text("Expenses", 420, y);
+  if (hasSales) {
+    doc.text("Sales", 400, y);
+    doc.text("Sales Paid", 470, y);
+    doc.text("Expenses", 540, y);
+  } else {
+    doc.text("Expenses", 420, y);
+  }
   y += 16;
   doc.moveTo(50, y).lineTo(550, y).strokeColor("#aaaaaa").stroke();
   y += 10;
@@ -61,7 +68,13 @@ function generateReportsPdf(res, { summary, series, range }) {
     doc.text(row.month, 50, y);
     doc.text(formatMoney(row.billed), 180, y);
     doc.text(formatMoney(row.paid), 300, y);
-    doc.text(formatMoney(row.expenses), 420, y);
+    if (hasSales) {
+      doc.text(formatMoney(row.sales || 0), 400, y);
+      doc.text(formatMoney(row.salesPaid || 0), 470, y);
+      doc.text(formatMoney(row.expenses), 540, y);
+    } else {
+      doc.text(formatMoney(row.expenses), 420, y);
+    }
     y += 16;
   });
 

@@ -7,6 +7,10 @@ import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 type Summary = {
   quotes_count: number;
   quotes_total: number;
+  sales_count: number;
+  sales_total: number;
+  sales_paid_total: number;
+  sales_outstanding: number;
   invoices_count: number;
   invoices_billed_total: number;
   invoices_paid_total: number;
@@ -31,6 +35,8 @@ type SeriesRow = {
   billed: number;
   paid: number;
   expenses: number;
+  sales?: number;
+  salesPaid?: number;
 };
 
 export default function ReportsPage() {
@@ -115,6 +121,7 @@ export default function ReportsPage() {
 
   const invoiceLabel = workspace?.labels?.invoices || "Invoices";
   const quoteLabel = workspace?.labels?.quotes || "Quotes";
+  const salesLabel = workspace?.labels?.sales || "Sales";
 
   if (workspace && !workspace.enabledModules.includes("reports")) {
     return (
@@ -193,6 +200,20 @@ export default function ReportsPage() {
                 <div className="muted">Count: {summary.quotes_count}</div>
               </div>
             ) : null}
+            {workspace?.enabledModules?.includes("sales") ? (
+              <div className="stat-card">
+                <div className="muted">{salesLabel} total</div>
+                <div className="stat-value">{summary.sales_total.toFixed(2)}</div>
+                <div className="muted">Count: {summary.sales_count}</div>
+              </div>
+            ) : null}
+            {workspace?.enabledModules?.includes("sales") ? (
+              <div className="stat-card">
+                <div className="muted">{salesLabel} paid</div>
+                <div className="stat-value">{summary.sales_paid_total.toFixed(2)}</div>
+                <div className="muted">Outstanding: {summary.sales_outstanding.toFixed(2)}</div>
+              </div>
+            ) : null}
             {workspace?.enabledModules?.includes("invoices") ? (
               <div className="stat-card">
                 <div className="muted">{invoiceLabel} billed</div>
@@ -242,6 +263,8 @@ export default function ReportsPage() {
                 <th>Month</th>
                 <th>Billed</th>
                 <th>Paid</th>
+                {workspace?.enabledModules?.includes("sales") ? <th>Sales</th> : null}
+                {workspace?.enabledModules?.includes("sales") ? <th>Sales Paid</th> : null}
                 <th>Expenses</th>
               </tr>
             </thead>
@@ -251,12 +274,18 @@ export default function ReportsPage() {
                   <td>{row.month}</td>
                   <td>{row.billed.toFixed(2)}</td>
                   <td>{row.paid.toFixed(2)}</td>
+                  {workspace?.enabledModules?.includes("sales") ? (
+                    <td>{Number(row.sales || 0).toFixed(2)}</td>
+                  ) : null}
+                  {workspace?.enabledModules?.includes("sales") ? (
+                    <td>{Number(row.salesPaid || 0).toFixed(2)}</td>
+                  ) : null}
                   <td>{row.expenses.toFixed(2)}</td>
                 </tr>
               ))}
               {series.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="muted">
+                  <td colSpan={workspace?.enabledModules?.includes("sales") ? 6 : 4} className="muted">
                     No data for the selected range.
                   </td>
                 </tr>
