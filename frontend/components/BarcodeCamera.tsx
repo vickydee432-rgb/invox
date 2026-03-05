@@ -2,12 +2,6 @@
 
 import { useEffect, useId, useRef } from "react";
 
-declare global {
-  interface Window {
-    Html5Qrcode?: any;
-  }
-}
-
 type BarcodeCameraProps = {
   active: boolean;
   onScan: (value: string) => void;
@@ -16,26 +10,11 @@ type BarcodeCameraProps = {
   fps?: number;
 };
 
-const loadHtml5Qrcode = () =>
-  new Promise<any>((resolve, reject) => {
-    if (typeof window === "undefined") return reject(new Error("No window"));
-    if (window.Html5Qrcode) return resolve(window.Html5Qrcode);
-
-    const existing = document.getElementById("html5-qrcode-sdk");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Html5Qrcode));
-      existing.addEventListener("error", () => reject(new Error("Failed to load camera SDK")));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = "html5-qrcode-sdk";
-    script.src = "https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js";
-    script.async = true;
-    script.onload = () => resolve(window.Html5Qrcode);
-    script.onerror = () => reject(new Error("Failed to load camera SDK"));
-    document.body.appendChild(script);
-  });
+const loadHtml5Qrcode = async () => {
+  if (typeof window === "undefined") throw new Error("No window");
+  const mod: any = await import("html5-qrcode");
+  return mod?.Html5Qrcode || mod?.default?.Html5Qrcode || mod?.default || mod;
+};
 
 const pickCameraId = (cameras: { id: string; label: string }[]) => {
   if (!cameras.length) return null;
