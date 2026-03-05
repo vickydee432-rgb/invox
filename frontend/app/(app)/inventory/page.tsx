@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import BarcodeCamera from "@/components/BarcodeCamera";
 
 type Branch = {
   _id: string;
@@ -64,6 +65,8 @@ export default function InventoryPage() {
   });
   const [barcodeScan, setBarcodeScan] = useState("");
   const [stockBranchId, setStockBranchId] = useState("");
+  const [useCamera, setUseCamera] = useState(false);
+  const [cameraError, setCameraError] = useState("");
 
   const activeBranches = useMemo(() => branches.filter((b) => b.isActive !== false), [branches]);
 
@@ -424,6 +427,29 @@ export default function InventoryPage() {
               placeholder="Focus and scan"
             />
           </label>
+          <div className="field" style={{ alignSelf: "end" }}>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => {
+                setCameraError("");
+                setUseCamera((prev) => !prev);
+              }}
+            >
+              {useCamera ? "Stop camera" : "Use camera"}
+            </button>
+          </div>
+          <div className="field" style={{ gridColumn: "1 / -1" }}>
+            <BarcodeCamera
+              active={useCamera}
+              onScan={(value) => {
+                setProductForm((prev) => ({ ...prev, barcode: value }));
+                setBarcodeScan("");
+              }}
+              onError={(message) => setCameraError(message)}
+            />
+            {cameraError ? <div className="muted" style={{ marginTop: 8 }}>{cameraError}</div> : null}
+          </div>
           <label className="field">
             Category
             <input

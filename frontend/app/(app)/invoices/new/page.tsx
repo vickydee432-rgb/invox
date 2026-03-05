@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import BarcodeCamera from "@/components/BarcodeCamera";
 
 type InvoiceItem = {
   productId?: string;
@@ -78,6 +79,8 @@ function NewInvoicePageContent() {
   const [scanValue, setScanValue] = useState("");
   const [scanError, setScanError] = useState("");
   const [scanLoading, setScanLoading] = useState(false);
+  const [scanCameraError, setScanCameraError] = useState("");
+  const [useCamera, setUseCamera] = useState(false);
   const [lastScan, setLastScan] = useState("");
   const [stockShortages, setStockShortages] = useState<
     { productId: string; available: number; requested: number }[]
@@ -400,8 +403,8 @@ function NewInvoicePageContent() {
     ]);
   };
 
-  const handleBarcodeScan = async () => {
-    const code = scanValue.trim();
+  const handleBarcodeScan = async (value?: string) => {
+    const code = (value ?? scanValue).trim();
     if (!code) return;
     setLastScan(code);
     setScanLoading(true);
@@ -859,6 +862,26 @@ function NewInvoicePageContent() {
                     {scanLoading ? "Looking up..." : "Add by barcode"}
                   </button>
                 </div>
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    setScanCameraError("");
+                    setUseCamera((prev) => !prev);
+                  }}
+                >
+                  {useCamera ? "Stop camera" : "Use camera"}
+                </button>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <BarcodeCamera
+                  active={useCamera}
+                  onScan={(value) => handleBarcodeScan(value)}
+                  onError={(message) => setScanCameraError(message)}
+                />
+                {scanCameraError ? <div className="muted" style={{ marginTop: 8 }}>{scanCameraError}</div> : null}
               </div>
               {scanError ? <div className="muted" style={{ marginTop: 10 }}>{scanError}</div> : null}
               {scanError && lastScan ? (
