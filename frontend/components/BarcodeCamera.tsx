@@ -20,7 +20,10 @@ type BarcodeCameraProps = {
 const loadHtml5Qrcode = async () => {
   if (typeof window === "undefined") throw new Error("No window");
   const mod: any = await import("html5-qrcode");
-  return mod?.Html5Qrcode || mod?.default?.Html5Qrcode || mod?.default || mod;
+  const Html5Qrcode = mod?.Html5Qrcode || mod?.default?.Html5Qrcode || mod?.default || mod;
+  const Html5QrcodeSupportedFormats =
+    mod?.Html5QrcodeSupportedFormats || mod?.default?.Html5QrcodeSupportedFormats || undefined;
+  return { Html5Qrcode, Html5QrcodeSupportedFormats };
 };
 
 const pickCameraId = (cameras: { id: string; label: string }[]) => {
@@ -54,7 +57,7 @@ export default function BarcodeCamera({
 
     const start = async () => {
       try {
-        const Html5Qrcode = await loadHtml5Qrcode();
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await loadHtml5Qrcode();
         if (!mounted || !Html5Qrcode) return;
         const cameras = (await Html5Qrcode.getCameras?.()) || [];
         const cameraId = pickCameraId(cameras);
@@ -71,9 +74,29 @@ export default function BarcodeCamera({
                 height: Math.min(viewfinderHeight * 0.24, 180)
               })
             : 220;
+        const formats = Html5QrcodeSupportedFormats
+          ? [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.ITF,
+              Html5QrcodeSupportedFormats.CODABAR
+            ]
+          : undefined;
         await instance.start(
           cameraId,
-          { fps, qrbox },
+          {
+            fps,
+            qrbox,
+            aspectRatio: 1.777,
+            disableFlip: false,
+            formatsToSupport: formats,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+          },
           (decodedText: string) => {
             const value = String(decodedText || "").trim();
             if (!value) return;
@@ -85,6 +108,14 @@ export default function BarcodeCamera({
             onScan(value);
           }
         );
+        const host = document.getElementById(elementId);
+        const video = host?.querySelector("video") as HTMLVideoElement | null;
+        if (video) {
+          video.setAttribute("playsinline", "true");
+          video.style.width = "100%";
+          video.style.height = "100%";
+          video.style.objectFit = "cover";
+        }
       } catch (err: any) {
         onError?.(err?.message || "Camera scanning unavailable in this browser.");
       }
