@@ -885,6 +885,11 @@ function NewInvoicePageContent() {
                   active={useCamera}
                   onScan={(value) => handleBarcodeScan(value)}
                   onError={(message) => setScanCameraError(message)}
+                  mode="overlay"
+                  onClose={() => setUseCamera(false)}
+                  showLast={false}
+                  title="Scanning barcode..."
+                  subtitle="Align the barcode within the frame"
                 />
                 {scanCameraError ? <div className="muted" style={{ marginTop: 8 }}>{scanCameraError}</div> : null}
               </div>

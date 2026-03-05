@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
-
-declare global {
-  interface Window {
-    Html5Qrcode?: any;
-  }
-}
+import BarcodeCamera from "@/components/BarcodeCamera";
 
 type Branch = {
   _id: string;
@@ -56,30 +51,8 @@ export default function InventoryScanPage() {
     salePrice: 0
   });
   const [useCamera, setUseCamera] = useState(false);
+  const [cameraError, setCameraError] = useState("");
   const scanInputRef = useRef<HTMLInputElement | null>(null);
-  const qrRef = useRef<any>(null);
-  const cameraReadyRef = useRef(false);
-
-  const loadHtml5Qrcode = () =>
-    new Promise<any>((resolve, reject) => {
-      if (typeof window === "undefined") return reject(new Error("No window"));
-      if (window.Html5Qrcode) return resolve(window.Html5Qrcode);
-
-      const existing = document.getElementById("html5-qrcode-sdk");
-      if (existing) {
-        existing.addEventListener("load", () => resolve(window.Html5Qrcode));
-        existing.addEventListener("error", () => reject(new Error("Failed to load camera SDK")));
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.id = "html5-qrcode-sdk";
-      script.src = "https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js";
-      script.async = true;
-      script.onload = () => resolve(window.Html5Qrcode);
-      script.onerror = () => reject(new Error("Failed to load camera SDK"));
-      document.body.appendChild(script);
-    });
 
   useEffect(() => {
     apiFetch<{ company: any }>("/api/company/me")
@@ -102,35 +75,7 @@ export default function InventoryScanPage() {
 
   useEffect(() => {
     if (!useCamera) return;
-    let mounted = true;
-    const start = async () => {
-      try {
-        const Html5Qrcode = await loadHtml5Qrcode();
-        if (!mounted || !Html5Qrcode) return;
-        const instance = new Html5Qrcode("barcode-camera");
-        qrRef.current = instance;
-        await instance.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 220 },
-          (decodedText: string) => {
-            handleScan(decodedText);
-          }
-        );
-        cameraReadyRef.current = true;
-      } catch (err) {
-        setScanError("Camera scanning unavailable in this browser.");
-      }
-    };
-    start();
-    return () => {
-      mounted = false;
-      if (qrRef.current) {
-        qrRef.current.stop().catch(() => undefined);
-        qrRef.current.clear().catch(() => undefined);
-        qrRef.current = null;
-      }
-      cameraReadyRef.current = false;
-    };
+    setCameraError("");
   }, [useCamera]);
 
   const branchOptions = useMemo(() => branches, [branches]);
@@ -255,7 +200,17 @@ export default function InventoryScanPage() {
         <button className="button ghost" type="button" onClick={() => setUseCamera((prev) => !prev)}>
           {useCamera ? "Stop camera" : "Use camera"}
         </button>
-        {useCamera ? <div id="barcode-camera" style={{ width: 280 }} /> : null}
+        <BarcodeCamera
+          active={useCamera}
+          onScan={(value) => handleScan(value)}
+          onError={(message) => setCameraError(message)}
+          mode="overlay"
+          onClose={() => setUseCamera(false)}
+          showLast={false}
+          title="Scanning barcode..."
+          subtitle="Align the barcode within the frame"
+        />
+        {cameraError ? <div className="muted">{cameraError}</div> : null}
       </div>
 
       {scanError ? <div className="muted" style={{ marginTop: 12 }}>{scanError}</div> : null}

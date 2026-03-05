@@ -447,6 +447,11 @@ export default function InventoryPage() {
                 setBarcodeScan("");
               }}
               onError={(message) => setCameraError(message)}
+              mode="overlay"
+              onClose={() => setUseCamera(false)}
+              showLast={false}
+              title="Scanning barcode..."
+              subtitle="Align the barcode within the frame"
             />
             {cameraError ? <div className="muted" style={{ marginTop: 8 }}>{cameraError}</div> : null}
           </div>
