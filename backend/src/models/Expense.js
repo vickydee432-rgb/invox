@@ -16,6 +16,9 @@ const ExpenseSchema = new mongoose.Schema(
     date: { type: Date, required: true },
 
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    workspaceId: { type: String, trim: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    deviceId: { type: String, trim: true, index: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
     projectLabel: { type: String, trim: true },
 
@@ -24,7 +27,9 @@ const ExpenseSchema = new mongoose.Schema(
     paymentMethod: { type: String, trim: true }, // cash, bank, airtel, mtn, pos
     note: { type: String, trim: true },
 
-    receipts: { type: [ReceiptSchema], default: [] }
+    receipts: { type: [ReceiptSchema], default: [] },
+    version: { type: Number, default: 1 },
+    deletedAt: { type: Date }
   },
   { timestamps: true }
 );

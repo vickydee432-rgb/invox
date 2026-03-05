@@ -3,6 +3,9 @@ const mongoose = require("mongoose");
 const ProductSchema = new mongoose.Schema(
   {
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    workspaceId: { type: String, trim: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    deviceId: { type: String, trim: true, index: true },
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true },
     barcode: { type: String, trim: true },
@@ -12,7 +15,9 @@ const ProductSchema = new mongoose.Schema(
     costPrice: { type: Number, default: 0, min: 0 },
     salePrice: { type: Number, default: 0, min: 0 },
     reorderLevel: { type: Number, default: 0, min: 0 },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    version: { type: Number, default: 1 },
+    deletedAt: { type: Date }
   },
   { timestamps: true }
 );

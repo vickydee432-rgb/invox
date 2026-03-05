@@ -18,6 +18,9 @@ const InvoiceSchema = new mongoose.Schema(
   {
     invoiceNo: { type: String, required: true, index: true },
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    workspaceId: { type: String, trim: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    deviceId: { type: String, trim: true, index: true },
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
     customerTpin: { type: String, trim: true },
@@ -73,7 +76,9 @@ const InvoiceSchema = new mongoose.Schema(
     amountPaid: { type: Number, default: 0, min: 0 },
     balance: { type: Number, default: 0, min: 0 },
 
-    sourceQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: "Quote", default: null }
+    sourceQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: "Quote", default: null },
+    version: { type: Number, default: 1 },
+    deletedAt: { type: Date }
   },
   { timestamps: true }
 );

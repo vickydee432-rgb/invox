@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "dexie": "^4.0.8",
     "dodopayments-checkout": "^1.0.0",
     "next": "^16.1.6",
     "react": "^18.3.1",
