@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type BarcodeCameraProps = {
   active: boolean;
@@ -29,7 +29,10 @@ const loadHtml5Qrcode = async () => {
 const pickCameraId = (cameras: { id: string; label: string }[]) => {
   if (!cameras.length) return null;
   const preferred = cameras.find((camera) => /back|rear|environment/i.test(camera.label || ""));
-  return (preferred || cameras[0])?.id || null;
+  if (preferred) return preferred.id || null;
+  const hasLabel = cameras.some((camera) => Boolean(camera.label));
+  if (!hasLabel) return null;
+  return cameras[0]?.id || null;
 };
 
 export default function BarcodeCamera({
@@ -46,7 +49,11 @@ export default function BarcodeCamera({
   status,
   statusTone = "neutral"
 }: BarcodeCameraProps) {
-  const elementId = useId();
+  const elementIdRef = useRef<string | null>(null);
+  if (!elementIdRef.current) {
+    elementIdRef.current = `barcode-camera-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  const elementId = elementIdRef.current;
   const qrRef = useRef<any>(null);
   const lastScanRef = useRef<{ value: string; ts: number } | null>(null);
   const [lastValue, setLastValue] = useState("");
@@ -61,17 +68,14 @@ export default function BarcodeCamera({
         if (!mounted || !Html5Qrcode) return;
         const cameras = (await Html5Qrcode.getCameras?.()) || [];
         const cameraId = pickCameraId(cameras);
-        if (!cameraId) {
-          onError?.("No camera detected.");
-          return;
-        }
+        const cameraTarget = cameraId || { facingMode: "environment" };
         const instance = new Html5Qrcode(elementId);
         qrRef.current = instance;
         const qrbox =
           mode === "overlay"
             ? (viewfinderWidth: number, viewfinderHeight: number) => ({
-                width: Math.min(viewfinderWidth * 0.78, 380),
-                height: Math.min(viewfinderHeight * 0.24, 180)
+                width: Math.min(viewfinderWidth * 0.85, 420),
+                height: Math.min(viewfinderHeight * 0.32, 200)
               })
             : 220;
         const formats = Html5QrcodeSupportedFormats
@@ -87,31 +91,37 @@ export default function BarcodeCamera({
               Html5QrcodeSupportedFormats.CODABAR
             ]
           : undefined;
-        await instance.start(
-          cameraId,
-          {
-            fps,
-            qrbox,
-            aspectRatio: 1.777,
-            disableFlip: false,
-            formatsToSupport: formats,
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-          },
-          (decodedText: string) => {
-            const value = String(decodedText || "").trim();
-            if (!value) return;
-            const now = Date.now();
-            const last = lastScanRef.current;
-            if (last && last.value === value && now - last.ts < 1000) return;
-            lastScanRef.current = { value, ts: now };
-            setLastValue(value);
-            onScan(value);
-          }
-        );
+        const startConfig = {
+          fps,
+          qrbox,
+          aspectRatio: 1.333,
+          disableFlip: false,
+          formatsToSupport: formats,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        };
+        const onDecoded = (decodedText: string) => {
+          const value = String(decodedText || "").trim();
+          if (!value) return;
+          const now = Date.now();
+          const last = lastScanRef.current;
+          if (last && last.value === value && now - last.ts < 1000) return;
+          lastScanRef.current = { value, ts: now };
+          setLastValue(value);
+          onScan(value);
+        };
+        try {
+          await instance.start(cameraTarget as any, startConfig, onDecoded);
+        } catch (err) {
+          if (cameraId || cameras.length === 0) throw err;
+          await instance.start(cameras[0].id, startConfig, onDecoded);
+        }
         const host = document.getElementById(elementId);
         const video = host?.querySelector("video") as HTMLVideoElement | null;
         if (video) {
           video.setAttribute("playsinline", "true");
+          video.setAttribute("muted", "true");
+          video.setAttribute("autoplay", "true");
+          video.muted = true;
           video.style.width = "100%";
           video.style.height = "100%";
           video.style.objectFit = "cover";
