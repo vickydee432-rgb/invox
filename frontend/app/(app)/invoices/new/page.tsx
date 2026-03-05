@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
@@ -36,7 +36,7 @@ type Product = {
   salePrice?: number;
 };
 
-export default function NewInvoicePage() {
+function NewInvoicePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
@@ -1053,5 +1053,13 @@ export default function NewInvoicePage() {
         </form>
       </section>
     </>
+  );
+}
+
+export default function NewInvoicePage() {
+  return (
+    <Suspense fallback={<div className="muted">Loading invoice...</div>}>
+      <NewInvoicePageContent />
+    </Suspense>
   );
 }
