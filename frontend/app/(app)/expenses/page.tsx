@@ -39,6 +39,8 @@ export default function ExpensesPage() {
   const [filterProjectId, setFilterProjectId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [sortDir, setSortDir] = useState("desc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState("");
   const [applyToAll, setApplyToAll] = useState(false);
@@ -50,7 +52,9 @@ export default function ExpensesPage() {
     categoryValue = categoryFilter,
     projectValue = filterProjectId,
     fromValue = fromDate,
-    toValue = toDate
+    toValue = toDate,
+    sortField = sortBy,
+    sortDirection = sortDir
   ) => {
     setLoading(true);
     setError("");
@@ -63,6 +67,8 @@ export default function ExpensesPage() {
       if (projectValue) params.set("projectId", projectValue);
       if (fromValue) params.set("from", fromValue);
       if (toValue) params.set("to", toValue);
+      if (sortField) params.set("sortBy", sortField);
+      if (sortDirection) params.set("sortDir", sortDirection);
       const data = await apiFetch<{
         expenses: Expense[];
         page: number;
@@ -97,8 +103,8 @@ export default function ExpensesPage() {
       setLoading(false);
       return;
     }
-    loadExpenses(page, query, categoryFilter, filterProjectId, fromDate, toDate);
-  }, [page, query, categoryFilter, filterProjectId, fromDate, toDate, workspace]);
+    loadExpenses(page, query, categoryFilter, filterProjectId, fromDate, toDate, sortBy, sortDir);
+  }, [page, query, categoryFilter, filterProjectId, fromDate, toDate, sortBy, sortDir, workspace]);
 
   useEffect(() => {
     if (workspace?.projectTrackingEnabled === false) {
@@ -274,6 +280,27 @@ export default function ExpensesPage() {
               <label className="field" style={{ minWidth: 160 }}>
                 To
                 <input value={toDate} onChange={(e) => setToDate(e.target.value)} type="date" />
+              </label>
+              <label className="field" style={{ minWidth: 200 }}>
+                Sort by
+                <select
+                  value={`${sortBy}:${sortDir}`}
+                  onChange={(e) => {
+                    const [nextBy, nextDir] = e.target.value.split(":");
+                    setSortBy(nextBy);
+                    setSortDir(nextDir);
+                    setPage(1);
+                  }}
+                >
+                  <option value="date:desc">Date (newest first)</option>
+                  <option value="date:asc">Date (oldest first)</option>
+                  <option value="amount:desc">Amount (high to low)</option>
+                  <option value="amount:asc">Amount (low to high)</option>
+                  <option value="title:asc">Title (A to Z)</option>
+                  <option value="title:desc">Title (Z to A)</option>
+                  <option value="category:asc">Category (A to Z)</option>
+                  <option value="category:desc">Category (Z to A)</option>
+                </select>
               </label>
               <button className="button secondary" onClick={handleSearch}>
                 Search

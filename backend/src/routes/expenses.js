@@ -582,7 +582,7 @@ router.put("/:id", async (req, res) => {
 // List expenses with filters: projectId, category, from, to, q (title)
 router.get("/", async (req, res) => {
   try {
-    const { projectId, category, from, to, q, limit, page } = req.query;
+    const { projectId, category, from, to, q, limit, page, sortBy, sortDir } = req.query;
 
     const filter = {};
     if (projectId) {
@@ -604,8 +604,20 @@ router.get("/", async (req, res) => {
     const pageNum = parsePage(page);
     const total = await Expense.countDocuments({ ...filter, companyId: req.user.companyId });
     const skip = (pageNum - 1) * safeLimit;
+    const sortMap = {
+      date: "date",
+      amount: "amount",
+      title: "title",
+      category: "category",
+      created: "createdAt"
+    };
+    const sortField = sortMap[String(sortBy)] || "date";
+    const direction = String(sortDir || "desc").toLowerCase() === "asc" ? 1 : -1;
+    const sort = { [sortField]: direction };
+    if (sortField !== "createdAt") sort.createdAt = -1;
+    sort._id = -1;
     const expenses = await Expense.find({ ...filter, companyId: req.user.companyId })
-      .sort({ date: -1, createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(safeLimit)
       .lean();
