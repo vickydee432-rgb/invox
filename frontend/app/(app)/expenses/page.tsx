@@ -3,15 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { getDb } from "@/lib/db";
+import { getDeviceId } from "@/lib/device";
+import { enqueueChange } from "@/lib/sync";
+import { getSyncContext } from "@/lib/syncContext";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 type Expense = {
-  _id: string;
+  id: string;
+  serverId?: string | null;
   title: string;
   category: string;
   amount: number;
   date: string;
+  projectId?: string | null;
   projectLabel?: string;
+  deletedAt?: string | null;
+  version?: number;
 };
 
 type Project = {
@@ -45,6 +53,34 @@ export default function ExpensesPage() {
   const [projectId, setProjectId] = useState("");
   const [applyToAll, setApplyToAll] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [seeded, setSeeded] = useState(false);
+
+  const mapServerExpense = (expense: any, context: { companyId: string; workspaceId: string; userId: string }) => {
+    const deviceId = getDeviceId();
+    return {
+      id: expense._id,
+      serverId: expense._id,
+      companyId: context.companyId,
+      workspaceId: context.workspaceId,
+      userId: context.userId,
+      deviceId,
+      createdAt: expense.createdAt || new Date().toISOString(),
+      updatedAt: expense.updatedAt || new Date().toISOString(),
+      deletedAt: expense.deletedAt || null,
+      version: expense.version || 1,
+      title: expense.title,
+      category: expense.category,
+      amount: expense.amount,
+      date: expense.date,
+      projectId: expense.projectId || null,
+      projectLabel: expense.projectLabel || undefined,
+      supplier: expense.supplier,
+      paidTo: expense.paidTo,
+      paymentMethod: expense.paymentMethod,
+      note: expense.note,
+      receipts: expense.receipts || []
+    };
+  };
 
   const loadExpenses = async (
     targetPage = page,
@@ -59,24 +95,74 @@ export default function ExpensesPage() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams();
-      params.set("page", String(targetPage));
-      params.set("limit", String(LIMIT));
-      if (keyword) params.set("q", keyword);
-      if (categoryValue) params.set("category", categoryValue);
-      if (projectValue) params.set("projectId", projectValue);
-      if (fromValue) params.set("from", fromValue);
-      if (toValue) params.set("to", toValue);
-      if (sortField) params.set("sortBy", sortField);
-      if (sortDirection) params.set("sortDir", sortDirection);
-      const data = await apiFetch<{
-        expenses: Expense[];
-        page: number;
-        pages: number;
-      }>(`/api/expenses?${params.toString()}`);
-      setExpenses(data.expenses);
-      setPage(data.page);
-      setPages(data.pages);
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        setLoading(false);
+        return;
+      }
+      const db = getDb(context.companyId, getDeviceId());
+      const queryLocal = async () => {
+        let items = await db.expenses
+          .where("companyId")
+          .equals(context.companyId)
+          .and((exp: any) => exp.workspaceId === context.workspaceId && !exp.deletedAt)
+          .toArray();
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          items = items.filter((exp: any) => String(exp.title || "").toLowerCase().includes(lower));
+        }
+        if (categoryValue) {
+          items = items.filter((exp: any) => String(exp.category || "") === categoryValue);
+        }
+        if (projectValue) {
+          items = items.filter((exp: any) => String(exp.projectId || "") === projectValue);
+        }
+        if (fromValue) {
+          const fromTs = new Date(fromValue).getTime();
+          items = items.filter((exp: any) => new Date(exp.date).getTime() >= fromTs);
+        }
+        if (toValue) {
+          const toTs = new Date(toValue).getTime();
+          items = items.filter((exp: any) => new Date(exp.date).getTime() <= toTs);
+        }
+        const dir = sortDirection === "asc" ? 1 : -1;
+        items.sort((a: any, b: any) => {
+          if (sortField === "amount") return (a.amount - b.amount) * dir;
+          if (sortField === "title") return String(a.title || "").localeCompare(String(b.title || "")) * dir;
+          if (sortField === "category") return String(a.category || "").localeCompare(String(b.category || "")) * dir;
+          const aDate = new Date(a.date).getTime();
+          const bDate = new Date(b.date).getTime();
+          return (aDate - bDate) * dir;
+        });
+        return items;
+      };
+
+      let items = await queryLocal();
+      if (items.length === 0 && typeof navigator !== "undefined" && navigator.onLine && !seeded) {
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("limit", "500");
+        if (keyword) params.set("q", keyword);
+        if (categoryValue) params.set("category", categoryValue);
+        if (projectValue) params.set("projectId", projectValue);
+        if (fromValue) params.set("from", fromValue);
+        if (toValue) params.set("to", toValue);
+        const data = await apiFetch<{ expenses: any[] }>(`/api/expenses?${params.toString()}`);
+        if (data.expenses?.length) {
+          await db.expenses.bulkPut(data.expenses.map((exp) => mapServerExpense(exp, context)));
+        }
+        setSeeded(true);
+        items = await queryLocal();
+      }
+
+      const total = items.length;
+      const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+      const start = (targetPage - 1) * LIMIT;
+      const paged = items.slice(start, start + LIMIT);
+      setExpenses(paged);
+      setPage(Math.min(targetPage, totalPages));
+      setPages(totalPages);
       setSelectedIds([]);
     } catch (err: any) {
       setError(err.message || "Failed to load expenses");
@@ -124,17 +210,17 @@ export default function ExpensesPage() {
 
   const allVisibleSelected = useMemo(() => {
     if (expenses.length === 0) return false;
-    return expenses.every((exp) => selectedIds.includes(exp._id));
+    return expenses.every((exp) => selectedIds.includes(exp.id));
   }, [expenses, selectedIds]);
 
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !expenses.some((exp) => exp._id === id)));
+      setSelectedIds((prev) => prev.filter((id) => !expenses.some((exp) => exp.id === id)));
       return;
     }
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      expenses.forEach((exp) => next.add(exp._id));
+      expenses.forEach((exp) => next.add(exp.id));
       return Array.from(next);
     });
   };
@@ -167,6 +253,10 @@ export default function ExpensesPage() {
       setAssignError("Select a project.");
       return;
     }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setAssignError("You're offline. Sync to assign expenses to projects.");
+      return;
+    }
     if (applyToAll) {
       if (!query && !categoryFilter && !filterProjectId && !fromDate && !toDate) {
         setAssignError("Set at least one filter first.");
@@ -179,6 +269,15 @@ export default function ExpensesPage() {
 
     setAssigning(true);
     try {
+      if (!applyToAll) {
+        const selectedExpenses = expenses.filter((exp) => selectedIds.includes(exp.id));
+        const missingServerIds = selectedExpenses.filter((exp) => !exp.serverId);
+        if (missingServerIds.length > 0) {
+          setAssignError("Some selected expenses haven't synced yet.");
+          setAssigning(false);
+          return;
+        }
+      }
       const payload = applyToAll
         ? {
             projectId,
@@ -190,7 +289,12 @@ export default function ExpensesPage() {
               to: toDate || undefined
             }
           }
-        : { projectId, expenseIds: selectedIds };
+        : {
+            projectId,
+            expenseIds: expenses
+              .filter((exp) => selectedIds.includes(exp.id))
+              .map((exp) => exp.serverId as string)
+          };
       const data = await apiFetch<{ updatedCount: number }>("/api/expenses/bulk/project", {
         method: "PUT",
         body: JSON.stringify(payload)
@@ -209,7 +313,34 @@ export default function ExpensesPage() {
     const ok = window.confirm("Delete this expense? This cannot be undone.");
     if (!ok) return;
     try {
-      await apiFetch(`/api/expenses/${expenseId}`, { method: "DELETE" });
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        return;
+      }
+      const db = getDb(context.companyId, getDeviceId());
+      const existing = await db.expenses.get(expenseId);
+      if (!existing) {
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          await apiFetch(`/api/expenses/${expenseId}`, { method: "DELETE" });
+        }
+      } else {
+        const now = new Date().toISOString();
+        const next = {
+          ...existing,
+          deletedAt: now,
+          updatedAt: now,
+          version: (existing.version || 1) + 1
+        };
+        await db.expenses.put(next);
+        await enqueueChange(context, {
+          entityType: "expense",
+          operation: "delete",
+          recordId: expenseId,
+          serverId: existing.serverId ?? null,
+          payload: next
+        });
+      }
       await loadExpenses(page, query, categoryFilter, filterProjectId, fromDate, toDate);
     } catch (err: any) {
       setError(err.message || "Failed to delete expense");
@@ -361,12 +492,12 @@ export default function ExpensesPage() {
               </thead>
               <tbody>
                 {expenses.map((expense) => (
-                  <tr key={expense._id}>
+                  <tr key={expense.id}>
                     <td>
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(expense._id)}
-                        onChange={() => toggleSelect(expense._id)}
+                        checked={selectedIds.includes(expense.id)}
+                        onChange={() => toggleSelect(expense.id)}
                         disabled={applyToAll}
                       />
                     </td>
@@ -376,13 +507,10 @@ export default function ExpensesPage() {
                     <td>{new Date(expense.date).toLocaleDateString()}</td>
                     {workspace?.projectTrackingEnabled ? <td>{expense.projectLabel || "-"}</td> : null}
                     <td>
-                      <button
-                        className="button secondary"
-                        onClick={() => router.push(`/expenses/${expense._id}/edit`)}
-                      >
+                      <button className="button secondary" onClick={() => router.push(`/expenses/${expense.id}/edit`)}>
                         Edit
                       </button>
-                      <button className="button secondary" onClick={() => handleDelete(expense._id)}>
+                      <button className="button secondary" onClick={() => handleDelete(expense.id)}>
                         Delete
                       </button>
                     </td>

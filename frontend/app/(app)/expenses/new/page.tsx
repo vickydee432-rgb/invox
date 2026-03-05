@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { getDb } from "@/lib/db";
+import { getDeviceId } from "@/lib/device";
+import { enqueueChange } from "@/lib/sync";
+import { getSyncContext } from "@/lib/syncContext";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 export default function NewExpensePage() {
@@ -24,12 +28,12 @@ export default function NewExpensePage() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [receiptUrl, setReceiptUrl] = useState("");
 
-  useState(() => {
+  useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
     if (!date) setDate(today);
-  });
+  }, [date]);
 
-  useState(() => {
+  useEffect(() => {
     let active = true;
     apiFetch<{ company: any }>("/api/company/me")
       .then((data) => {
@@ -42,7 +46,7 @@ export default function NewExpensePage() {
     return () => {
       active = false;
     };
-  });
+  }, []);
 
   const handlePasteSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -70,6 +74,45 @@ export default function NewExpensePage() {
       );
       setPasteErrors(data.errors || []);
       setPasteSkipped(data.skipped || []);
+      try {
+        const context = getSyncContext();
+        if (context && typeof navigator !== "undefined" && navigator.onLine) {
+          const deviceId = getDeviceId();
+          const db = getDb(context.companyId, deviceId);
+          const params = new URLSearchParams();
+          params.set("page", "1");
+          params.set("limit", "500");
+          const seed = await apiFetch<{ expenses: any[] }>(`/api/expenses?${params.toString()}`);
+          if (seed.expenses?.length) {
+            const mapped = seed.expenses.map((expense) => ({
+              id: expense._id,
+              serverId: expense._id,
+              companyId: context.companyId,
+              workspaceId: context.workspaceId,
+              userId: context.userId,
+              deviceId,
+              createdAt: expense.createdAt || new Date().toISOString(),
+              updatedAt: expense.updatedAt || new Date().toISOString(),
+              deletedAt: expense.deletedAt || null,
+              version: expense.version || 1,
+              title: expense.title,
+              category: expense.category,
+              amount: expense.amount,
+              date: expense.date,
+              projectId: expense.projectId || null,
+              projectLabel: expense.projectLabel || undefined,
+              supplier: expense.supplier,
+              paidTo: expense.paidTo,
+              paymentMethod: expense.paymentMethod,
+              note: expense.note,
+              receipts: expense.receipts || []
+            }));
+            await db.expenses.bulkPut(mapped);
+          }
+        }
+      } catch (err) {
+        // ignore seed errors
+      }
     } catch (err: any) {
       setPasteError(err.message || "Failed to import expenses");
     } finally {
@@ -82,16 +125,40 @@ export default function NewExpensePage() {
     setSaving(true);
     setError("");
     try {
-      await apiFetch("/api/expenses", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          category,
-          amount,
-          date,
-          projectLabel: projectLabel || undefined,
-          receipts: receiptUrl ? [{ url: receiptUrl }] : undefined
-        })
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        setSaving(false);
+        return;
+      }
+      const deviceId = getDeviceId();
+      const db = getDb(context.companyId, deviceId);
+      const now = new Date().toISOString();
+      const localExpense = {
+        id: crypto.randomUUID(),
+        serverId: null,
+        companyId: context.companyId,
+        workspaceId: context.workspaceId,
+        userId: context.userId,
+        deviceId,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+        version: 1,
+        title,
+        category,
+        amount,
+        date,
+        projectLabel: projectLabel || undefined,
+        receipts: receiptUrl ? [{ url: receiptUrl }] : []
+      };
+      await db.expenses.put(localExpense);
+      await enqueueChange(context, {
+        entityType: "expense",
+        operation: "create",
+        recordId: localExpense.id,
+        serverId: null,
+        payload: localExpense
       });
       router.push("/expenses");
     } catch (err: any) {

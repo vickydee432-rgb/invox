@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { getDeviceId } from "@/lib/device";
+import { setSyncContext } from "@/lib/syncContext";
 import { startSyncEngine } from "@/lib/sync";
 
 export default function SyncBootstrap() {
@@ -16,6 +17,11 @@ export default function SyncBootstrap() {
         ]);
         if (!active) return;
         const deviceId = getDeviceId();
+        setSyncContext({
+          companyId: companyRes.company._id,
+          workspaceId: companyRes.company._id,
+          userId: userRes.user._id
+        });
         await apiFetch("/api/devices/register", {
           method: "POST",
           body: JSON.stringify({

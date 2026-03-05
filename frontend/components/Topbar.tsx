@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import SyncStatus from "@/components/SyncStatus";
 
 export default function Topbar() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -60,7 +61,10 @@ export default function Topbar() {
           </div>
         ) : null}
       </div>
-      <div className="badge">{user ? `${user.name} · ${user.email}` : "Loading user..."}</div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <SyncStatus />
+        <div className="badge">{user ? `${user.name} · ${user.email}` : "Loading user..."}</div>
+      </div>
     </div>
   );
 }

@@ -443,6 +443,16 @@ a {
   letter-spacing: 0.08em;
 }
 
+.badge.warn {
+  background: rgba(215, 143, 22, 0.16);
+  color: #7a4d00;
+}
+
+.badge.danger {
+  background: rgba(176, 42, 42, 0.16);
+  color: #7c1f1f;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

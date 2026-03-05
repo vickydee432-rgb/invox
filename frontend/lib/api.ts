@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { getDeviceId } from "./device";
 
 const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 const normalizedApiUrl = rawApiUrl.startsWith("http")
@@ -11,6 +12,9 @@ export async function apiFetch<T = any>(path: string, init: RequestInit = {}): P
   const headers = new Headers(init.headers || {});
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (typeof window !== "undefined") {
+    headers.set("x-device-id", getDeviceId());
+  }
 
   const res = await fetch(`${API_URL}${path}`, {
     ...init,

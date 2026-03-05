@@ -54,8 +54,12 @@ export async function startSyncEngine(context: SyncContext) {
   const run = async () => {
     if (!running) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
-    await pushQueue(db, context, deviceId);
-    await pullChanges(db, context, deviceId);
+    try {
+      await pushQueue(db, context, deviceId);
+      await pullChanges(db, context, deviceId);
+    } catch (err) {
+      // keep background sync resilient
+    }
   };
 
   const interval = window.setInterval(run, 15000);
@@ -265,7 +269,9 @@ async function applyRemoteChange(db: ReturnType<typeof getDb>, context: SyncCont
     return;
   }
 
-  const payload = change.payload || {};
+  const payload = { ...(change.payload || {}) };
+  delete payload._id;
+  delete payload.__v;
   const now = new Date().toISOString();
   await table.put({
     id: localId,

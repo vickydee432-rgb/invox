@@ -1,6 +1,7 @@
 const express = require("express");
 const { z } = require("zod");
 const Expense = require("../models/Expense");
+const ChangeLog = require("../models/ChangeLog");
 const { ensureObjectId, parseDateOrThrow, parseOptionalDate, parseLimit, parsePage, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
@@ -9,11 +10,29 @@ const { requireModule } = require("../middleware/workspace");
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("expenses"));
 
+async function logExpenseChange({ expense, operation, req }) {
+  if (!expense) return;
+  const payload = expense.toObject ? expense.toObject() : expense;
+  await ChangeLog.create({
+    companyId: expense.companyId,
+    workspaceId: expense.workspaceId || String(req.user.companyId),
+    userId: req.user._id,
+    deviceId: expense.deviceId || req.headers["x-device-id"] || "server",
+    entityType: "expense",
+    recordId: expense._id.toString(),
+    operation,
+    version: expense.version || 1,
+    payload,
+    changedAt: new Date()
+  });
+}
+
 const ExpenseCreateSchema = z.object({
   title: z.string().min(1),
   category: z.string().min(1),
   amount: z.number().nonnegative(),
   date: z.string().min(1),
+  workspaceId: z.string().optional(),
 
   projectId: z.string().optional(),
   projectLabel: z.string().optional(),
@@ -375,6 +394,8 @@ router.post("/", async (req, res) => {
   try {
     const parsed = ExpenseCreateSchema.parse(req.body);
     const date = parseDateOrThrow(parsed.date, "date");
+    const deviceId = req.headers["x-device-id"] || "server";
+    const workspaceId = parsed.workspaceId ? String(parsed.workspaceId) : String(req.user.companyId);
 
     const expense = await Expense.create({
       title: parsed.title,
@@ -382,6 +403,9 @@ router.post("/", async (req, res) => {
       amount: parsed.amount,
       date,
       companyId: req.user.companyId,
+      workspaceId,
+      userId: req.user._id,
+      deviceId: String(deviceId),
       projectId: parsed.projectId || null,
       projectLabel: parsed.projectLabel,
       supplier: parsed.supplier,
@@ -391,6 +415,7 @@ router.post("/", async (req, res) => {
       receipts: parsed.receipts || []
     });
 
+    await logExpenseChange({ expense, operation: "create", req });
     res.status(201).json({ expense });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create expense");
@@ -552,6 +577,7 @@ router.put("/:id", async (req, res) => {
     const parsed = ExpenseUpdateSchema.parse(req.body);
     const expense = await Expense.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!expense) return res.status(404).json({ error: "Expense not found" });
+    const deviceId = req.headers["x-device-id"] || "server";
 
     if (parsed.projectId !== undefined && parsed.projectId) {
       ensureObjectId(parsed.projectId, "project id");
@@ -572,7 +598,12 @@ router.put("/:id", async (req, res) => {
 
     if (parsed.receipts !== undefined) expense.receipts = parsed.receipts;
 
+    expense.userId = req.user._id;
+    expense.deviceId = String(deviceId);
+    expense.workspaceId = expense.workspaceId || String(req.user.companyId);
+    expense.version = (expense.version || 1) + 1;
     await expense.save();
+    await logExpenseChange({ expense, operation: "update", req });
     res.json({ expense });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update expense");
@@ -584,7 +615,7 @@ router.get("/", async (req, res) => {
   try {
     const { projectId, category, from, to, q, limit, page, sortBy, sortDir } = req.query;
 
-    const filter = {};
+    const filter = { deletedAt: null };
     if (projectId) {
       ensureObjectId(projectId, "project id");
       filter.projectId = projectId;
@@ -631,7 +662,7 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "expense id");
-    const expense = await Expense.findOne({ _id: req.params.id, companyId: req.user.companyId }).lean();
+    const expense = await Expense.findOne({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }).lean();
     if (!expense) return res.status(404).json({ error: "Expense not found" });
     res.json({ expense });
   } catch (err) {
@@ -642,8 +673,15 @@ router.get("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "expense id");
-    const expense = await Expense.findOneAndDelete({ _id: req.params.id, companyId: req.user.companyId });
+    const expense = await Expense.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!expense) return res.status(404).json({ error: "Expense not found" });
+    expense.deletedAt = new Date();
+    expense.version = (expense.version || 1) + 1;
+    expense.userId = req.user._id;
+    expense.deviceId = String(req.headers["x-device-id"] || "server");
+    expense.workspaceId = expense.workspaceId || String(req.user.companyId);
+    await expense.save();
+    await logExpenseChange({ expense, operation: "delete", req });
     res.json({ ok: true });
   } catch (err) {
     return handleRouteError(res, err, "Failed to delete expense");

@@ -3,14 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { getDb } from "@/lib/db";
+import { getDeviceId } from "@/lib/device";
+import { enqueueChange } from "@/lib/sync";
+import { getSyncContext } from "@/lib/syncContext";
 
 type Expense = {
-  _id: string;
+  id: string;
+  serverId?: string | null;
   title: string;
   category: string;
   amount: number;
   date: string;
   projectLabel?: string;
+  version?: number;
+  deletedAt?: string | null;
 };
 
 const toDateInputValue = (value?: string) => {
@@ -36,22 +43,57 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    apiFetch<{ expense: Expense }>(`/api/expenses/${id}`)
-      .then((data) => {
+    const load = async () => {
+      try {
+        const context = getSyncContext();
+        if (!context) {
+          setError("Offline data not ready. Connect online once to initialize sync.");
+          return;
+        }
+        const db = getDb(context.companyId, getDeviceId());
+        let local = await db.expenses.get(id);
+        if (!local && typeof navigator !== "undefined" && navigator.onLine) {
+          const data = await apiFetch<{ expense: any }>(`/api/expenses/${id}`);
+          if (data.expense) {
+            const mapped = {
+              id: data.expense._id,
+              serverId: data.expense._id,
+              companyId: context.companyId,
+              workspaceId: context.workspaceId,
+              userId: context.userId,
+              deviceId: getDeviceId(),
+              createdAt: data.expense.createdAt || new Date().toISOString(),
+              updatedAt: data.expense.updatedAt || new Date().toISOString(),
+              deletedAt: data.expense.deletedAt || null,
+              version: data.expense.version || 1,
+              title: data.expense.title,
+              category: data.expense.category,
+              amount: data.expense.amount,
+              date: data.expense.date,
+              projectLabel: data.expense.projectLabel || ""
+            };
+            await db.expenses.put(mapped);
+            local = mapped;
+          }
+        }
+        if (!local) {
+          setError("Expense not found locally.");
+          return;
+        }
         if (!active) return;
-        setTitle(data.expense.title || "");
-        setCategory(data.expense.category || "");
-        setAmount(data.expense.amount || 0);
-        setDate(toDateInputValue(data.expense.date));
-        setProjectLabel(data.expense.projectLabel || "");
-      })
-      .catch((err: any) => {
+        setTitle(local.title || "");
+        setCategory(local.category || "");
+        setAmount(local.amount || 0);
+        setDate(toDateInputValue(local.date));
+        setProjectLabel(local.projectLabel || "");
+      } catch (err: any) {
         if (!active) return;
         setError(err.message || "Failed to load expense");
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    };
+    load();
     return () => {
       active = false;
     };
@@ -62,15 +104,37 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     setSaving(true);
     setError("");
     try {
-      await apiFetch(`/api/expenses/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          title,
-          category,
-          amount,
-          date,
-          projectLabel: projectLabel || undefined
-        })
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        setSaving(false);
+        return;
+      }
+      const db = getDb(context.companyId, getDeviceId());
+      const existing = await db.expenses.get(id);
+      if (!existing) {
+        setError("Expense not found locally.");
+        setSaving(false);
+        return;
+      }
+      const now = new Date().toISOString();
+      const updated = {
+        ...existing,
+        title,
+        category,
+        amount,
+        date,
+        projectLabel: projectLabel || undefined,
+        updatedAt: now,
+        version: (existing.version || 1) + 1
+      };
+      await db.expenses.put(updated);
+      await enqueueChange(context, {
+        entityType: "expense",
+        operation: "update",
+        recordId: id,
+        serverId: existing.serverId ?? null,
+        payload: updated
       });
       router.push("/expenses");
     } catch (err: any) {
@@ -84,7 +148,35 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     const ok = window.confirm("Delete this expense? This cannot be undone.");
     if (!ok) return;
     try {
-      await apiFetch(`/api/expenses/${id}`, { method: "DELETE" });
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        return;
+      }
+      const db = getDb(context.companyId, getDeviceId());
+      const existing = await db.expenses.get(id);
+      if (!existing) {
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          await apiFetch(`/api/expenses/${id}`, { method: "DELETE" });
+        }
+        router.push("/expenses");
+        return;
+      }
+      const now = new Date().toISOString();
+      const next = {
+        ...existing,
+        deletedAt: now,
+        updatedAt: now,
+        version: (existing.version || 1) + 1
+      };
+      await db.expenses.put(next);
+      await enqueueChange(context, {
+        entityType: "expense",
+        operation: "delete",
+        recordId: id,
+        serverId: existing.serverId ?? null,
+        payload: next
+      });
       router.push("/expenses");
     } catch (err: any) {
       setError(err.message || "Failed to delete expense");
