@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 import BarcodeCamera from "@/components/BarcodeCamera";
@@ -67,6 +67,16 @@ export default function InventoryPage() {
   const [stockBranchId, setStockBranchId] = useState("");
   const [useCamera, setUseCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [scanOverlayStatus, setScanOverlayStatus] = useState("");
+  const [scanOverlayTone, setScanOverlayTone] = useState<"neutral" | "success" | "error">("neutral");
+  const cameraBusyRef = useRef(false);
+  const cameraCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+    };
+  }, []);
 
   const activeBranches = useMemo(() => branches.filter((b) => b.isActive !== false), [branches]);
 
@@ -433,6 +443,9 @@ export default function InventoryPage() {
               type="button"
               onClick={() => {
                 setCameraError("");
+                setScanOverlayStatus("");
+                setScanOverlayTone("neutral");
+                cameraBusyRef.current = false;
                 setUseCamera((prev) => !prev);
               }}
             >
@@ -443,15 +456,40 @@ export default function InventoryPage() {
             <BarcodeCamera
               active={useCamera}
               onScan={(value) => {
+                if (cameraBusyRef.current) return;
+                cameraBusyRef.current = true;
                 setProductForm((prev) => ({ ...prev, barcode: value }));
                 setBarcodeScan("");
+                const matched = products.find((product) => product.barcode === value);
+                if (matched) {
+                  setScanOverlayStatus(`Found: ${matched.name}`);
+                  setScanOverlayTone("success");
+                } else {
+                  setScanOverlayStatus(`Captured: ${value}`);
+                  setScanOverlayTone("neutral");
+                }
+                if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+                cameraCloseRef.current = setTimeout(() => {
+                  setUseCamera(false);
+                  setScanOverlayStatus("");
+                  setScanOverlayTone("neutral");
+                  cameraBusyRef.current = false;
+                }, 800);
               }}
               onError={(message) => setCameraError(message)}
               mode="overlay"
-              onClose={() => setUseCamera(false)}
+              onClose={() => {
+                if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+                cameraBusyRef.current = false;
+                setScanOverlayStatus("");
+                setScanOverlayTone("neutral");
+                setUseCamera(false);
+              }}
               showLast={false}
               title="Scanning barcode..."
               subtitle="Align the barcode within the frame"
+              status={scanOverlayStatus}
+              statusTone={scanOverlayTone}
             />
             {cameraError ? <div className="muted" style={{ marginTop: 8 }}>{cameraError}</div> : null}
           </div>

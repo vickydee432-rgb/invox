@@ -52,6 +52,9 @@ export default function InventoryScanPage() {
   });
   const [useCamera, setUseCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [scanOverlayStatus, setScanOverlayStatus] = useState("");
+  const [scanOverlayTone, setScanOverlayTone] = useState<"neutral" | "success" | "error">("neutral");
+  const scanOverlayCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -78,6 +81,12 @@ export default function InventoryScanPage() {
     setCameraError("");
   }, [useCamera]);
 
+  useEffect(() => {
+    return () => {
+      if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+    };
+  }, []);
+
   const branchOptions = useMemo(() => branches, [branches]);
 
   const pushHistory = (entry: ScanEntry) => {
@@ -87,20 +96,45 @@ export default function InventoryScanPage() {
   const handleScan = async (value?: string) => {
     const code = (value ?? scanValue).trim();
     if (!code) return;
+    if (loading) return;
     setLoading(true);
     setScanError("");
     setScanResult(null);
     setShowCreate(false);
+    if (useCamera) {
+      setScanOverlayStatus("Looking up...");
+      setScanOverlayTone("neutral");
+    }
     try {
       const data = await apiFetch<{ product: Product }>(`/api/products/lookup?barcode=${encodeURIComponent(code)}`);
       setScanResult(data.product);
       setCreateForm((prev) => ({ ...prev, barcode: code }));
       pushHistory({ barcode: code, timestamp: new Date().toLocaleTimeString(), status: "found", productName: data.product.name });
+      if (useCamera) {
+        setScanOverlayStatus(`Found: ${data.product.name}`);
+        setScanOverlayTone("success");
+        if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+        scanOverlayCloseRef.current = setTimeout(() => {
+          setUseCamera(false);
+          setScanOverlayStatus("");
+          setScanOverlayTone("neutral");
+        }, 900);
+      }
     } catch (err: any) {
       setScanError(err.message || "Product not found");
       setCreateForm({ name: "", sku: "", barcode: code, unit: "", costPrice: 0, salePrice: 0 });
       setShowCreate(true);
       pushHistory({ barcode: code, timestamp: new Date().toLocaleTimeString(), status: "not_found" });
+      if (useCamera) {
+        setScanOverlayStatus("Not found");
+        setScanOverlayTone("error");
+        if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+        scanOverlayCloseRef.current = setTimeout(() => {
+          setUseCamera(false);
+          setScanOverlayStatus("");
+          setScanOverlayTone("neutral");
+        }, 900);
+      }
     } finally {
       setScanValue("");
       setLoading(false);
@@ -197,7 +231,16 @@ export default function InventoryScanPage() {
         <button className="button secondary" type="button" onClick={() => handleScan()} disabled={loading}>
           {loading ? "Working..." : "Lookup"}
         </button>
-        <button className="button ghost" type="button" onClick={() => setUseCamera((prev) => !prev)}>
+        <button
+          className="button ghost"
+          type="button"
+          onClick={() => {
+            setScanOverlayStatus("");
+            setScanOverlayTone("neutral");
+            if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+            setUseCamera((prev) => !prev);
+          }}
+        >
           {useCamera ? "Stop camera" : "Use camera"}
         </button>
         <BarcodeCamera
@@ -205,10 +248,17 @@ export default function InventoryScanPage() {
           onScan={(value) => handleScan(value)}
           onError={(message) => setCameraError(message)}
           mode="overlay"
-          onClose={() => setUseCamera(false)}
+          onClose={() => {
+            if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+            setScanOverlayStatus("");
+            setScanOverlayTone("neutral");
+            setUseCamera(false);
+          }}
           showLast={false}
           title="Scanning barcode..."
           subtitle="Align the barcode within the frame"
+          status={scanOverlayStatus}
+          statusTone={scanOverlayTone}
         />
         {cameraError ? <div className="muted">{cameraError}</div> : null}
       </div>

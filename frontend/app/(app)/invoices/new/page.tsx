@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
@@ -81,6 +81,9 @@ function NewInvoicePageContent() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanCameraError, setScanCameraError] = useState("");
   const [useCamera, setUseCamera] = useState(false);
+  const [scanOverlayStatus, setScanOverlayStatus] = useState("");
+  const [scanOverlayTone, setScanOverlayTone] = useState<"neutral" | "success" | "error">("neutral");
+  const scanOverlayCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastScan, setLastScan] = useState("");
   const [stockShortages, setStockShortages] = useState<
     { productId: string; available: number; requested: number }[]
@@ -120,6 +123,12 @@ function NewInvoicePageContent() {
       .catch(() => {});
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
     };
   }, []);
 
@@ -406,9 +415,14 @@ function NewInvoicePageContent() {
   const handleBarcodeScan = async (value?: string) => {
     const code = (value ?? scanValue).trim();
     if (!code) return;
+    if (scanLoading) return;
     setLastScan(code);
     setScanLoading(true);
     setScanError("");
+    if (useCamera) {
+      setScanOverlayStatus("Looking up...");
+      setScanOverlayTone("neutral");
+    }
     try {
       const data = await apiFetch<{ product: Product }>(
         `/api/products/lookup?barcode=${encodeURIComponent(code)}`
@@ -436,8 +450,22 @@ function NewInvoicePageContent() {
         ];
       });
       setScanValue("");
+      if (useCamera) {
+        setScanOverlayStatus(`Added: ${product.name}`);
+        setScanOverlayTone("success");
+        if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+        scanOverlayCloseRef.current = setTimeout(() => {
+          setUseCamera(false);
+          setScanOverlayStatus("");
+          setScanOverlayTone("neutral");
+        }, 900);
+      }
     } catch (err: any) {
       setScanError(err.message || "Product not found");
+      if (useCamera) {
+        setScanOverlayStatus("Not found");
+        setScanOverlayTone("error");
+      }
     } finally {
       setScanLoading(false);
     }
@@ -874,6 +902,9 @@ function NewInvoicePageContent() {
                   type="button"
                   onClick={() => {
                     setScanCameraError("");
+                    setScanOverlayStatus("");
+                    setScanOverlayTone("neutral");
+                    if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
                     setUseCamera((prev) => !prev);
                   }}
                 >
@@ -886,10 +917,17 @@ function NewInvoicePageContent() {
                   onScan={(value) => handleBarcodeScan(value)}
                   onError={(message) => setScanCameraError(message)}
                   mode="overlay"
-                  onClose={() => setUseCamera(false)}
+                  onClose={() => {
+                    if (scanOverlayCloseRef.current) clearTimeout(scanOverlayCloseRef.current);
+                    setScanOverlayStatus("");
+                    setScanOverlayTone("neutral");
+                    setUseCamera(false);
+                  }}
                   showLast={false}
                   title="Scanning barcode..."
                   subtitle="Align the barcode within the frame"
+                  status={scanOverlayStatus}
+                  statusTone={scanOverlayTone}
                 />
                 {scanCameraError ? <div className="muted" style={{ marginTop: 8 }}>{scanCameraError}</div> : null}
               </div>

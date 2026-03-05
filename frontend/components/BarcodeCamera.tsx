@@ -13,6 +13,8 @@ type BarcodeCameraProps = {
   onClose?: () => void;
   title?: string;
   subtitle?: string;
+  status?: string;
+  statusTone?: "neutral" | "success" | "error";
 };
 
 const loadHtml5Qrcode = async () => {
@@ -37,7 +39,9 @@ export default function BarcodeCamera({
   mode = "inline",
   onClose,
   title = "Scanning barcode...",
-  subtitle = "Align the barcode within the frame"
+  subtitle = "Align the barcode within the frame",
+  status,
+  statusTone = "neutral"
 }: BarcodeCameraProps) {
   const elementId = useId();
   const qrRef = useRef<any>(null);
@@ -159,6 +163,23 @@ export default function BarcodeCamera({
 
             <div style={{ position: "absolute", bottom: 40, textAlign: "center", padding: "0 24px" }}>
               <div style={{ fontSize: 14, opacity: 0.9 }}>{subtitle}</div>
+              {status ? (
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color:
+                      statusTone === "success"
+                        ? "#7dff9a"
+                        : statusTone === "error"
+                          ? "#ff7d7d"
+                          : "#ffffff"
+                  }}
+                >
+                  {status}
+                </div>
+              ) : null}
               {showLast && lastValue ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>Last scan: {lastValue}</div> : null}
             </div>
           </div>
