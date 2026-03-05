@@ -33,6 +33,7 @@ export default function NewSalePage() {
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
+  const [amountPaid, setAmountPaid] = useState(0);
   const [issueDate, setIssueDate] = useState("");
   const [vatRate, setVatRate] = useState(0);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -53,6 +54,12 @@ export default function NewSalePage() {
   useEffect(() => {
     if (!issueDate) setIssueDate(new Date().toISOString().slice(0, 10));
   }, [issueDate]);
+
+  useEffect(() => {
+    if (status === "paid") {
+      setAmountPaid(total);
+    }
+  }, [status, total]);
 
   useEffect(() => {
     let mounted = true;
@@ -108,7 +115,7 @@ export default function NewSalePage() {
   };
 
   const removeItem = (index: number) => {
-    setItems((prev) => prev.filter((_, idx) => idx !== index));
+    setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== index)));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -122,6 +129,7 @@ export default function NewSalePage() {
           customerName: customerName || "Walk-in",
           customerPhone: customerPhone || undefined,
           status,
+          amountPaid,
           issueDate,
           vatRate: workspace?.taxEnabled === false ? 0 : vatRate,
           branchId: branchId || undefined,
@@ -177,6 +185,15 @@ export default function NewSalePage() {
               <option value="unpaid">Unpaid</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </label>
+          <label className="field">
+            Amount paid
+            <input
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(Number(e.target.value))}
+              type="number"
+              min={0}
+            />
           </label>
           <label className="field">
             Date

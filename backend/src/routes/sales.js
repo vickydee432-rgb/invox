@@ -193,7 +193,8 @@ router.post("/", async (req, res) => {
     const { subtotal, vatAmount, total } = calcTotals(items, vatRate, 0, 0);
     const issueDate = parseOptionalDate(parsed.issueDate, "issueDate") || new Date();
     const status = parsed.status || "paid";
-    const amountPaid = parsed.amountPaid !== undefined ? parsed.amountPaid : status === "paid" ? total : 0;
+    const amountPaidRaw = parsed.amountPaid !== undefined ? parsed.amountPaid : status === "paid" ? total : 0;
+    const amountPaid = Math.min(total, Math.max(0, amountPaidRaw));
     const balance = Math.max(0, total - amountPaid);
 
     const branch = await resolveBranch(req.user.companyId, parsed.branchId);
@@ -282,8 +283,9 @@ router.put("/:id", async (req, res) => {
       const vatRate = parsed.vatRate ?? sale.vatRate ?? 0;
       const { subtotal, vatAmount, total } = calcTotals(items, vatRate, 0, 0);
       const status = parsed.status || sale.status;
-      const amountPaid =
+      const amountPaidRaw =
         parsed.amountPaid !== undefined ? parsed.amountPaid : status === "paid" ? total : sale.amountPaid;
+      const amountPaid = Math.min(total, Math.max(0, amountPaidRaw));
       const balance = Math.max(0, total - amountPaid);
 
       if (parsed.branchId !== undefined && parsed.branchId) {

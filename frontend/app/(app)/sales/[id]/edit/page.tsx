@@ -33,6 +33,7 @@ type Sale = {
   customerName?: string;
   customerPhone?: string;
   status: string;
+  amountPaid: number;
   issueDate: string;
   vatRate: number;
   branchId?: string | null;
@@ -55,6 +56,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
+  const [amountPaid, setAmountPaid] = useState(0);
   const [issueDate, setIssueDate] = useState("");
   const [vatRate, setVatRate] = useState(0);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -69,6 +71,12 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   );
   const vatAmount = (itemsSubtotal * (Number(vatRate) || 0)) / 100;
   const total = itemsSubtotal + vatAmount;
+
+  useEffect(() => {
+    if (status === "paid") {
+      setAmountPaid(total);
+    }
+  }, [status, total]);
 
   useEffect(() => {
     let mounted = true;
@@ -118,6 +126,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
         setCustomerName(sale.customerName || "Walk-in");
         setCustomerPhone(sale.customerPhone || "");
         setStatus(sale.status || "paid");
+        setAmountPaid(sale.amountPaid || 0);
         setIssueDate(toDateInputValue(sale.issueDate));
         setVatRate(sale.vatRate ?? 0);
         setBranchId(sale.branchId || "");
@@ -154,7 +163,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   };
 
   const removeItem = (index: number) => {
-    setItems((prev) => prev.filter((_, idx) => idx !== index));
+    setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== index)));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -168,6 +177,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
           customerName,
           customerPhone: customerPhone || undefined,
           status,
+          amountPaid,
           issueDate,
           vatRate: workspace?.taxEnabled === false ? 0 : vatRate,
           branchId: branchId || undefined,
@@ -243,6 +253,15 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
               <option value="unpaid">Unpaid</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </label>
+          <label className="field">
+            Amount paid
+            <input
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(Number(e.target.value))}
+              type="number"
+              min={0}
+            />
           </label>
           <label className="field">
             Date
