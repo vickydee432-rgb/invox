@@ -4,6 +4,7 @@ const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
 const { parseOptionalDate, handleRouteError } = require("./_helpers");
 const Invoice = require("../models/Invoice");
+const Sale = require("../models/Sale");
 const Quote = require("../models/Quote");
 const Expense = require("../models/Expense");
 const Stock = require("../models/Stock");
@@ -140,8 +141,8 @@ async function buildReportData(req) {
 
     const [salesTodayAgg, expensesTodayAgg, cogsAgg, stockValueAgg, lowStockAgg] =
       await Promise.all([
-        Invoice.aggregate([
-          { $match: { companyId: req.user.companyId, invoiceType: "sale", issueDate: { $gte: start, $lt: end } } },
+        Sale.aggregate([
+          { $match: { companyId: req.user.companyId, issueDate: { $gte: start, $lt: end }, deletedAt: null } },
           { $group: { _id: null, total: { $sum: "$total" } } }
         ]),
         Expense.aggregate([

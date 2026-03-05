@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
@@ -64,12 +65,15 @@ const toDateInputValue = (value?: string) => {
 };
 
 export default function InvoicesPage() {
+  const pathname = usePathname();
+  const isSales = pathname.startsWith("/sales");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [sourceFilter, setSourceFilter] = useState("");
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<"" | "sale" | "purchase">(isSales ? "sale" : "");
 
   const [selectedId, setSelectedId] = useState("");
   const [amountPaid, setAmountPaid] = useState(0);
@@ -102,6 +106,7 @@ export default function InvoicesPage() {
     try {
       const params = new URLSearchParams({ page: String(targetPage), limit: String(LIMIT) });
       if (sourceFilter) params.set("source", sourceFilter);
+      if (invoiceTypeFilter) params.set("invoiceType", invoiceTypeFilter);
       const data = await apiFetch<{
         invoices: Invoice[];
         page: number;
@@ -120,7 +125,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadInvoices(page);
-  }, [page, sourceFilter]);
+  }, [page, sourceFilter, invoiceTypeFilter]);
 
   useEffect(() => {
     let mounted = true;
@@ -270,7 +275,11 @@ export default function InvoicesPage() {
   const handleExport = async () => {
     try {
       const filename = `invoices_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      await apiDownload("/api/invoices/export.xlsx", filename);
+      const params = new URLSearchParams();
+      if (sourceFilter) params.set("source", sourceFilter);
+      if (invoiceTypeFilter) params.set("invoiceType", invoiceTypeFilter);
+      const query = params.toString();
+      await apiDownload(`/api/invoices/export.xlsx${query ? `?${query}` : ""}`, filename);
     } catch (err: any) {
       setError(err.message || "Failed to export invoices");
     }
@@ -313,8 +322,12 @@ export default function InvoicesPage() {
   if (workspace && !workspace.enabledModules.includes("invoices")) {
     return (
       <section className="panel">
-        <div className="panel-title">{workspace.labels?.invoices || "Invoices"}</div>
-        <div className="muted">Invoices are disabled for this workspace.</div>
+        <div className="panel-title">
+          {isSales ? workspace.labels?.sales || "Sales" : workspace.labels?.invoices || "Invoices"}
+        </div>
+        <div className="muted">
+          {isSales ? "Sales are disabled for this workspace." : "Invoices are disabled for this workspace."}
+        </div>
         <button className="button" type="button" onClick={() => (window.location.href = "/settings")}>
           Update workspace
         </button>
@@ -584,15 +597,36 @@ export default function InvoicesPage() {
       </details>
 
       <section className="panel">
-        <div className="panel-title">{workspace?.labels?.invoices || "Invoices"}</div>
+        <div className="panel-title">
+          {isSales ? workspace?.labels?.sales || "Sales" : workspace?.labels?.invoices || "Invoices"}
+        </div>
         {loading ? (
           <div className="muted">Loading invoices...</div>
         ) : (
           <>
             <div className="action-row" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-              <Link className="button" href="/invoices/new">
-                {workspace?.labels?.invoiceSingular ? `Create ${workspace.labels.invoiceSingular}` : "Create invoice"}
+              <Link className="button" href={isSales ? "/invoices/new?type=sale" : "/invoices/new"}>
+                {isSales
+                  ? "Add sale"
+                  : workspace?.labels?.invoiceSingular
+                  ? `Create ${workspace.labels.invoiceSingular}`
+                  : "Create invoice"}
               </Link>
+              {!isSales ? (
+                <label className="field" style={{ minWidth: 160 }}>
+                  Type
+                  <select
+                    value={invoiceTypeFilter}
+                    onChange={(e) => setInvoiceTypeFilter(e.target.value as "" | "sale" | "purchase")}
+                  >
+                    <option value="">All</option>
+                    <option value="sale">Sale</option>
+                    <option value="purchase">Purchase</option>
+                  </select>
+                </label>
+              ) : (
+                <div className="badge">Sales only</div>
+              )}
               <label className="field" style={{ minWidth: 160 }}>
                 Source
                 <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>

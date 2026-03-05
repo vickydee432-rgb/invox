@@ -4,6 +4,7 @@ const Expense = require("../models/Expense");
 const Invoice = require("../models/Invoice");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
+const Sale = require("../models/Sale");
 const ChangeLog = require("../models/ChangeLog");
 const SyncIdMap = require("../models/SyncIdMap");
 const SyncOp = require("../models/SyncOp");
@@ -16,6 +17,7 @@ router.use(requireAuth, requireSubscription);
 
 const ENTITY_MODELS = {
   expense: Expense,
+  sale: Sale,
   invoice: Invoice,
   product: Product,
   inventory_movement: StockMovement,

@@ -9,6 +9,7 @@ import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 const MODULE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
   quotes: "/quotes",
+  sales: "/sales",
   invoices: "/invoices",
   expenses: "/expenses",
   projects: "/projects",
@@ -41,6 +42,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M14 3v5h5" />
       <path d="M9 12h6" />
       <path d="M9 16h6" />
+    </svg>
+  ),
+  sales: (
+    <svg {...iconProps}>
+      <path d="M4 4h16v6H4z" />
+      <path d="M7 14h10" />
+      <path d="M9 18h6" />
     </svg>
   ),
   quotes: (
@@ -114,6 +122,7 @@ export default function MobileNav() {
 
   const enabledModules = workspace?.enabledModules || [];
   const modules = ["dashboard", ...enabledModules, "settings"].filter((module) => {
+    if (module === "sales" && !enabledModules.includes("invoices")) return false;
     if (module === "inventory") return workspace?.inventoryEnabled;
     if (module === "projects") return workspace?.projectTrackingEnabled;
     return true;
@@ -122,7 +131,7 @@ export default function MobileNav() {
   const uniqueModules = Array.from(new Set(modules)).filter((module) => MODULE_ROUTES[module]);
 
   const compactModules = uniqueModules.filter((module) =>
-    ["dashboard", "invoices", "expenses", "reports", "settings"].includes(module)
+    ["dashboard", "sales", "invoices", "expenses", "reports", "settings"].includes(module)
   );
 
   const navModules = compactModules.length >= 4 ? compactModules.slice(0, 4) : uniqueModules.slice(0, 4);

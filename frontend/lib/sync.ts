@@ -32,6 +32,7 @@ let stopHandler: (() => void) | null = null;
 
 const ENTITY_TABLE: Record<string, string> = {
   invoice: "invoices",
+  sale: "sales",
   invoice_item: "invoice_items",
   product: "products",
   inventory_movement: "inventory_movements",

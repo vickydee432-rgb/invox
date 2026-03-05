@@ -6,9 +6,14 @@ async function resolveWorkspace(req) {
   const company = await Company.findById(req.user.companyId).lean();
   if (!company) return null;
   const defaults = buildWorkspaceDefaults(company.businessType || "construction");
+  const enabledModules = company.enabledModules?.length ? company.enabledModules : defaults.enabledModules;
+  const normalizedModules =
+    company.businessType === "retail" && enabledModules.includes("invoices") && !enabledModules.includes("sales")
+      ? [...enabledModules, "sales"]
+      : enabledModules;
   const workspace = {
     businessType: company.businessType || defaults.businessType,
-    enabledModules: company.enabledModules?.length ? company.enabledModules : defaults.enabledModules,
+    enabledModules: normalizedModules,
     labels: { ...defaults.labels, ...(company.labels || {}) },
     taxEnabled: company.taxEnabled ?? defaults.taxEnabled,
     inventoryEnabled: company.inventoryEnabled ?? defaults.inventoryEnabled,

@@ -3,21 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { getDb } from "@/lib/db";
+import { BaseRecord, getDb } from "@/lib/db";
 import { getDeviceId } from "@/lib/device";
 import { enqueueChange } from "@/lib/sync";
 import { getSyncContext } from "@/lib/syncContext";
 
-type Expense = {
-  id: string;
-  serverId?: string | null;
-  title: string;
-  category: string;
-  amount: number;
-  date: string;
+type Expense = BaseRecord & {
+  title?: string;
+  category?: string;
+  amount?: number;
+  date?: string;
   projectLabel?: string;
-  version?: number;
-  deletedAt?: string | null;
 };
 
 const toDateInputValue = (value?: string) => {
@@ -51,7 +47,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
           return;
         }
         const db = getDb(context.companyId, getDeviceId());
-        let local = await db.expenses.get(id);
+        let local = (await db.expenses.get(id)) as Expense | undefined;
         if (!local && typeof navigator !== "undefined" && navigator.onLine) {
           const data = await apiFetch<{ expense: any }>(`/api/expenses/${id}`);
           if (data.expense) {

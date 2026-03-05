@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
@@ -38,6 +38,8 @@ type Product = {
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type");
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [pasteError, setPasteError] = useState("");
@@ -139,6 +141,12 @@ export default function NewInvoicePage() {
       mounted = false;
     };
   }, [dueDate]);
+
+  useEffect(() => {
+    if (typeParam === "sale" || typeParam === "purchase") {
+      setInvoiceType(typeParam);
+    }
+  }, [typeParam]);
 
   useEffect(() => {
     let mounted = true;

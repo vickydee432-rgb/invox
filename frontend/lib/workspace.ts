@@ -10,6 +10,7 @@ export type WorkspaceConfig = {
 const DEFAULT_LABELS = {
   dashboard: "Dashboard",
   quotes: "Quotes",
+  sales: "Sales",
   invoices: "Invoices",
   invoiceSingular: "Invoice",
   expenses: "Expenses",
@@ -29,9 +30,10 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
   },
   retail: {
     businessType: "retail",
-    enabledModules: ["invoices", "expenses", "inventory", "reports"],
+    enabledModules: ["sales", "invoices", "expenses", "inventory", "reports"],
     labels: {
       ...DEFAULT_LABELS,
+      sales: "Sales",
       invoices: "Receipts",
       invoiceSingular: "Receipt",
       dashboard: "Shop Dashboard"
@@ -69,9 +71,14 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
 export function buildWorkspace(company: any): WorkspaceConfig {
   const businessType = (company?.businessType as WorkspaceConfig["businessType"]) || "construction";
   const defaults = DEFAULTS[businessType] || DEFAULTS.construction;
+  const enabledModules = company?.enabledModules?.length ? company.enabledModules : defaults.enabledModules;
+  const normalizedModules =
+    businessType === "retail" && enabledModules.includes("invoices") && !enabledModules.includes("sales")
+      ? [...enabledModules, "sales"]
+      : enabledModules;
   return {
     businessType,
-    enabledModules: company?.enabledModules?.length ? company.enabledModules : defaults.enabledModules,
+    enabledModules: normalizedModules,
     labels: { ...defaults.labels, ...(company?.labels || {}) },
     taxEnabled: company?.taxEnabled ?? defaults.taxEnabled,
     inventoryEnabled: company?.inventoryEnabled ?? defaults.inventoryEnabled,

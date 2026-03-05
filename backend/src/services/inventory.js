@@ -182,11 +182,13 @@ async function applyInvoiceInventory({
 async function replaceInvoiceMovements({
   companyId,
   invoice,
-  session
+  session,
+  sourceType = "invoice",
+  note
 }) {
   if (!invoice.branchId) {
     await StockMovement.deleteMany(
-      { companyId, sourceType: "invoice", sourceId: invoice._id },
+      { companyId, sourceType, sourceId: invoice._id },
       { session }
     );
     return;
@@ -197,10 +199,7 @@ async function replaceInvoiceMovements({
   );
   const stockMap = await getStockMap(companyId, invoice.branchId, productIds, session);
   const lines = buildMovementLines(invoice, stockMap);
-  await StockMovement.deleteMany(
-    { companyId, sourceType: "invoice", sourceId: invoice._id },
-    { session }
-  );
+  await StockMovement.deleteMany({ companyId, sourceType, sourceId: invoice._id }, { session });
   if (lines.length === 0) return;
 
   const docs = lines.map((line) => ({
@@ -211,9 +210,9 @@ async function replaceInvoiceMovements({
     qty: line.qty,
     unitCost: line.unitCost,
     totalCost: line.totalCost,
-    sourceType: "invoice",
+    sourceType,
     sourceId: invoice._id,
-    note: invoice.invoiceNo
+    note: note || invoice.invoiceNo
   }));
   await StockMovement.insertMany(docs, { session });
 }

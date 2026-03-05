@@ -1,6 +1,7 @@
 const DEFAULT_LABELS = {
   dashboard: "Dashboard",
   quotes: "Quotes",
+  sales: "Sales",
   invoices: "Invoices",
   invoiceSingular: "Invoice",
   expenses: "Expenses",
@@ -20,9 +21,10 @@ const BUSINESS_DEFAULTS = {
   },
   retail: {
     businessType: "retail",
-    enabledModules: ["invoices", "expenses", "inventory", "reports"],
+    enabledModules: ["sales", "invoices", "expenses", "inventory", "reports"],
     labels: {
       ...DEFAULT_LABELS,
+      sales: "Sales",
       invoices: "Receipts",
       invoiceSingular: "Receipt",
       dashboard: "Shop Dashboard"

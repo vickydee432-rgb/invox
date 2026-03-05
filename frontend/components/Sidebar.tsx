@@ -10,6 +10,7 @@ import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 const MODULE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
   quotes: "/quotes",
+  sales: "/sales",
   invoices: "/invoices",
   expenses: "/expenses",
   projects: "/projects",
@@ -68,6 +69,7 @@ export default function Sidebar() {
     const enabledModules = workspace?.enabledModules || [];
     const modules = ["dashboard", ...enabledModules, "settings"];
     const filtered = modules.filter((module) => {
+      if (module === "sales" && !enabledModules.includes("invoices")) return false;
       if (module === "inventory") return workspace?.inventoryEnabled;
       if (module === "projects") return workspace?.projectTrackingEnabled;
       return true;

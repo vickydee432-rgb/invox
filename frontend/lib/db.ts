@@ -52,6 +52,7 @@ export type IdMap = {
 
 export class InvoxDB extends Dexie {
   invoices!: Table<BaseRecord>;
+  sales!: Table<BaseRecord>;
   invoice_items!: Table<BaseRecord>;
   products!: Table<BaseRecord>;
   inventory_movements!: Table<BaseRecord>;
@@ -66,8 +67,9 @@ export class InvoxDB extends Dexie {
 
   constructor(name: string) {
     super(name);
-    this.version(1).stores({
+    this.version(2).stores({
       invoices: "id, serverId, companyId, workspaceId, updatedAt, deletedAt, invoiceNo",
+      sales: "id, serverId, companyId, workspaceId, updatedAt, deletedAt, saleNo",
       invoice_items: "id, invoiceId, companyId, workspaceId",
       products: "id, serverId, companyId, workspaceId, updatedAt, deletedAt, sku, barcode, name",
       inventory_movements: "id, serverId, companyId, workspaceId, updatedAt, deletedAt, productId",

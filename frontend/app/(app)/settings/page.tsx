@@ -7,6 +7,7 @@ import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const MODULE_OPTIONS = [
   { key: "quotes", label: "Quotes" },
+  { key: "sales", label: "Sales" },
   { key: "invoices", label: "Invoices" },
   { key: "expenses", label: "Expenses" },
   { key: "projects", label: "Projects" },
@@ -25,6 +26,7 @@ const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; n
 const LABEL_FIELDS: { key: string; label: string }[] = [
   { key: "dashboard", label: "Dashboard label" },
   { key: "quotes", label: "Quotes label" },
+  { key: "sales", label: "Sales label" },
   { key: "invoices", label: "Invoices label" },
   { key: "invoiceSingular", label: "Invoice singular label" },
   { key: "expenses", label: "Expenses label" },

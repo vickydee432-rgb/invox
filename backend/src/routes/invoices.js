@@ -35,10 +35,13 @@ const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("invoices"));
 
 function buildInvoiceFilter(query) {
-  const { status, projectId, from, to, q, source } = query;
+  const { status, projectId, from, to, q, source, invoiceType } = query;
   const filter = {};
   if (status) filter.status = status;
   if (source) filter.source = source;
+  if (invoiceType === "sale" || invoiceType === "purchase") {
+    filter.invoiceType = invoiceType;
+  }
   if (projectId) {
     ensureObjectId(projectId, "project id");
     filter.projectId = projectId;
