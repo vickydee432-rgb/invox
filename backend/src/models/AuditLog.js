@@ -13,7 +13,7 @@ const AuditLogSchema = new mongoose.Schema(
     statusCode: { type: Number },
     metadata: { type: mongoose.Schema.Types.Mixed },
     dataRegion: { type: String, trim: true },
-    expiresAt: { type: Date, index: true }
+    expiresAt: { type: Date }
   },
   { timestamps: true }
 );

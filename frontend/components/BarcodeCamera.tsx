@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 type BarcodeCameraProps = {
   active: boolean;
@@ -8,6 +8,7 @@ type BarcodeCameraProps = {
   onError?: (message: string) => void;
   width?: number;
   fps?: number;
+  showLast?: boolean;
 };
 
 const loadHtml5Qrcode = async () => {
@@ -22,10 +23,18 @@ const pickCameraId = (cameras: { id: string; label: string }[]) => {
   return (preferred || cameras[0])?.id || null;
 };
 
-export default function BarcodeCamera({ active, onScan, onError, width = 280, fps = 10 }: BarcodeCameraProps) {
+export default function BarcodeCamera({
+  active,
+  onScan,
+  onError,
+  width = 280,
+  fps = 10,
+  showLast = true
+}: BarcodeCameraProps) {
   const elementId = useId();
   const qrRef = useRef<any>(null);
   const lastScanRef = useRef<{ value: string; ts: number } | null>(null);
+  const [lastValue, setLastValue] = useState("");
 
   useEffect(() => {
     if (!active) return;
@@ -53,6 +62,7 @@ export default function BarcodeCamera({ active, onScan, onError, width = 280, fp
             const last = lastScanRef.current;
             if (last && last.value === value && now - last.ts < 1000) return;
             lastScanRef.current = { value, ts: now };
+            setLastValue(value);
             onScan(value);
           }
         );
@@ -75,5 +85,10 @@ export default function BarcodeCamera({ active, onScan, onError, width = 280, fp
 
   if (!active) return null;
 
-  return <div id={elementId} style={{ width }} />;
+  return (
+    <div>
+      <div id={elementId} style={{ width }} />
+      {showLast && lastValue ? <div className="muted" style={{ marginTop: 6 }}>Last scan: {lastValue}</div> : null}
+    </div>
+  );
 }
