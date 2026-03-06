@@ -349,6 +349,68 @@ export default function ExpensesPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    const ok = window.confirm("Delete all filtered expenses? This cannot be undone.");
+    if (!ok) return;
+    try {
+      const context = getSyncContext();
+      if (!context) {
+        setError("Offline data not ready. Connect online once to initialize sync.");
+        return;
+      }
+      const db = getDb(context.companyId, getDeviceId());
+      let items = await db.expenses
+        .where("companyId")
+        .equals(context.companyId)
+        .and((exp: any) => exp.workspaceId === context.workspaceId && !exp.deletedAt)
+        .toArray();
+      if (query) {
+        const lower = query.toLowerCase();
+        items = items.filter((exp: any) => String(exp.title || "").toLowerCase().includes(lower));
+      }
+      if (categoryFilter) {
+        items = items.filter((exp: any) => String(exp.category || "") === categoryFilter);
+      }
+      if (filterProjectId) {
+        items = items.filter((exp: any) => String(exp.projectId || "") === filterProjectId);
+      }
+      if (fromDate) {
+        const fromTs = new Date(fromDate).getTime();
+        items = items.filter((exp: any) => new Date(exp.date).getTime() >= fromTs);
+      }
+      if (toDate) {
+        const toTs = new Date(toDate).getTime();
+        items = items.filter((exp: any) => new Date(exp.date).getTime() <= toTs);
+      }
+      if (items.length === 0) {
+        setError("No matching expenses to delete.");
+        return;
+      }
+      const now = new Date().toISOString();
+      const updates = items.map((exp: any) => ({
+        ...exp,
+        deletedAt: now,
+        updatedAt: now,
+        version: (exp.version || 1) + 1
+      }));
+      await db.expenses.bulkPut(updates);
+      for (const exp of updates) {
+        await enqueueChange(context, {
+          entityType: "expense",
+          operation: "delete",
+          recordId: exp.id,
+          serverId: exp.serverId ?? null,
+          payload: exp
+        });
+      }
+      setSelectedIds([]);
+      setPage(1);
+      await loadExpenses(1, query, categoryFilter, filterProjectId, fromDate, toDate, sortBy, sortDir);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete expenses");
+    }
+  };
+
   if (workspace && !workspace.enabledModules.includes("expenses")) {
     return (
       <section className="panel">
@@ -440,6 +502,9 @@ export default function ExpensesPage() {
               </button>
               <button className="button secondary" onClick={handleClear}>
                 Clear
+              </button>
+              <button className="button ghost" onClick={handleDeleteAll}>
+                Delete all
               </button>
               <button className="button" onClick={() => router.push("/expenses/new")}>
                 {isRetail ? "Quick add expense" : "Create expense"}
