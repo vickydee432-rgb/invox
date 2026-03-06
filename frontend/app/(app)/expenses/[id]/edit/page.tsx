@@ -25,7 +25,8 @@ const toDateInputValue = (value?: string) => {
 
 export default function EditExpensePage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { id } = params;
+  const rawId: any = params?.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +42,10 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     setLoading(true);
     const load = async () => {
       try {
+        if (!id || typeof id !== "string") {
+          setError("Invalid expense id.");
+          return;
+        }
         const context = getSyncContext();
         if (!context) {
           setError("Offline data not ready. Connect online once to initialize sync.");
@@ -100,6 +105,11 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     setSaving(true);
     setError("");
     try {
+      if (!id || typeof id !== "string") {
+        setError("Invalid expense id.");
+        setSaving(false);
+        return;
+      }
       const context = getSyncContext();
       if (!context) {
         setError("Offline data not ready. Connect online once to initialize sync.");
@@ -114,6 +124,33 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
         return;
       }
       const now = new Date().toISOString();
+      const serverPayload = {
+        title,
+        category,
+        amount,
+        date,
+        projectLabel: projectLabel || undefined
+      };
+      if (typeof navigator !== "undefined" && navigator.onLine && existing.serverId) {
+        await apiFetch(`/api/expenses/${existing.serverId}`, {
+          method: "PUT",
+          body: JSON.stringify(serverPayload)
+        });
+      } else {
+        await enqueueChange(context, {
+          entityType: "expense",
+          operation: "update",
+          recordId: id,
+          serverId: existing.serverId ?? null,
+          payload: {
+            ...existing,
+            ...serverPayload,
+            projectLabel: projectLabel || undefined,
+            updatedAt: now,
+            version: (existing.version || 1) + 1
+          }
+        });
+      }
       const updated = {
         ...existing,
         title,
@@ -125,13 +162,6 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
         version: (existing.version || 1) + 1
       };
       await db.expenses.put(updated);
-      await enqueueChange(context, {
-        entityType: "expense",
-        operation: "update",
-        recordId: id,
-        serverId: existing.serverId ?? null,
-        payload: updated
-      });
       router.push("/expenses");
     } catch (err: any) {
       setError(err.message || "Failed to update expense");
@@ -144,6 +174,10 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     const ok = window.confirm("Delete this expense? This cannot be undone.");
     if (!ok) return;
     try {
+      if (!id || typeof id !== "string") {
+        setError("Invalid expense id.");
+        return;
+      }
       const context = getSyncContext();
       if (!context) {
         setError("Offline data not ready. Connect online once to initialize sync.");
