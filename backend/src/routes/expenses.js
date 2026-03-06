@@ -355,10 +355,20 @@ function buildDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeKeyPart(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function buildExpenseKey(expense) {
   const amount = Number(expense.amount || 0).toFixed(2);
   const dateKey = buildDateKey(expense.date);
-  return `${amount}|${dateKey}`;
+  const titleKey = normalizeKeyPart(expense.title);
+  const categoryKey = normalizeKeyPart(expense.category);
+  const userKey = expense.userId ? String(expense.userId) : "";
+  return `${amount}|${dateKey}|${titleKey}|${categoryKey}|${userKey}`;
 }
 
 function dayStart(date) {
@@ -428,6 +438,8 @@ router.post("/bulk", async (req, res) => {
       return res.status(400).json({ error: "Account missing company profile. Update settings or re-register." });
     }
     const parsed = ExpenseBulkSchema.parse(req.body);
+    const deviceId = req.headers["x-device-id"] || "server";
+    const workspaceId = String(req.user.companyId);
     const rawLines = parsed.text
       .split(/\r?\n/)
       .map((line) =>
@@ -466,6 +478,9 @@ router.post("/bulk", async (req, res) => {
         amount: result.amount,
         date: result.date,
         companyId: req.user.companyId,
+        workspaceId,
+        userId: req.user._id,
+        deviceId: String(deviceId),
         receipts: []
       };
       const key = buildExpenseKey(doc);
@@ -484,10 +499,11 @@ router.post("/bulk", async (req, res) => {
       const amountSet = [...new Set(docs.map((doc) => doc.amount))];
       const existing = await Expense.find({
         companyId: req.user.companyId,
+        userId: req.user._id,
         date: { $gte: dayStart(minDate), $lte: dayEnd(maxDate) },
         amount: { $in: amountSet }
       })
-        .select("title category amount date")
+        .select("title category amount date userId")
         .lean();
 
       if (existing.length > 0) {
