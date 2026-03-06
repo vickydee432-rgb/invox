@@ -102,6 +102,48 @@ export default function ReportsPage() {
     }
   };
 
+  const handleExportExpensesExcel = async () => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const query = params.toString();
+    const path = `/api/expenses/export.xlsx${query ? `?${query}` : ""}`;
+    try {
+      const filename = `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await apiDownload(path, filename);
+    } catch (err: any) {
+      setError(err.message || "Failed to export expenses");
+    }
+  };
+
+  const handleExportInvoicesExcel = async () => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const query = params.toString();
+    const path = `/api/invoices/export.xlsx${query ? `?${query}` : ""}`;
+    try {
+      const filename = `invoices_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await apiDownload(path, filename);
+    } catch (err: any) {
+      setError(err.message || "Failed to export invoices");
+    }
+  };
+
+  const handleExportQuotesExcel = async () => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const query = params.toString();
+    const path = `/api/quotes/export.xlsx${query ? `?${query}` : ""}`;
+    try {
+      const filename = `quotes_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await apiDownload(path, filename);
+    } catch (err: any) {
+      setError(err.message || "Failed to export quotes");
+    }
+  };
+
   useEffect(() => {
     loadReports();
   }, []);
@@ -122,6 +164,7 @@ export default function ReportsPage() {
   const invoiceLabel = workspace?.labels?.invoices || "Invoices";
   const quoteLabel = workspace?.labels?.quotes || "Quotes";
   const salesLabel = workspace?.labels?.sales || "Sales";
+  const expenseLabel = workspace?.labels?.expenses || "Expenses";
 
   if (workspace && !workspace.enabledModules.includes("reports")) {
     return (
@@ -159,6 +202,21 @@ export default function ReportsPage() {
           <button className="button secondary" onClick={handleExportPdf}>
             Export PDF
           </button>
+          {workspace?.enabledModules?.includes("expenses") ? (
+            <button className="button secondary" onClick={handleExportExpensesExcel}>
+              Export {expenseLabel}
+            </button>
+          ) : null}
+          {workspace?.enabledModules?.includes("invoices") ? (
+            <button className="button secondary" onClick={handleExportInvoicesExcel}>
+              Export {invoiceLabel}
+            </button>
+          ) : null}
+          {workspace?.enabledModules?.includes("quotes") ? (
+            <button className="button secondary" onClick={handleExportQuotesExcel}>
+              Export {quoteLabel}
+            </button>
+          ) : null}
           {error ? <div className="muted">{error}</div> : null}
         </div>
       </section>

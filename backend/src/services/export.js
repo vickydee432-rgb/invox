@@ -113,7 +113,8 @@ function buildReportsWorkbook(summary, series) {
   return workbook;
 }
 
-function buildProjectExpensesWorkbook(expenses, openingBalance) {
+function buildDetailedExpensesWorkbook(expenses, options = {}) {
+  const { openingBalance, summary, currency = "ZMW", amountNumFmt = "#,##0.00" } = options;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Project Expenses");
 
@@ -161,6 +162,19 @@ function buildProjectExpensesWorkbook(expenses, openingBalance) {
   const totalAll = totalsByDay.reduce((sum, val) => sum + val, 0);
   let runningBalance = Number.isFinite(openingBalance) ? openingBalance : totalAll;
 
+  if (summary) {
+    if (summary.funding !== undefined) sheet.getCell("G3").value = summary.labels?.funding || "PROJECT FUNDNG";
+    if (Number.isFinite(summary.funding)) sheet.getCell("H3").value = summary.funding;
+    if (summary.available !== undefined) sheet.getCell("G4").value = summary.labels?.available || "AVALIBLE";
+    if (Number.isFinite(summary.available)) sheet.getCell("H4").value = summary.available;
+    if (summary.totalSpent !== undefined) sheet.getCell("G5").value = summary.labels?.totalSpent || "TOTAL SPENT";
+    if (Number.isFinite(summary.totalSpent)) sheet.getCell("H5").value = summary.totalSpent;
+    ["H3", "H4", "H5"].forEach((cellRef) => {
+      const cell = sheet.getCell(cellRef);
+      if (typeof cell.value === "number") cell.numFmt = amountNumFmt;
+    });
+  }
+
   const yellowFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF00" } };
 
   orderedKeys.forEach((key, idx) => {
@@ -176,7 +190,7 @@ function buildProjectExpensesWorkbook(expenses, openingBalance) {
       "EXPENES",
       "",
       "",
-      idx === 0 ? "ZMW" : "",
+      idx === 0 ? currency : "",
       idx === 0 ? runningBalance : ""
     ]);
     dateRow.eachCell({ includeEmpty: true }, (cell) => {
@@ -186,7 +200,7 @@ function buildProjectExpensesWorkbook(expenses, openingBalance) {
 
     if (idx === 0) {
       const totalCell = dateRow.getCell(6);
-      totalCell.numFmt = "#,##0.00";
+      totalCell.numFmt = amountNumFmt;
       totalCell.alignment = { horizontal: "right" };
     }
 
@@ -204,24 +218,24 @@ function buildProjectExpensesWorkbook(expenses, openingBalance) {
           ""
         ]);
         row.getCell(1).font = expIndex === 0 ? { bold: true } : undefined;
-        row.getCell(4).numFmt = '"K"#,##0.00';
+        row.getCell(4).numFmt = amountNumFmt;
         row.getCell(4).alignment = { horizontal: "right" };
       });
     }
 
-    const totalRow = sheet.addRow(["", "TOTAL", "ZMW", dayTotal, "", ""]);
+    const totalRow = sheet.addRow(["", "TOTAL", currency, dayTotal, "", ""]);
     totalRow.getCell(2).font = { bold: true };
     totalRow.getCell(3).font = { bold: true };
-    totalRow.getCell(4).numFmt = "#,##0.00";
+    totalRow.getCell(4).numFmt = amountNumFmt;
     totalRow.getCell(4).alignment = { horizontal: "right" };
 
     runningBalance -= dayTotal;
-    const balanceRow = sheet.addRow(["", "BALANCE", "", "", "ZMW", runningBalance]);
+    const balanceRow = sheet.addRow(["", "BALANCE", "", "", currency, runningBalance]);
     balanceRow.eachCell({ includeEmpty: true }, (cell) => {
       cell.fill = yellowFill;
       cell.font = { bold: true };
     });
-    balanceRow.getCell(6).numFmt = "#,##0.00";
+    balanceRow.getCell(6).numFmt = amountNumFmt;
     balanceRow.getCell(6).alignment = { horizontal: "right" };
   });
 
@@ -240,4 +254,22 @@ function buildProjectExpensesWorkbook(expenses, openingBalance) {
   return workbook;
 }
 
-module.exports = { buildQuotesWorkbook, buildInvoicesWorkbook, buildReportsWorkbook, buildProjectExpensesWorkbook };
+function buildProjectExpensesWorkbook(expenses, openingBalance) {
+  return buildDetailedExpensesWorkbook(expenses, {
+    openingBalance,
+    currency: "ZMW",
+    amountNumFmt: '"K"#,##0.00'
+  });
+}
+
+function buildExpensesWorkbook(expenses, options = {}) {
+  return buildDetailedExpensesWorkbook(expenses, options);
+}
+
+module.exports = {
+  buildQuotesWorkbook,
+  buildInvoicesWorkbook,
+  buildReportsWorkbook,
+  buildProjectExpensesWorkbook,
+  buildExpensesWorkbook
+};

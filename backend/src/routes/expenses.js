@@ -1,11 +1,13 @@
 const express = require("express");
 const { z } = require("zod");
 const Expense = require("../models/Expense");
+const Company = require("../models/Company");
 const ChangeLog = require("../models/ChangeLog");
 const { ensureObjectId, parseDateOrThrow, parseOptionalDate, parseLimit, parsePage, handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
+const { buildExpensesWorkbook } = require("../services/export");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("expenses"));
@@ -672,6 +674,58 @@ router.get("/", async (req, res) => {
     res.json({ page: pageNum, limit: safeLimit, total, pages, count: expenses.length, expenses });
   } catch (err) {
     return handleRouteError(res, err, "Failed to list expenses");
+  }
+});
+
+// Export expenses to Excel (detailed, grouped by day)
+router.get("/export.xlsx", async (req, res) => {
+  try {
+    const { projectId, category, from, to, q, limit, funding } = req.query;
+
+    const filter = { deletedAt: null, companyId: req.user.companyId };
+    if (projectId) {
+      ensureObjectId(projectId, "project id");
+      filter.projectId = projectId;
+    }
+    if (category) filter.category = category;
+    if (q) filter.title = { $regex: String(q), $options: "i" };
+
+    if (from || to) {
+      filter.date = {};
+      const fromDate = parseOptionalDate(from, "from");
+      const toDate = parseOptionalDate(to, "to");
+      if (fromDate) filter.date.$gte = fromDate;
+      if (toDate) filter.date.$lte = toDate;
+    }
+
+    const safeLimit = parseLimit(limit, { defaultLimit: 5000, maxLimit: 10000 });
+    const expenses = await Expense.find(filter).sort({ date: 1, createdAt: 1 }).limit(safeLimit).lean();
+
+    const totalSpent = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+    const fundingValue = funding !== undefined ? Number(funding) : NaN;
+    const summary = { totalSpent };
+    if (Number.isFinite(fundingValue)) {
+      summary.funding = fundingValue;
+      summary.available = fundingValue - totalSpent;
+    }
+
+    const company = await Company.findById(req.user.companyId).lean();
+    const currency = company?.currency || "ZMW";
+
+    const workbook = buildExpensesWorkbook(expenses, {
+      openingBalance: Number.isFinite(fundingValue) ? fundingValue : undefined,
+      summary,
+      currency
+    });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", 'attachment; filename="expenses.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to export expenses");
   }
 });
 
