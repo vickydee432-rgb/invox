@@ -144,6 +144,20 @@ export default function ReportsPage() {
     }
   };
 
+  const handleExportSalesExcel = async () => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const query = params.toString();
+    const path = `/api/sales/export.xlsx${query ? `?${query}` : ""}`;
+    try {
+      const filename = `sales_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await apiDownload(path, filename);
+    } catch (err: any) {
+      setError(err.message || "Failed to export sales");
+    }
+  };
+
   useEffect(() => {
     loadReports();
   }, []);
@@ -205,6 +219,11 @@ export default function ReportsPage() {
           {workspace?.enabledModules?.includes("expenses") ? (
             <button className="button secondary" onClick={handleExportExpensesExcel}>
               Export {expenseLabel}
+            </button>
+          ) : null}
+          {workspace?.enabledModules?.includes("sales") ? (
+            <button className="button secondary" onClick={handleExportSalesExcel}>
+              Export {salesLabel}
             </button>
           ) : null}
           {workspace?.enabledModules?.includes("invoices") ? (

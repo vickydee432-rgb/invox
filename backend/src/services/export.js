@@ -72,6 +72,47 @@ function buildInvoicesWorkbook(invoices) {
   return workbook;
 }
 
+function buildSalesWorkbook(sales) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Sales");
+
+  sheet.columns = [
+    { header: "Sale No", key: "saleNo", width: 14 },
+    { header: "Customer", key: "customerName", width: 22 },
+    { header: "Customer Phone", key: "customerPhone", width: 16 },
+    { header: "Customer TPIN", key: "customerTpin", width: 18 },
+    { header: "Branch", key: "branchName", width: 18 },
+    { header: "Status", key: "status", width: 12 },
+    { header: "Issue Date", key: "issueDate", width: 14 },
+    { header: "Subtotal", key: "subtotal", width: 12 },
+    { header: "VAT Rate", key: "vatRate", width: 10 },
+    { header: "VAT Amount", key: "vatAmount", width: 12 },
+    { header: "Total", key: "total", width: 12 },
+    { header: "Paid", key: "amountPaid", width: 12 },
+    { header: "Balance", key: "balance", width: 12 }
+  ];
+
+  sales.forEach((sale) => {
+    sheet.addRow({
+      saleNo: sale.saleNo,
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone || "",
+      customerTpin: sale.customerTpin || "",
+      branchName: sale.branchName || "",
+      status: sale.status,
+      issueDate: sale.issueDate ? new Date(sale.issueDate).toLocaleDateString() : "",
+      subtotal: sale.subtotal,
+      vatRate: sale.vatRate,
+      vatAmount: sale.vatAmount,
+      total: sale.total,
+      amountPaid: sale.amountPaid,
+      balance: sale.balance
+    });
+  });
+
+  return workbook;
+}
+
 function buildReportsWorkbook(summary, series) {
   const workbook = new ExcelJS.Workbook();
   const summarySheet = workbook.addWorksheet("Summary");
@@ -269,6 +310,7 @@ function buildExpensesWorkbook(expenses, options = {}) {
 module.exports = {
   buildQuotesWorkbook,
   buildInvoicesWorkbook,
+  buildSalesWorkbook,
   buildReportsWorkbook,
   buildProjectExpensesWorkbook,
   buildExpensesWorkbook

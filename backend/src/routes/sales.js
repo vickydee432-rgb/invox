@@ -19,6 +19,7 @@ const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
+const { buildSalesWorkbook } = require("../services/export");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("sales"));
@@ -162,6 +163,26 @@ router.get("/", async (req, res) => {
     res.json({ page: pageNum, limit: safeLimit, total, pages, count: sales.length, sales });
   } catch (err) {
     return handleRouteError(res, err, "Failed to list sales");
+  }
+});
+
+// Export sales to Excel
+router.get("/export.xlsx", async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const filter = { ...buildSaleFilter(req.query), companyId: req.user.companyId };
+    const safeLimit = parseLimit(limit, { defaultLimit: 2000, maxLimit: 5000 });
+    const sales = await Sale.find(filter).sort({ createdAt: -1 }).limit(safeLimit).lean();
+    const workbook = buildSalesWorkbook(sales);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", 'attachment; filename="sales.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to export sales");
   }
 });
 
