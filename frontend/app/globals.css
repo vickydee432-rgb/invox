@@ -1478,6 +1478,25 @@ a {
     padding: 20px;
   }
 
+  .feature-grid,
+  .preview-grid,
+  .plans-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .feature-card,
+  .preview-card,
+  .plan-card {
+    padding: 16px;
+  }
+
+  .preview-card .button,
+  .plan-card .button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .landing-footer {
     flex-direction: column;
     align-items: flex-start;
@@ -1811,6 +1830,19 @@ a {
   .landing-mini-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .feature-grid,
+  .preview-grid,
+  .plans-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .feature-card,
+  .preview-card,
+  .plan-card {
+    padding: 14px;
   }
 
   .landing-balance {
