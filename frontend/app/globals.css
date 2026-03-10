@@ -1489,6 +1489,25 @@ a {
   .preview-card,
   .plan-card {
     padding: 16px;
+    gap: 10px;
+  }
+
+  .feature-title,
+  .plan-title {
+    font-size: 18px;
+    line-height: 1.08;
+  }
+
+  .feature-card p,
+  .preview-row,
+  .plan-subtitle,
+  .plan-features li {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .plan-price {
+    font-size: 24px;
   }
 
   .preview-card .button,
@@ -1843,6 +1862,24 @@ a {
   .preview-card,
   .plan-card {
     padding: 14px;
+    gap: 9px;
+  }
+
+  .feature-title,
+  .plan-title {
+    font-size: 16px;
+  }
+
+  .feature-card p,
+  .preview-row,
+  .plan-subtitle,
+  .plan-features li {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .plan-price {
+    font-size: 22px;
   }
 
   .landing-balance {
