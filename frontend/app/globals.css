@@ -1406,24 +1406,69 @@ a {
   }
 
   .landing {
-    padding: 16px;
-    gap: 24px;
+    padding: 22px 20px 30px;
+    gap: 32px;
   }
 
   .landing-nav {
-    padding: 14px 16px;
+    padding: 18px 22px;
+    gap: 18px;
+    border-radius: 28px;
   }
 
   .landing-links {
-    font-size: 11px;
+    gap: 12px 22px;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+  }
+
+  .landing-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .landing-actions .button,
+  .landing-cta .button {
+    min-width: 140px;
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(34px, 10.5vw, 50px);
+    line-height: 0.96;
+    letter-spacing: -0.03em;
+  }
+
+  .landing-hero p {
+    margin-top: 18px;
+    font-size: 16px;
+    max-width: 34ch;
   }
 
   .landing-hero-card {
     order: -1;
+    padding: 24px;
+    gap: 16px;
+  }
+
+  .landing-balance {
+    font-size: clamp(38px, 12vw, 54px);
+    line-height: 0.96;
+  }
+
+  .landing-cta {
+    gap: 10px;
+  }
+
+  .landing-badges {
+    gap: 10px;
+    row-gap: 8px;
   }
 
   .landing-mini-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
   }
 
   .landing-features,
@@ -1727,7 +1772,7 @@ a {
 
 @media (max-width: 520px) {
   .panel {
-    padding: 16px;
+    padding: 18px;
   }
 
   .topbar p {
@@ -1745,7 +1790,36 @@ a {
     font-size: 14px;
   }
 
-  .button {
+  .landing {
+    padding: 20px 18px 28px;
+    gap: 28px;
+  }
+
+  .landing-nav {
+    padding: 16px 18px;
+  }
+
+  .landing-actions {
+    gap: 10px;
+  }
+
+  .landing-actions .button,
+  .landing-cta .button {
+    min-width: 124px;
+  }
+
+  .landing-mini-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .landing-balance {
+    font-size: clamp(34px, 11vw, 46px);
+  }
+
+  .mobile-record-actions .button,
+  .invoice-mobile-actions .button,
+  .pagination-row .button {
     width: 100%;
     text-align: center;
   }
