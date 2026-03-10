@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { clearToken } from "@/lib/auth";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const MODULE_ROUTES: Record<string, string> = {
@@ -94,16 +95,47 @@ const ICONS: Record<string, React.ReactNode> = {
       <circle cx="12" cy="7" r="2" />
       <circle cx="10" cy="17" r="2" />
     </svg>
+  ),
+  plans: (
+    <svg {...iconProps}>
+      <path d="M4 20h16" />
+      <path d="M6 16l4-8 4 5 4-9" />
+    </svg>
+  ),
+  logout: (
+    <svg {...iconProps}>
+      <path d="M10 17l5-5-5-5" />
+      <path d="M15 12H3" />
+      <path d="M21 3v18" />
+    </svg>
   )
 };
 
 export default function MobileNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [showPlans, setShowPlans] = useState(false);
 
   useEffect(() => {
     let active = true;
-    const loadWorkspace = () => {
+    const loadWorkspace = async () => {
+      const [companyData, billingData] = await Promise.allSettled([
+        apiFetch<{ company: any }>("/api/company/me"),
+        apiFetch<{ readOnly: boolean; isTrial?: boolean }>("/api/billing/status")
+      ]);
+      if (!active) return;
+
+      if (companyData.status === "fulfilled") {
+        setWorkspace(buildWorkspace(companyData.value.company));
+      }
+
+      if (billingData.status === "fulfilled") {
+        setShowPlans(Boolean(billingData.value.readOnly || billingData.value.isTrial));
+      }
+    };
+    loadWorkspace().catch(() => {});
+    const handler = () => {
       apiFetch<{ company: any }>("/api/company/me")
         .then((data) => {
           if (!active) return;
@@ -111,8 +143,6 @@ export default function MobileNav() {
         })
         .catch(() => {});
     };
-    loadWorkspace();
-    const handler = () => loadWorkspace();
     window.addEventListener("workspace:updated", handler);
     return () => {
       active = false;
@@ -130,16 +160,22 @@ export default function MobileNav() {
 
   const uniqueModules = Array.from(new Set(modules)).filter((module) => MODULE_ROUTES[module]);
 
-  const compactModules = uniqueModules.filter((module) =>
-    ["dashboard", "sales", "invoices", "expenses", "reports", "settings"].includes(module)
-  );
-
-  const navModules = compactModules.length >= 4 ? compactModules.slice(0, 4) : uniqueModules.slice(0, 4);
-
   const normalizeLabel = (value: string) => {
     if (!value) return value;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    router.push("/login");
+  };
+
+  const navModules = uniqueModules;
 
   return (
     <nav className="mobile-nav">
@@ -149,12 +185,22 @@ export default function MobileNav() {
         const label = module === "settings" ? "Settings" : normalizeLabel(baseLabel);
         const icon = ICONS[module] || ICONS.dashboard;
         return (
-          <Link key={module} href={href} className={pathname === href ? "active" : ""}>
+          <Link key={module} href={href} className={isActive(href) ? "active" : ""}>
             <span className="mobile-nav-icon">{icon}</span>
             <span>{label}</span>
           </Link>
         );
       })}
+      {showPlans ? (
+        <Link href="/plans" className={isActive("/plans") ? "active" : ""}>
+          <span className="mobile-nav-icon">{ICONS.plans}</span>
+          <span>Plans</span>
+        </Link>
+      ) : null}
+      <button type="button" onClick={handleLogout}>
+        <span className="mobile-nav-icon">{ICONS.logout}</span>
+        <span>Logout</span>
+      </button>
     </nav>
   );
 }

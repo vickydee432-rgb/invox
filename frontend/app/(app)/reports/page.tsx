@@ -39,6 +39,8 @@ type SeriesRow = {
   salesPaid?: number;
 };
 
+const formatMoney = (value: number) => value.toFixed(2);
+
 export default function ReportsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [series, setSeries] = useState<SeriesRow[]>([]);
@@ -206,33 +208,33 @@ export default function ReportsPage() {
             <input value={to} onChange={(e) => setTo(e.target.value)} type="date" />
           </label>
         </div>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, alignItems: "center" }}>
-          <button className="button" onClick={loadReports}>
+        <div className="action-row" style={{ display: "flex", gap: 12, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="button" type="button" onClick={loadReports}>
             Apply filters
           </button>
-          <button className="button secondary" onClick={handleExportExcel}>
+          <button className="button secondary" type="button" onClick={handleExportExcel}>
             Export Excel
           </button>
-          <button className="button secondary" onClick={handleExportPdf}>
+          <button className="button secondary" type="button" onClick={handleExportPdf}>
             Export PDF
           </button>
           {workspace?.enabledModules?.includes("expenses") ? (
-            <button className="button secondary" onClick={handleExportExpensesExcel}>
+            <button className="button secondary" type="button" onClick={handleExportExpensesExcel}>
               Export {expenseLabel}
             </button>
           ) : null}
           {workspace?.enabledModules?.includes("sales") ? (
-            <button className="button secondary" onClick={handleExportSalesExcel}>
+            <button className="button secondary" type="button" onClick={handleExportSalesExcel}>
               Export {salesLabel}
             </button>
           ) : null}
           {workspace?.enabledModules?.includes("invoices") ? (
-            <button className="button secondary" onClick={handleExportInvoicesExcel}>
+            <button className="button secondary" type="button" onClick={handleExportInvoicesExcel}>
               Export {invoiceLabel}
             </button>
           ) : null}
           {workspace?.enabledModules?.includes("quotes") ? (
-            <button className="button secondary" onClick={handleExportQuotesExcel}>
+            <button className="button secondary" type="button" onClick={handleExportQuotesExcel}>
               Export {quoteLabel}
             </button>
           ) : null}
@@ -250,19 +252,19 @@ export default function ReportsPage() {
               <>
                 <div className="stat-card">
                   <div className="muted">Sales today</div>
-                  <div className="stat-value">{retailSummary.sales_today.toFixed(2)}</div>
+                  <div className="stat-value">{formatMoney(retailSummary.sales_today)}</div>
                 </div>
                 <div className="stat-card">
                   <div className="muted">Expenses today</div>
-                  <div className="stat-value">{retailSummary.expenses_today.toFixed(2)}</div>
+                  <div className="stat-value">{formatMoney(retailSummary.expenses_today)}</div>
                 </div>
                 <div className="stat-card">
                   <div className="muted">Profit today</div>
-                  <div className="stat-value">{retailSummary.profit_today.toFixed(2)}</div>
+                  <div className="stat-value">{formatMoney(retailSummary.profit_today)}</div>
                 </div>
                 <div className="stat-card">
                   <div className="muted">Stock value</div>
-                  <div className="stat-value">{retailSummary.stock_value.toFixed(2)}</div>
+                  <div className="stat-value">{formatMoney(retailSummary.stock_value)}</div>
                 </div>
                 <div className="stat-card">
                   <div className="muted">Low stock items</div>
@@ -273,54 +275,54 @@ export default function ReportsPage() {
             {workspace?.enabledModules?.includes("quotes") ? (
               <div className="stat-card">
                 <div className="muted">{quoteLabel} total</div>
-                <div className="stat-value">{summary.quotes_total.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.quotes_total)}</div>
                 <div className="muted">Count: {summary.quotes_count}</div>
               </div>
             ) : null}
             {workspace?.enabledModules?.includes("sales") ? (
               <div className="stat-card">
                 <div className="muted">{salesLabel} total</div>
-                <div className="stat-value">{summary.sales_total.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.sales_total)}</div>
                 <div className="muted">Count: {summary.sales_count}</div>
               </div>
             ) : null}
             {workspace?.enabledModules?.includes("sales") ? (
               <div className="stat-card">
                 <div className="muted">{salesLabel} paid</div>
-                <div className="stat-value">{summary.sales_paid_total.toFixed(2)}</div>
-                <div className="muted">Outstanding: {summary.sales_outstanding.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.sales_paid_total)}</div>
+                <div className="muted">Outstanding: {formatMoney(summary.sales_outstanding)}</div>
               </div>
             ) : null}
             {workspace?.enabledModules?.includes("invoices") ? (
               <div className="stat-card">
                 <div className="muted">{invoiceLabel} billed</div>
-                <div className="stat-value">{summary.invoices_billed_total.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.invoices_billed_total)}</div>
                 <div className="muted">Count: {summary.invoices_count}</div>
               </div>
             ) : null}
             {workspace?.enabledModules?.includes("invoices") ? (
               <div className="stat-card">
                 <div className="muted">{invoiceLabel} paid</div>
-                <div className="stat-value">{summary.invoices_paid_total.toFixed(2)}</div>
-                <div className="muted">Outstanding: {summary.invoices_outstanding.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.invoices_paid_total)}</div>
+                <div className="muted">Outstanding: {formatMoney(summary.invoices_outstanding)}</div>
               </div>
             ) : null}
             <div className="stat-card">
               <div className="muted">Expenses</div>
-              <div className="stat-value">{summary.expenses_total.toFixed(2)}</div>
+              <div className="stat-value">{formatMoney(summary.expenses_total)}</div>
               <div className="muted">Count: {summary.expenses_count}</div>
             </div>
             {workspace?.enabledModules?.includes("invoices") ? (
               <div className="stat-card">
                 <div className="muted">Profit (paid)</div>
-                <div className="stat-value">{summary.profit_on_paid.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.profit_on_paid)}</div>
                 <div className="muted">Overdue: {summary.overdue_count}</div>
               </div>
             ) : null}
             {workspace?.enabledModules?.includes("invoices") ? (
               <div className="stat-card">
                 <div className="muted">Profit (billed)</div>
-                <div className="stat-value">{summary.profit_on_billed.toFixed(2)}</div>
+                <div className="stat-value">{formatMoney(summary.profit_on_billed)}</div>
               </div>
             ) : null}
           </div>
@@ -334,41 +336,77 @@ export default function ReportsPage() {
         {loading ? (
           <div className="muted">Loading series...</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Billed</th>
-                <th>Paid</th>
-                {workspace?.enabledModules?.includes("sales") ? <th>Sales</th> : null}
-                {workspace?.enabledModules?.includes("sales") ? <th>Sales Paid</th> : null}
-                <th>Expenses</th>
-              </tr>
-            </thead>
-            <tbody>
-              {series.map((row) => (
-                <tr key={row.month}>
-                  <td>{row.month}</td>
-                  <td>{row.billed.toFixed(2)}</td>
-                  <td>{row.paid.toFixed(2)}</td>
-                  {workspace?.enabledModules?.includes("sales") ? (
-                    <td>{Number(row.sales || 0).toFixed(2)}</td>
-                  ) : null}
-                  {workspace?.enabledModules?.includes("sales") ? (
-                    <td>{Number(row.salesPaid || 0).toFixed(2)}</td>
-                  ) : null}
-                  <td>{row.expenses.toFixed(2)}</td>
-                </tr>
-              ))}
-              {series.length === 0 ? (
+          <>
+            <table className="table desktop-table">
+              <thead>
                 <tr>
-                  <td colSpan={workspace?.enabledModules?.includes("sales") ? 6 : 4} className="muted">
-                    No data for the selected range.
-                  </td>
+                  <th>Month</th>
+                  <th>Billed</th>
+                  <th>Paid</th>
+                  {workspace?.enabledModules?.includes("sales") ? <th>Sales</th> : null}
+                  {workspace?.enabledModules?.includes("sales") ? <th>Sales Paid</th> : null}
+                  <th>Expenses</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {series.map((row) => (
+                  <tr key={row.month}>
+                    <td>{row.month}</td>
+                    <td>{formatMoney(row.billed)}</td>
+                    <td>{formatMoney(row.paid)}</td>
+                    {workspace?.enabledModules?.includes("sales") ? (
+                      <td>{formatMoney(Number(row.sales || 0))}</td>
+                    ) : null}
+                    {workspace?.enabledModules?.includes("sales") ? (
+                      <td>{formatMoney(Number(row.salesPaid || 0))}</td>
+                    ) : null}
+                    <td>{formatMoney(row.expenses)}</td>
+                  </tr>
+                ))}
+                {series.length === 0 ? (
+                  <tr>
+                    <td colSpan={workspace?.enabledModules?.includes("sales") ? 6 : 4} className="muted">
+                      No data for the selected range.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+            <div className="mobile-record-list">
+              {series.map((row) => (
+                <article key={row.month} className="mobile-record-card">
+                  <div className="mobile-record-title">{row.month}</div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Billed</span>
+                      <span>{formatMoney(row.billed)}</span>
+                    </div>
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Paid</span>
+                      <span>{formatMoney(row.paid)}</span>
+                    </div>
+                    {workspace?.enabledModules?.includes("sales") ? (
+                      <div className="mobile-record-item">
+                        <span className="mobile-record-label">Sales</span>
+                        <span>{formatMoney(Number(row.sales || 0))}</span>
+                      </div>
+                    ) : null}
+                    {workspace?.enabledModules?.includes("sales") ? (
+                      <div className="mobile-record-item">
+                        <span className="mobile-record-label">Sales paid</span>
+                        <span>{formatMoney(Number(row.salesPaid || 0))}</span>
+                      </div>
+                    ) : null}
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Expenses</span>
+                      <span>{formatMoney(row.expenses)}</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {series.length === 0 ? <div className="muted">No data for the selected range.</div> : null}
+            </div>
+          </>
         )}
       </section>
     </>

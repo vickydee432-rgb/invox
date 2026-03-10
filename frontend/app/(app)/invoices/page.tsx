@@ -64,6 +64,8 @@ const toDateInputValue = (value?: string) => {
   return date.toISOString().slice(0, 10);
 };
 
+const formatMoney = (value: number) => value.toFixed(2);
+
 export default function InvoicesPage() {
   const pathname = usePathname();
   const isSales = pathname.startsWith("/sales");
@@ -318,6 +320,30 @@ export default function InvoicesPage() {
       setError(err.message || "Failed to submit to ZRA");
     }
   };
+
+  const renderInvoiceActions = (invoice: Invoice) => (
+    <>
+      <button className="button secondary" type="button" onClick={() => startEdit(invoice)}>
+        Edit
+      </button>
+      {workspace?.businessType === "retail" && invoice.invoiceType !== "purchase" ? (
+        <button className="button secondary" type="button" onClick={() => handlePrintReceipt(invoice)}>
+          Print
+        </button>
+      ) : null}
+      {workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
+        <button className="button secondary" type="button" onClick={() => handleSubmitZra(invoice)}>
+          Submit ZRA
+        </button>
+      ) : null}
+      <button className="button secondary" type="button" onClick={() => handlePdf(invoice)}>
+        PDF
+      </button>
+      <button className="button secondary" type="button" onClick={() => handleDelete(invoice)}>
+        Delete
+      </button>
+    </>
+  );
 
   if (workspace && !workspace.enabledModules.includes("invoices")) {
     return (
@@ -604,7 +630,10 @@ export default function InvoicesPage() {
           <div className="muted">Loading invoices...</div>
         ) : (
           <>
-            <div className="action-row" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+            <div
+              className="action-row invoice-action-row"
+              style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}
+            >
               <Link className="button" href={isSales ? "/invoices/new?type=sale" : "/invoices/new"}>
                 {isSales
                   ? "Add sale"
@@ -635,12 +664,12 @@ export default function InvoicesPage() {
                   <option value="ZRA">ZRA</option>
                 </select>
               </label>
-              <button className="button secondary" onClick={handleExport}>
+              <button className="button secondary" type="button" onClick={handleExport}>
                 Export Excel
               </button>
               {error ? <div className="muted">{error}</div> : null}
             </div>
-            <table className="table">
+            <table className="table invoice-desktop-table">
               <thead>
                 <tr>
                   <th>No</th>
@@ -664,33 +693,15 @@ export default function InvoicesPage() {
                     <td>{invoice.invoiceType || "sale"}</td>
                     <td>{invoice.branchName || "-"}</td>
                     <td>{invoice.source || "APP"}</td>
-                    <td>{invoice.total.toFixed(2)}</td>
-                    <td>{invoice.amountPaid.toFixed(2)}</td>
-                    <td>{invoice.balance.toFixed(2)}</td>
+                    <td>{formatMoney(invoice.total)}</td>
+                    <td>{formatMoney(invoice.amountPaid)}</td>
+                    <td>{formatMoney(invoice.balance)}</td>
                     <td>
                       <span className="badge">{invoice.status}</span>
                     </td>
                     <td>{new Date(invoice.dueDate).toLocaleDateString()}</td>
-                    <td style={{ display: "flex", gap: 8 }}>
-                      <button className="button secondary" onClick={() => startEdit(invoice)}>
-                        Edit
-                      </button>
-                      {workspace?.businessType === "retail" && invoice.invoiceType !== "purchase" ? (
-                        <button className="button secondary" onClick={() => handlePrintReceipt(invoice)}>
-                          Print
-                        </button>
-                      ) : null}
-                      {workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
-                        <button className="button secondary" onClick={() => handleSubmitZra(invoice)}>
-                          Submit ZRA
-                        </button>
-                      ) : null}
-                      <button className="button secondary" onClick={() => handlePdf(invoice)}>
-                        PDF
-                      </button>
-                      <button className="button secondary" onClick={() => handleDelete(invoice)}>
-                        Delete
-                      </button>
+                    <td>
+                      <div className="invoice-action-cell">{renderInvoiceActions(invoice)}</div>
                     </td>
                   </tr>
                 ))}
@@ -703,14 +714,73 @@ export default function InvoicesPage() {
                 ) : null}
               </tbody>
             </table>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-              <button className="button secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+
+            <div className="invoice-mobile-list">
+              {invoices.map((invoice) => (
+                <article key={invoice._id} className="invoice-mobile-card">
+                  <div className="invoice-mobile-card-header">
+                    <div>
+                      <div className="invoice-mobile-number">{invoice.invoiceNo}</div>
+                      <div className="muted">{invoice.customerName}</div>
+                    </div>
+                    <span className="badge">{invoice.status}</span>
+                  </div>
+
+                  <div className="invoice-mobile-grid">
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Type</span>
+                      <span>{invoice.invoiceType || "sale"}</span>
+                    </div>
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Branch</span>
+                      <span>{invoice.branchName || "-"}</span>
+                    </div>
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Source</span>
+                      <span>{invoice.source || "APP"}</span>
+                    </div>
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Due</span>
+                      <span>{new Date(invoice.dueDate).toLocaleDateString()}</span>
+                    </div>
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Total</span>
+                      <span>{formatMoney(invoice.total)}</span>
+                    </div>
+                    <div className="invoice-mobile-meta">
+                      <span className="invoice-mobile-label">Paid</span>
+                      <span>{formatMoney(invoice.amountPaid)}</span>
+                    </div>
+                    <div className="invoice-mobile-meta invoice-mobile-total">
+                      <span className="invoice-mobile-label">Balance</span>
+                      <span>{formatMoney(invoice.balance)}</span>
+                    </div>
+                  </div>
+
+                  <div className="invoice-mobile-actions">{renderInvoiceActions(invoice)}</div>
+                </article>
+              ))}
+              {invoices.length === 0 ? <div className="muted">No invoices yet.</div> : null}
+            </div>
+
+            <div className="pagination-row">
+              <button
+                className="button secondary"
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
                 Prev
               </button>
-              <div className="muted">
+              <div className="muted pagination-status">
                 Page {page} of {pages}
               </div>
-              <button className="button secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={page >= pages}
+                onClick={() => setPage(page + 1)}
+              >
                 Next
               </button>
             </div>

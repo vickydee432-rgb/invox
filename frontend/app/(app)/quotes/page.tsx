@@ -15,6 +15,7 @@ type Quote = {
 };
 
 const LIMIT = 10;
+const formatMoney = (value: number) => value.toFixed(2);
 
 export default function QuotesPage() {
   const router = useRouter();
@@ -105,6 +106,23 @@ export default function QuotesPage() {
     }
   };
 
+  const renderQuoteActions = (quote: Quote) => (
+    <>
+      <button className="button secondary" type="button" onClick={() => router.push(`/quotes/${quote._id}/edit`)}>
+        Edit
+      </button>
+      <button className="button secondary" type="button" onClick={() => handleSend(quote._id)}>
+        Send link
+      </button>
+      <button className="button secondary" type="button" onClick={() => handlePdf(quote)}>
+        PDF
+      </button>
+      <button className="button secondary" type="button" onClick={() => handleDelete(quote)}>
+        Delete
+      </button>
+    </>
+  );
+
   if (workspace && !workspace.enabledModules.includes("quotes")) {
     return (
       <section className="panel">
@@ -124,17 +142,17 @@ export default function QuotesPage() {
         <div className="muted">Loading quotes...</div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-            <button className="button" onClick={() => router.push("/quotes/new")}>
+          <div className="action-row" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+            <button className="button" type="button" onClick={() => router.push("/quotes/new")}>
               Create quote
             </button>
-            <button className="button secondary" onClick={handleExport}>
+            <button className="button secondary" type="button" onClick={handleExport}>
               Export Excel
             </button>
             {shareLink ? <div className="muted">Last link: {shareLink}</div> : null}
             {error ? <div className="muted">{error}</div> : null}
           </div>
-          <table className="table">
+          <table className="table desktop-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -150,24 +168,13 @@ export default function QuotesPage() {
                 <tr key={quote._id}>
                   <td>{quote.quoteNo}</td>
                   <td>{quote.customerName}</td>
-                  <td>{quote.total.toFixed(2)}</td>
+                  <td>{formatMoney(quote.total)}</td>
                   <td>
                     <span className="badge">{quote.status}</span>
                   </td>
                   <td>{new Date(quote.validUntil).toLocaleDateString()}</td>
-                  <td style={{ display: "flex", gap: 8 }}>
-                    <button className="button secondary" onClick={() => router.push(`/quotes/${quote._id}/edit`)}>
-                      Edit
-                    </button>
-                    <button className="button secondary" onClick={() => handleSend(quote._id)}>
-                      Send link
-                    </button>
-                    <button className="button secondary" onClick={() => handlePdf(quote)}>
-                      PDF
-                    </button>
-                    <button className="button secondary" onClick={() => handleDelete(quote)}>
-                      Delete
-                    </button>
+                  <td>
+                    <div className="mobile-inline-actions">{renderQuoteActions(quote)}</div>
                   </td>
                 </tr>
               ))}
@@ -180,14 +187,41 @@ export default function QuotesPage() {
               ) : null}
             </tbody>
           </table>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-            <button className="button secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+
+          <div className="mobile-record-list">
+            {quotes.map((quote) => (
+              <article key={quote._id} className="mobile-record-card">
+                <div className="mobile-record-header">
+                  <div>
+                    <div className="mobile-record-title">{quote.quoteNo}</div>
+                    <div className="mobile-record-subtitle">{quote.customerName}</div>
+                  </div>
+                  <span className="badge">{quote.status}</span>
+                </div>
+                <div className="mobile-record-grid">
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Total</span>
+                    <span>{formatMoney(quote.total)}</span>
+                  </div>
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Valid until</span>
+                    <span>{new Date(quote.validUntil).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-actions">{renderQuoteActions(quote)}</div>
+              </article>
+            ))}
+            {quotes.length === 0 ? <div className="muted">No quotes yet.</div> : null}
+          </div>
+
+          <div className="pagination-row">
+            <button className="button secondary" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
               Prev
             </button>
-            <div className="muted">
+            <div className="muted pagination-status">
               Page {page} of {pages}
             </div>
-            <button className="button secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+            <button className="button secondary" type="button" disabled={page >= pages} onClick={() => setPage(page + 1)}>
               Next
             </button>
           </div>

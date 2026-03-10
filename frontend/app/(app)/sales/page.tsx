@@ -18,6 +18,7 @@ type Sale = {
 };
 
 const LIMIT = 12;
+const formatMoney = (value: number) => value.toFixed(2);
 
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -90,6 +91,12 @@ export default function SalesPage() {
     setPage(1);
   };
 
+  const renderSaleActions = (sale: Sale) => (
+    <Link className="button secondary" href={`/sales/${sale._id}/edit`}>
+      Edit
+    </Link>
+  );
+
   if (workspace && !workspace.enabledModules.includes("sales")) {
     return (
       <section className="panel">
@@ -135,10 +142,10 @@ export default function SalesPage() {
               To
               <input value={toDate} onChange={(e) => setToDate(e.target.value)} type="date" />
             </label>
-            <button className="button secondary" onClick={handleSearch}>
+            <button className="button secondary" type="button" onClick={handleSearch}>
               Search
             </button>
-            <button className="button secondary" onClick={handleClear}>
+            <button className="button secondary" type="button" onClick={handleClear}>
               Clear
             </button>
             <Link className="button" href="/sales/new">
@@ -147,7 +154,7 @@ export default function SalesPage() {
             {error ? <div className="muted">{error}</div> : null}
           </div>
 
-          <table className="table">
+          <table className="table desktop-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -167,18 +174,14 @@ export default function SalesPage() {
                   <td>{sale.saleNo}</td>
                   <td>{sale.customerName || "Walk-in"}</td>
                   <td>{sale.branchName || "-"}</td>
-                  <td>{sale.total.toFixed(2)}</td>
-                  <td>{sale.amountPaid.toFixed(2)}</td>
-                  <td>{sale.balance.toFixed(2)}</td>
+                  <td>{formatMoney(sale.total)}</td>
+                  <td>{formatMoney(sale.amountPaid)}</td>
+                  <td>{formatMoney(sale.balance)}</td>
                   <td>
                     <span className="badge">{sale.status}</span>
                   </td>
                   <td>{new Date(sale.issueDate).toLocaleDateString()}</td>
-                  <td style={{ display: "flex", gap: 8 }}>
-                    <Link className="button secondary" href={`/sales/${sale._id}/edit`}>
-                      Edit
-                    </Link>
-                  </td>
+                  <td><div className="mobile-inline-actions">{renderSaleActions(sale)}</div></td>
                 </tr>
               ))}
               {sales.length === 0 ? (
@@ -190,14 +193,53 @@ export default function SalesPage() {
               ) : null}
             </tbody>
           </table>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-            <button className="button secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+
+          <div className="mobile-record-list">
+            {sales.map((sale) => (
+              <article key={sale._id} className="mobile-record-card">
+                <div className="mobile-record-header">
+                  <div>
+                    <div className="mobile-record-title">{sale.saleNo}</div>
+                    <div className="mobile-record-subtitle">{sale.customerName || "Walk-in"}</div>
+                  </div>
+                  <span className="badge">{sale.status}</span>
+                </div>
+                <div className="mobile-record-grid">
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Branch</span>
+                    <span>{sale.branchName || "-"}</span>
+                  </div>
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Date</span>
+                    <span>{new Date(sale.issueDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Total</span>
+                    <span>{formatMoney(sale.total)}</span>
+                  </div>
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Paid</span>
+                    <span>{formatMoney(sale.amountPaid)}</span>
+                  </div>
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Balance</span>
+                    <span>{formatMoney(sale.balance)}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-actions">{renderSaleActions(sale)}</div>
+              </article>
+            ))}
+            {sales.length === 0 ? <div className="muted">No sales yet.</div> : null}
+          </div>
+
+          <div className="pagination-row">
+            <button className="button secondary" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
               Prev
             </button>
-            <div className="muted">
+            <div className="muted pagination-status">
               Page {page} of {pages}
             </div>
-            <button className="button secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+            <button className="button secondary" type="button" disabled={page >= pages} onClick={() => setPage(page + 1)}>
               Next
             </button>
           </div>

@@ -833,7 +833,7 @@ export default function SettingsPage() {
             <div className="panel-title" style={{ fontSize: 16, marginTop: 18 }}>
               Active users
             </div>
-            <table className="table">
+            <table className="table desktop-table">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -871,10 +871,41 @@ export default function SettingsPage() {
                 </tbody>
               </table>
 
+            <div className="mobile-record-list">
+              {teamUsers.map((user) => (
+                <article key={user._id} className="mobile-record-card">
+                  <div className="mobile-record-header">
+                    <div>
+                      <div className="mobile-record-title">{user.name}</div>
+                      <div className="mobile-record-subtitle">{user.email}</div>
+                    </div>
+                    <span className="badge">{user.role}</span>
+                  </div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Role</span>
+                      {canChangeRoles && user.role !== "owner" ? (
+                        <select
+                          value={user.role}
+                          onChange={(e) => handleRoleUpdate(user._id, e.target.value as "admin" | "member")}
+                        >
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      ) : (
+                        <span>{user.role}</span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {teamUsers.length === 0 ? <div className="muted">No users found.</div> : null}
+            </div>
+
             <div className="panel-title" style={{ fontSize: 16, marginTop: 18 }}>
               Pending invites
             </div>
-            <table className="table">
+            <table className="table desktop-table">
                 <thead>
                   <tr>
                     <th>Email</th>
@@ -909,6 +940,32 @@ export default function SettingsPage() {
                   ) : null}
                 </tbody>
               </table>
+
+            <div className="mobile-record-list">
+              {teamInvites.map((invite) => (
+                <article key={invite._id} className="mobile-record-card">
+                  <div className="mobile-record-header">
+                    <div>
+                      <div className="mobile-record-title">{invite.email}</div>
+                      <div className="mobile-record-subtitle">
+                        Expires {invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "—"}
+                      </div>
+                    </div>
+                    <span className="badge">{invite.role}</span>
+                  </div>
+                  <div className="mobile-record-actions">
+                    {canManageTeam ? (
+                      <button className="button secondary" type="button" onClick={() => handleRevokeInvite(invite._id)}>
+                        Revoke
+                      </button>
+                    ) : (
+                      <div className="muted">No actions available.</div>
+                    )}
+                  </div>
+                </article>
+              ))}
+              {teamInvites.length === 0 ? <div className="muted">No pending invites.</div> : null}
+            </div>
           </>
         )}
       </section>
@@ -1313,7 +1370,7 @@ export default function SettingsPage() {
             {zraConnections.length === 0 ? (
               <div className="muted">No ZRA connections yet.</div>
             ) : (
-              <table className="table">
+              <table className="table desktop-table">
                 <thead>
                   <tr>
                     <th>TPIN</th>
@@ -1347,6 +1404,39 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             )}
+            <div className="mobile-record-list">
+              {zraConnections.map((conn) => (
+                <article key={conn.id} className="mobile-record-card">
+                  <div className="mobile-record-header">
+                    <div>
+                      <div className="mobile-record-title">{conn.tpin}</div>
+                      <div className="mobile-record-subtitle">{conn.branchName || conn.branchId}</div>
+                    </div>
+                    <span className="badge">{conn.lastSyncStatus || (conn.enabled ? "enabled" : "disabled")}</span>
+                  </div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Enabled</span>
+                      <span>{conn.enabled ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Last sync</span>
+                      <span>{conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleString() : "—"}</span>
+                    </div>
+                  </div>
+                  <div className="mobile-record-actions">
+                    <button className="button secondary" type="button" onClick={() => handleZraSync(conn.branchId)}>
+                      Sync
+                    </button>
+                    {conn.enabled ? (
+                      <button className="button secondary" type="button" onClick={() => handleZraDisconnect(conn.branchId)}>
+                        Disable
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       ) : null}

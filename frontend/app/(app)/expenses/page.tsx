@@ -30,6 +30,7 @@ type Project = {
 };
 
 const LIMIT = 12;
+const formatMoney = (value: number) => value.toFixed(2);
 
 export default function ExpensesPage() {
   const router = useRouter();
@@ -425,6 +426,17 @@ export default function ExpensesPage() {
 
   const isRetail = workspace?.businessType === "retail";
 
+  const renderExpenseActions = (expense: Expense) => (
+    <>
+      <button className="button secondary" type="button" onClick={() => router.push(`/expenses/${expense.id}/edit`)}>
+        Edit
+      </button>
+      <button className="button secondary" type="button" onClick={() => handleDelete(expense.id)}>
+        Delete
+      </button>
+    </>
+  );
+
   return (
     <>
       <section className="panel">
@@ -497,16 +509,16 @@ export default function ExpensesPage() {
                   <option value="category:desc">Category (Z to A)</option>
                 </select>
               </label>
-              <button className="button secondary" onClick={handleSearch}>
+              <button className="button secondary" type="button" onClick={handleSearch}>
                 Search
               </button>
-              <button className="button secondary" onClick={handleClear}>
+              <button className="button secondary" type="button" onClick={handleClear}>
                 Clear
               </button>
-              <button className="button ghost" onClick={handleDeleteAll}>
+              <button className="button ghost" type="button" onClick={handleDeleteAll}>
                 Delete all
               </button>
-              <button className="button" onClick={() => router.push("/expenses/new")}>
+              <button className="button" type="button" onClick={() => router.push("/expenses/new")}>
                 {isRetail ? "Quick add expense" : "Create expense"}
               </button>
               {error ? <div className="muted">{error}</div> : null}
@@ -532,7 +544,7 @@ export default function ExpensesPage() {
                   <input type="checkbox" checked={applyToAll} onChange={(e) => setApplyToAll(e.target.checked)} />
                   Apply to all filtered results
                 </label>
-                <button className="button" onClick={handleAssign} disabled={assigning}>
+                <button className="button" type="button" onClick={handleAssign} disabled={assigning}>
                   {assigning ? "Updating..." : "Add to project"}
                 </button>
                 {assignSuccess ? <div className="muted">{assignSuccess}</div> : null}
@@ -543,7 +555,7 @@ export default function ExpensesPage() {
               </div>
             ) : null}
 
-            <table className="table">
+            <table className="table desktop-table">
               <thead>
                 <tr>
                   <th>
@@ -570,16 +582,11 @@ export default function ExpensesPage() {
                     </td>
                     <td>{expense.title}</td>
                     <td>{expense.category}</td>
-                    <td>{expense.amount.toFixed(2)}</td>
+                    <td>{formatMoney(expense.amount)}</td>
                     <td>{new Date(expense.date).toLocaleDateString()}</td>
                     {workspace?.projectTrackingEnabled ? <td>{expense.projectLabel || "-"}</td> : null}
                     <td>
-                      <button className="button secondary" onClick={() => router.push(`/expenses/${expense.id}/edit`)}>
-                        Edit
-                      </button>
-                      <button className="button secondary" onClick={() => handleDelete(expense.id)}>
-                        Delete
-                      </button>
+                      <div className="mobile-inline-actions">{renderExpenseActions(expense)}</div>
                     </td>
                   </tr>
                 ))}
@@ -589,17 +596,61 @@ export default function ExpensesPage() {
                       No expenses yet.
                     </td>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-              <button className="button secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              ) : null}
+            </tbody>
+          </table>
+
+            <div className="mobile-record-list">
+              {expenses.length > 0 ? (
+                <label className="mobile-record-checkbox">
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} disabled={applyToAll} />
+                  <span>Select all visible expenses</span>
+                </label>
+              ) : null}
+              {expenses.map((expense) => (
+                <article key={expense.id} className="mobile-record-card">
+                  <label className="mobile-record-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(expense.id)}
+                      onChange={() => toggleSelect(expense.id)}
+                      disabled={applyToAll}
+                    />
+                    <span>{applyToAll ? "Selection disabled while applying to all" : "Select expense"}</span>
+                  </label>
+                  <div className="mobile-record-header">
+                    <div>
+                      <div className="mobile-record-title">{expense.title}</div>
+                      <div className="mobile-record-subtitle">{expense.category}</div>
+                    </div>
+                    <span className="badge">{new Date(expense.date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Amount</span>
+                      <span>{formatMoney(expense.amount)}</span>
+                    </div>
+                    {workspace?.projectTrackingEnabled ? (
+                      <div className="mobile-record-item">
+                        <span className="mobile-record-label">Project</span>
+                        <span>{expense.projectLabel || "-"}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mobile-record-actions">{renderExpenseActions(expense)}</div>
+                </article>
+              ))}
+              {expenses.length === 0 ? <div className="muted">No expenses yet.</div> : null}
+            </div>
+
+            <div className="pagination-row">
+              <button className="button secondary" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 Prev
               </button>
-              <div className="muted">
+              <div className="muted pagination-status">
                 Page {page} of {pages}
               </div>
-              <button className="button secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+              <button className="button secondary" type="button" disabled={page >= pages} onClick={() => setPage(page + 1)}>
                 Next
               </button>
             </div>

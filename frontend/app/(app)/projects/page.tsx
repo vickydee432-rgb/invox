@@ -19,6 +19,8 @@ type Summary = {
   profit_on_billed: number;
 };
 
+const formatMoney = (value: number) => value.toFixed(2);
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +154,17 @@ export default function ProjectsPage() {
     }
   };
 
+  const renderProjectActions = (project: Project) => (
+    <>
+      <button className="button secondary" type="button" onClick={() => startEdit(project)}>
+        Edit
+      </button>
+      <button className="button secondary" type="button" onClick={() => handleDelete(project)}>
+        Delete
+      </button>
+    </>
+  );
+
   if (workspace && !workspace.projectTrackingEnabled) {
     return (
       <section className="panel">
@@ -225,18 +238,18 @@ export default function ProjectsPage() {
           </label>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-          <button className="button secondary" onClick={handleExport} disabled={!selectedId || exporting}>
+          <button className="button secondary" type="button" onClick={handleExport} disabled={!selectedId || exporting}>
             {exporting ? "Exporting..." : "Export Project Excel"}
           </button>
           {exportError ? <div className="muted">{exportError}</div> : null}
         </div>
         {summary ? (
           <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-            <div>Billed: {summary.billed.toFixed(2)}</div>
-            <div>Paid: {summary.paid.toFixed(2)}</div>
-            <div>Expenses: {summary.expenses.toFixed(2)}</div>
-            <div>Profit on paid: {summary.profit_on_paid.toFixed(2)}</div>
-            <div>Profit on billed: {summary.profit_on_billed.toFixed(2)}</div>
+            <div>Billed: {formatMoney(summary.billed)}</div>
+            <div>Paid: {formatMoney(summary.paid)}</div>
+            <div>Expenses: {formatMoney(summary.expenses)}</div>
+            <div>Profit on paid: {formatMoney(summary.profit_on_paid)}</div>
+            <div>Profit on billed: {formatMoney(summary.profit_on_billed)}</div>
           </div>
         ) : (
           <div className="muted" style={{ marginTop: 14 }}>
@@ -250,40 +263,53 @@ export default function ProjectsPage() {
         {loading ? (
           <div className="muted">Loading projects...</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project._id}>
-                  <td>{project.name}</td>
-                  <td>{project.description || "-"}</td>
-                  <td>{project.isActive === false ? "Inactive" : "Active"}</td>
-                  <td>
-                    <button className="button secondary" onClick={() => startEdit(project)}>
-                      Edit
-                    </button>
-                    <button className="button secondary" onClick={() => handleDelete(project)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {projects.length === 0 ? (
+          <>
+            <table className="table desktop-table">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="muted">
-                    No projects yet.
-                  </td>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project._id}>
+                    <td>{project.name}</td>
+                    <td>{project.description || "-"}</td>
+                    <td>{project.isActive === false ? "Inactive" : "Active"}</td>
+                    <td>
+                      <div className="mobile-inline-actions">{renderProjectActions(project)}</div>
+                    </td>
+                  </tr>
+                ))}
+                {projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      No projects yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+
+            <div className="mobile-record-list">
+              {projects.map((project) => (
+                <article key={project._id} className="mobile-record-card">
+                  <div className="mobile-record-header">
+                    <div>
+                      <div className="mobile-record-title">{project.name}</div>
+                      <div className="mobile-record-subtitle">{project.description || "No description"}</div>
+                    </div>
+                    <span className="badge">{project.isActive === false ? "inactive" : "active"}</span>
+                  </div>
+                  <div className="mobile-record-actions">{renderProjectActions(project)}</div>
+                </article>
+              ))}
+              {projects.length === 0 ? <div className="muted">No projects yet.</div> : null}
+            </div>
+          </>
         )}
       </section>
     </>

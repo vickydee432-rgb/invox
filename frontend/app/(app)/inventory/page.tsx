@@ -37,6 +37,8 @@ type StockRow = {
   branch?: Branch;
 };
 
+const formatMoney = (value: number) => Number(value || 0).toFixed(2);
+
 export default function InventoryPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -290,6 +292,28 @@ export default function InventoryPage() {
     }
   };
 
+  const renderBranchActions = (branch: Branch) => (
+    <>
+      <button className="button secondary" onClick={() => editBranch(branch)} type="button">
+        Edit
+      </button>
+      <button className="button ghost" onClick={() => removeBranch(branch)} type="button">
+        Disable
+      </button>
+    </>
+  );
+
+  const renderProductActions = (product: Product) => (
+    <>
+      <button className="button secondary" onClick={() => editProduct(product)} type="button">
+        Edit
+      </button>
+      <button className="button ghost" onClick={() => removeProduct(product)} type="button">
+        Disable
+      </button>
+    </>
+  );
+
   return (
     <div className="stack">
       <section className="panel">
@@ -348,7 +372,7 @@ export default function InventoryPage() {
           </div>
         </form>
         <div className="table-wrap">
-          <table className="table">
+          <table className="table desktop-table">
             <thead>
               <tr>
                 <th>Branch</th>
@@ -366,14 +390,7 @@ export default function InventoryPage() {
                   <td>{branch.address || "-"}</td>
                   <td>{branch.isDefault ? "Yes" : "No"}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button className="button secondary" onClick={() => editBranch(branch)} type="button">
-                        Edit
-                      </button>
-                      <button className="button ghost" onClick={() => removeBranch(branch)} type="button">
-                        Disable
-                      </button>
-                    </div>
+                    <div className="mobile-inline-actions">{renderBranchActions(branch)}</div>
                   </td>
                 </tr>
               ))}
@@ -387,10 +404,35 @@ export default function InventoryPage() {
             </tbody>
           </table>
         </div>
+        <div className="mobile-record-list">
+          {activeBranches.map((branch) => (
+            <article key={branch._id} className="mobile-record-card">
+              <div className="mobile-record-header">
+                <div>
+                  <div className="mobile-record-title">{branch.name}</div>
+                  <div className="mobile-record-subtitle">{branch.code || "No code"}</div>
+                </div>
+                <span className="badge">{branch.isDefault ? "default" : "branch"}</span>
+              </div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Address</span>
+                  <span>{branch.address || "-"}</span>
+                </div>
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Default</span>
+                  <span>{branch.isDefault ? "Yes" : "No"}</span>
+                </div>
+              </div>
+              <div className="mobile-record-actions">{renderBranchActions(branch)}</div>
+            </article>
+          ))}
+          {activeBranches.length === 0 ? <div className="muted">No branches yet.</div> : null}
+        </div>
       </section>
 
       <section className="panel">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div className="action-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div className="panel-title">Products</div>
           <a className="button ghost" href="/inventory/scan">
             Scan inventory
@@ -406,7 +448,7 @@ export default function InventoryPage() {
             />
           </label>
           <label className="field">
-            SKU
+            Stockcode / SKU
             <input
               value={productForm.sku}
               onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))}
@@ -546,7 +588,7 @@ export default function InventoryPage() {
           </div>
         </form>
         <div className="table-wrap">
-          <table className="table">
+          <table className="table desktop-table">
             <thead>
               <tr>
                 <th>Product</th>
@@ -563,17 +605,10 @@ export default function InventoryPage() {
                   <td>{product.name}</td>
                   <td>{product.sku || "-"}</td>
                   <td>{product.category || "-"}</td>
-                  <td>{Number(product.salePrice || 0).toFixed(2)}</td>
+                  <td>{formatMoney(product.salePrice || 0)}</td>
                   <td>{Number(product.reorderLevel || 0)}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button className="button secondary" onClick={() => editProduct(product)} type="button">
-                        Edit
-                      </button>
-                      <button className="button ghost" onClick={() => removeProduct(product)} type="button">
-                        Disable
-                      </button>
-                    </div>
+                    <div className="mobile-inline-actions">{renderProductActions(product)}</div>
                   </td>
                 </tr>
               ))}
@@ -587,10 +622,41 @@ export default function InventoryPage() {
             </tbody>
           </table>
         </div>
+        <div className="mobile-record-list">
+          {products.filter((product) => product.isActive !== false).map((product) => (
+            <article key={product._id} className="mobile-record-card">
+              <div className="mobile-record-header">
+                <div>
+                  <div className="mobile-record-title">{product.name}</div>
+                  <div className="mobile-record-subtitle">{product.sku || "No SKU"}</div>
+                </div>
+                <span className="badge">{product.category || "uncategorized"}</span>
+              </div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Sale price</span>
+                  <span>{formatMoney(product.salePrice || 0)}</span>
+                </div>
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Reorder</span>
+                  <span>{Number(product.reorderLevel || 0)}</span>
+                </div>
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Barcode</span>
+                  <span>{product.barcode || "-"}</span>
+                </div>
+              </div>
+              <div className="mobile-record-actions">{renderProductActions(product)}</div>
+            </article>
+          ))}
+          {products.filter((product) => product.isActive !== false).length === 0 ? (
+            <div className="muted">No products yet.</div>
+          ) : null}
+        </div>
       </section>
 
       <section className="panel">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div className="action-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div className="panel-title">Stock by Branch</div>
           <label className="field" style={{ minWidth: 220 }}>
             Branch filter
@@ -605,12 +671,12 @@ export default function InventoryPage() {
           </label>
         </div>
         <div className="table-wrap">
-          <table className="table">
+          <table className="table desktop-table">
             <thead>
               <tr>
                 <th>Branch</th>
                 <th>Product</th>
-                <th>SKU</th>
+                <th>stockcode/SKU</th>
                 <th>On hand</th>
                 <th>Avg cost</th>
                 <th>Status</th>
@@ -623,7 +689,7 @@ export default function InventoryPage() {
                   <td>{row.product?.name || "-"}</td>
                   <td>{row.product?.sku || "-"}</td>
                   <td>{Number(row.onHand || 0)}</td>
-                  <td>{Number(row.avgCost || 0).toFixed(2)}</td>
+                  <td>{formatMoney(row.avgCost || 0)}</td>
                   <td>{row.lowStock ? "Low" : "OK"}</td>
                 </tr>
               ))}
@@ -636,6 +702,34 @@ export default function InventoryPage() {
               ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="mobile-record-list">
+          {stock.map((row) => (
+            <article key={row._id} className="mobile-record-card">
+              <div className="mobile-record-header">
+                <div>
+                  <div className="mobile-record-title">{row.product?.name || "-"}</div>
+                  <div className="mobile-record-subtitle">{row.branch?.name || "-"}</div>
+                </div>
+                <span className="badge">{row.lowStock ? "low" : "ok"}</span>
+              </div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">SKU</span>
+                  <span>{row.product?.sku || "-"}</span>
+                </div>
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">On hand</span>
+                  <span>{Number(row.onHand || 0)}</span>
+                </div>
+                <div className="mobile-record-item">
+                  <span className="mobile-record-label">Avg cost</span>
+                  <span>{formatMoney(row.avgCost || 0)}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+          {stock.length === 0 ? <div className="muted">No stock yet.</div> : null}
         </div>
       </section>
 
