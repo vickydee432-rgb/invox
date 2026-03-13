@@ -708,17 +708,22 @@ export default function InventoryPage() {
       <section className="panel">
         <div className="action-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div className="panel-title">Stock by Branch</div>
-          <label className="field" style={{ minWidth: 220 }}>
-            Branch filter
-            <select value={stockBranchId} onChange={(e) => setStockBranchId(e.target.value)}>
-              <option value="">All branches</option>
-              {activeBranches.map((branch) => (
-                <option key={branch._id} value={branch._id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <label className="field" style={{ minWidth: 220 }}>
+              Branch filter
+              <select value={stockBranchId} onChange={(e) => setStockBranchId(e.target.value)}>
+                <option value="">All branches</option>
+                {activeBranches.map((branch) => (
+                  <option key={branch._id} value={branch._id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="button" type="button" onClick={() => router.push("/inventory/stock")}>
+              Add stock
+            </button>
+          </div>
         </div>
         <div className="table-wrap">
           <table className="table desktop-table">
