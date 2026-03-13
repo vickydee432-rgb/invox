@@ -20,6 +20,7 @@ type Product = {
   costPrice?: number;
   salePrice?: number;
   unit?: string;
+  isActive?: boolean;
 };
 
 type ScanEntry = {
@@ -33,6 +34,8 @@ export default function InventoryScanPage() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState("");
   const [scanValue, setScanValue] = useState("");
   const [scanError, setScanError] = useState("");
   const [scanResult, setScanResult] = useState<Product | null>(null);
@@ -77,6 +80,16 @@ export default function InventoryScanPage() {
   }, [workspace]);
 
   useEffect(() => {
+    if (!workspace?.inventoryEnabled) return;
+    apiFetch<{ products: Product[] }>("/api/products")
+      .then((data) => {
+        const active = (data.products || []).filter((p) => p.isActive !== false);
+        setProducts(active);
+      })
+      .catch(() => {});
+  }, [workspace]);
+
+  useEffect(() => {
     if (!useCamera) return;
     setCameraError("");
   }, [useCamera]);
@@ -88,6 +101,27 @@ export default function InventoryScanPage() {
   }, []);
 
   const branchOptions = useMemo(() => branches, [branches]);
+  const productMatches = useMemo(() => {
+    const term = productSearch.trim().toLowerCase();
+    if (term.length < 2) return [];
+    return products
+      .filter((product) => {
+        const name = String(product.name || "").toLowerCase();
+        const sku = String(product.sku || "").toLowerCase();
+        const barcode = String(product.barcode || "").toLowerCase();
+        return name.includes(term) || sku.includes(term) || barcode.includes(term);
+      })
+      .slice(0, 6);
+  }, [productSearch, products]);
+  const showProductSearch = productSearch.trim().length >= 2;
+
+  const selectProduct = (product: Product) => {
+    setScanError("");
+    setShowCreate(false);
+    setScanResult(product);
+    setProductSearch(product.name || "");
+    setCreateForm((prev) => ({ ...prev, barcode: product.barcode || "" }));
+  };
 
   const pushHistory = (entry: ScanEntry) => {
     setScanHistory((prev) => [entry, ...prev].slice(0, 10));
@@ -228,6 +262,34 @@ export default function InventoryScanPage() {
             placeholder="Focus and scan"
           />
         </label>
+        <label className="field">
+          Search product name
+          <input
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            placeholder="Type at least 2 letters"
+          />
+        </label>
+        {showProductSearch ? (
+          <div className="panel-subtle" style={{ gridColumn: "1 / -1", display: "grid", gap: 8 }}>
+            {productMatches.length === 0 ? (
+              <div className="muted">No matching products.</div>
+            ) : (
+              productMatches.map((product) => (
+                <button
+                  key={product._id}
+                  className="button ghost"
+                  type="button"
+                  onClick={() => selectProduct(product)}
+                  style={{ justifyContent: "space-between", gap: 12 }}
+                >
+                  <span>{product.name}</span>
+                  <span className="muted">{product.sku || product.barcode || "No code"}</span>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
         <button className="button secondary" type="button" onClick={() => handleScan()} disabled={loading}>
           {loading ? "Working..." : "Lookup"}
         </button>
