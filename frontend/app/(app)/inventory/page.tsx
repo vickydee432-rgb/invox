@@ -47,6 +47,8 @@ type StockRow = {
   onHand: number;
   avgCost: number;
   lowStock?: boolean;
+  productId?: string;
+  branchId?: string;
   product?: Product;
   branch?: Branch;
 };
@@ -332,6 +334,18 @@ export default function InventoryPage() {
       </button>
     </>
   );
+
+  const getStockEditLink = (row: StockRow) => {
+    const productId = row.product?._id || row.productId;
+    const branchId = row.branch?._id || row.branchId;
+    if (!productId || !branchId) return "";
+    const params = new URLSearchParams({
+      productId,
+      branchId,
+      onHand: String(Number(row.onHand || 0))
+    });
+    return `/inventory/stock/edit?${params.toString()}`;
+  };
 
   const renderProductForm = <T extends ProductFormState>({
     form,
@@ -735,6 +749,7 @@ export default function InventoryPage() {
                 <th>On hand</th>
                 <th>Avg cost</th>
                 <th>Status</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -746,11 +761,25 @@ export default function InventoryPage() {
                   <td>{Number(row.onHand || 0)}</td>
                   <td>{formatMoney(row.avgCost || 0)}</td>
                   <td>{row.lowStock ? "Low" : "OK"}</td>
+                  <td>
+                    <div className="mobile-inline-actions">
+                      <button
+                        className="button secondary"
+                        type="button"
+                        onClick={() => {
+                          const link = getStockEditLink(row);
+                          if (link) router.push(link);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {stock.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={7} className="muted">
                     No stock yet.
                   </td>
                 </tr>
@@ -781,6 +810,18 @@ export default function InventoryPage() {
                   <span className="mobile-record-label">Avg cost</span>
                   <span>{formatMoney(row.avgCost || 0)}</span>
                 </div>
+              </div>
+              <div className="mobile-record-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    const link = getStockEditLink(row);
+                    if (link) router.push(link);
+                  }}
+                >
+                  Edit
+                </button>
               </div>
             </article>
           ))}
