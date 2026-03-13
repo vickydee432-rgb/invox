@@ -937,7 +937,7 @@ function NewInvoicePageContent() {
                   className="button ghost"
                   type="button"
                   style={{ marginTop: 8 }}
-                  onClick={() => router.push(`/inventory?barcode=${encodeURIComponent(lastScan)}`)}
+                  onClick={() => router.push(`/inventory/new?barcode=${encodeURIComponent(lastScan)}`)}
                 >
                   Create product
                 </button>

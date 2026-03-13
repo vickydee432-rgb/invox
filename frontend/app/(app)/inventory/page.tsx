@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 import BarcodeCamera from "@/components/BarcodeCamera";
@@ -53,6 +54,7 @@ type StockRow = {
 const formatMoney = (value: number) => Number(value || 0).toFixed(2);
 
 export default function InventoryPage() {
+  const router = useRouter();
   const createProductForm = (): ProductFormState => ({
     name: "",
     sku: "",
@@ -82,9 +84,7 @@ export default function InventoryPage() {
     address: "",
     isDefault: false
   });
-  const [productForm, setProductForm] = useState<ProductFormState>(createProductForm());
   const [editProductForm, setEditProductForm] = useState<EditProductFormState>(createEditProductForm());
-  const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [barcodeScan, setBarcodeScan] = useState("");
   const [stockBranchId, setStockBranchId] = useState("");
   const [useCamera, setUseCamera] = useState(false);
@@ -107,11 +107,9 @@ export default function InventoryPage() {
     const params = new URLSearchParams(window.location.search);
     const barcode = params.get("barcode");
     if (barcode) {
-      setEditProductForm(createEditProductForm());
-      setShowAddProductForm(true);
-      setProductForm((prev) => ({ ...prev, barcode }));
+      router.replace(`/inventory/new?barcode=${encodeURIComponent(barcode)}`);
     }
-  }, []);
+  }, [router]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -187,8 +185,6 @@ export default function InventoryPage() {
       isDefault: false
     });
 
-  const resetProductForm = () => setProductForm(createProductForm());
-
   const resetEditProductForm = () => setEditProductForm(createEditProductForm());
 
   const resetScannerState = () => {
@@ -199,12 +195,6 @@ export default function InventoryPage() {
     setScanOverlayTone("neutral");
     setCameraError("");
     setBarcodeScan("");
-  };
-
-  const closeAddProductForm = () => {
-    setShowAddProductForm(false);
-    resetProductForm();
-    resetScannerState();
   };
 
   const closeEditProductForm = () => {
@@ -267,32 +257,6 @@ export default function InventoryPage() {
     }
   };
 
-  const saveProduct = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError("");
-    try {
-      const payload = {
-        name: productForm.name,
-        sku: productForm.sku || undefined,
-        barcode: productForm.barcode || undefined,
-        category: productForm.category || undefined,
-        unit: productForm.unit || undefined,
-        costPrice: Number(productForm.costPrice) || 0,
-        salePrice: Number(productForm.salePrice) || 0,
-        reorderLevel: Number(productForm.reorderLevel) || 0
-      };
-      await apiFetch("/api/products", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-      closeAddProductForm();
-      await loadAll();
-      await loadStock(stockBranchId || undefined);
-    } catch (err: any) {
-      setError(err.message || "Failed to save product");
-    }
-  };
-
   const updateProduct = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -321,7 +285,6 @@ export default function InventoryPage() {
   };
 
   const editProduct = (product: Product) => {
-    setShowAddProductForm(false);
     resetScannerState();
     setEditProductForm({
       id: product._id,
@@ -649,16 +612,11 @@ export default function InventoryPage() {
               className="button"
               type="button"
               onClick={() => {
-                if (showAddProductForm) {
-                  closeAddProductForm();
-                  return;
-                }
                 closeEditProductForm();
-                resetProductForm();
-                setShowAddProductForm(true);
+                router.push("/inventory/new");
               }}
             >
-              {showAddProductForm ? "Close add form" : "Add product"}
+              Add product
             </button>
             <a className="button ghost" href="/inventory/scan">
               Scan inventory
@@ -732,20 +690,6 @@ export default function InventoryPage() {
           ) : null}
         </div>
       </section>
-
-      {showAddProductForm ? (
-        <section className="panel">
-          <div className="panel-title">Add product</div>
-          {renderProductForm({
-            form: productForm,
-            setForm: setProductForm,
-            onSubmit: saveProduct,
-            submitLabel: "Add product",
-            cancelLabel: "Close",
-            onCancel: closeAddProductForm
-          })}
-        </section>
-      ) : null}
 
       {editProductForm.id ? (
         <section className="panel">
