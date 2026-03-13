@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 import BarcodeCamera from "@/components/BarcodeCamera";
@@ -28,6 +28,19 @@ type Product = {
   isActive?: boolean;
 };
 
+type ProductFormState = {
+  name: string;
+  sku: string;
+  barcode: string;
+  category: string;
+  unit: string;
+  costPrice: number;
+  salePrice: number;
+  reorderLevel: number;
+};
+
+type EditProductFormState = ProductFormState & { id: string };
+
 type StockRow = {
   _id: string;
   onHand: number;
@@ -40,6 +53,21 @@ type StockRow = {
 const formatMoney = (value: number) => Number(value || 0).toFixed(2);
 
 export default function InventoryPage() {
+  const createProductForm = (): ProductFormState => ({
+    name: "",
+    sku: "",
+    barcode: "",
+    category: "",
+    unit: "",
+    costPrice: 0,
+    salePrice: 0,
+    reorderLevel: 0
+  });
+  const createEditProductForm = (): EditProductFormState => ({
+    id: "",
+    ...createProductForm()
+  });
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [stock, setStock] = useState<StockRow[]>([]);
@@ -54,17 +82,9 @@ export default function InventoryPage() {
     address: "",
     isDefault: false
   });
-  const [productForm, setProductForm] = useState({
-    id: "",
-    name: "",
-    sku: "",
-    barcode: "",
-    category: "",
-    unit: "",
-    costPrice: 0,
-    salePrice: 0,
-    reorderLevel: 0
-  });
+  const [productForm, setProductForm] = useState<ProductFormState>(createProductForm());
+  const [editProductForm, setEditProductForm] = useState<EditProductFormState>(createEditProductForm());
+  const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [barcodeScan, setBarcodeScan] = useState("");
   const [stockBranchId, setStockBranchId] = useState("");
   const [useCamera, setUseCamera] = useState(false);
@@ -87,7 +107,9 @@ export default function InventoryPage() {
     const params = new URLSearchParams(window.location.search);
     const barcode = params.get("barcode");
     if (barcode) {
-      setProductForm((prev) => ({ ...prev, id: "", barcode }));
+      setEditProductForm(createEditProductForm());
+      setShowAddProductForm(true);
+      setProductForm((prev) => ({ ...prev, barcode }));
     }
   }, []);
 
@@ -165,18 +187,30 @@ export default function InventoryPage() {
       isDefault: false
     });
 
-  const resetProductForm = () =>
-    setProductForm({
-      id: "",
-      name: "",
-      sku: "",
-      barcode: "",
-      category: "",
-      unit: "",
-      costPrice: 0,
-      salePrice: 0,
-      reorderLevel: 0
-    });
+  const resetProductForm = () => setProductForm(createProductForm());
+
+  const resetEditProductForm = () => setEditProductForm(createEditProductForm());
+
+  const resetScannerState = () => {
+    if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+    cameraBusyRef.current = false;
+    setUseCamera(false);
+    setScanOverlayStatus("");
+    setScanOverlayTone("neutral");
+    setCameraError("");
+    setBarcodeScan("");
+  };
+
+  const closeAddProductForm = () => {
+    setShowAddProductForm(false);
+    resetProductForm();
+    resetScannerState();
+  };
+
+  const closeEditProductForm = () => {
+    resetEditProductForm();
+    resetScannerState();
+  };
 
   const saveBranch = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -247,18 +281,11 @@ export default function InventoryPage() {
         salePrice: Number(productForm.salePrice) || 0,
         reorderLevel: Number(productForm.reorderLevel) || 0
       };
-      if (productForm.id) {
-        await apiFetch(`/api/products/${productForm.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload)
-        });
-      } else {
-        await apiFetch("/api/products", {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-      }
-      resetProductForm();
+      await apiFetch("/api/products", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      closeAddProductForm();
       await loadAll();
       await loadStock(stockBranchId || undefined);
     } catch (err: any) {
@@ -266,8 +293,37 @@ export default function InventoryPage() {
     }
   };
 
+  const updateProduct = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (!editProductForm.id) return;
+    try {
+      const payload = {
+        name: editProductForm.name,
+        sku: editProductForm.sku || undefined,
+        barcode: editProductForm.barcode || undefined,
+        category: editProductForm.category || undefined,
+        unit: editProductForm.unit || undefined,
+        costPrice: Number(editProductForm.costPrice) || 0,
+        salePrice: Number(editProductForm.salePrice) || 0,
+        reorderLevel: Number(editProductForm.reorderLevel) || 0
+      };
+      await apiFetch(`/api/products/${editProductForm.id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+      closeEditProductForm();
+      await loadAll();
+      await loadStock(stockBranchId || undefined);
+    } catch (err: any) {
+      setError(err.message || "Failed to update product");
+    }
+  };
+
   const editProduct = (product: Product) => {
-    setProductForm({
+    setShowAddProductForm(false);
+    resetScannerState();
+    setEditProductForm({
       id: product._id,
       name: product.name || "",
       sku: product.sku || "",
@@ -312,6 +368,157 @@ export default function InventoryPage() {
         Disable
       </button>
     </>
+  );
+
+  const renderProductForm = <T extends ProductFormState>({
+    form,
+    setForm,
+    onSubmit,
+    submitLabel,
+    cancelLabel,
+    onCancel
+  }: {
+    form: T;
+    setForm: Dispatch<SetStateAction<T>>;
+    onSubmit: (event: React.FormEvent) => void | Promise<void>;
+    submitLabel: string;
+    cancelLabel: string;
+    onCancel: () => void;
+  }) => (
+    <form onSubmit={onSubmit} className="grid-two">
+      <label className="field">
+        Product name
+        <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
+      </label>
+      <label className="field">
+        Stockcode / SKU
+        <input value={form.sku} onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))} />
+      </label>
+      <label className="field">
+        Barcode
+        <input
+          value={form.barcode}
+          onChange={(e) => setForm((prev) => ({ ...prev, barcode: e.target.value }))}
+          placeholder="Optional"
+        />
+      </label>
+      <label className="field">
+        Scan barcode here
+        <input
+          value={barcodeScan}
+          onChange={(e) => setBarcodeScan(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const code = barcodeScan.trim();
+              if (!code) return;
+              setForm((prev) => ({ ...prev, barcode: code }));
+              setBarcodeScan("");
+            }
+          }}
+          placeholder="Focus and scan"
+        />
+      </label>
+      <div className="field" style={{ alignSelf: "end" }}>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => {
+            setCameraError("");
+            setScanOverlayStatus("");
+            setScanOverlayTone("neutral");
+            cameraBusyRef.current = false;
+            setUseCamera((prev) => !prev);
+          }}
+        >
+          {useCamera ? "Stop camera" : "Use camera"}
+        </button>
+      </div>
+      <div className="field" style={{ gridColumn: "1 / -1" }}>
+        <BarcodeCamera
+          active={useCamera}
+          onScan={(value) => {
+            if (cameraBusyRef.current) return;
+            cameraBusyRef.current = true;
+            setForm((prev) => ({ ...prev, barcode: value }));
+            setBarcodeScan("");
+            const matched = products.find((product) => product.barcode === value);
+            if (matched) {
+              setScanOverlayStatus(`Found: ${matched.name}`);
+              setScanOverlayTone("success");
+            } else {
+              setScanOverlayStatus(`Captured: ${value}`);
+              setScanOverlayTone("neutral");
+            }
+            if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+            cameraCloseRef.current = setTimeout(() => {
+              setUseCamera(false);
+              setScanOverlayStatus("");
+              setScanOverlayTone("neutral");
+              cameraBusyRef.current = false;
+            }, 800);
+          }}
+          onError={(message) => setCameraError(message)}
+          mode="overlay"
+          onClose={() => {
+            if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
+            cameraBusyRef.current = false;
+            setScanOverlayStatus("");
+            setScanOverlayTone("neutral");
+            setUseCamera(false);
+          }}
+          showLast={false}
+          title="Scanning barcode..."
+          subtitle="Align the barcode within the frame"
+          status={scanOverlayStatus}
+          statusTone={scanOverlayTone}
+        />
+        {cameraError ? <div className="muted" style={{ marginTop: 8 }}>{cameraError}</div> : null}
+      </div>
+      <label className="field">
+        Category
+        <input value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))} />
+      </label>
+      <label className="field">
+        Unit
+        <input value={form.unit} onChange={(e) => setForm((prev) => ({ ...prev, unit: e.target.value }))} />
+      </label>
+      <label className="field">
+        Order price
+        <input
+          type="number"
+          min={0}
+          value={form.costPrice}
+          onChange={(e) => setForm((prev) => ({ ...prev, costPrice: Number(e.target.value) }))}
+        />
+      </label>
+      <label className="field">
+        Sale price
+        <input
+          type="number"
+          min={0}
+          value={form.salePrice}
+          onChange={(e) => setForm((prev) => ({ ...prev, salePrice: Number(e.target.value) }))}
+        />
+      </label>
+      <label className="field">
+        Reorder level
+        <input
+          type="number"
+          min={0}
+          value={form.reorderLevel}
+          onChange={(e) => setForm((prev) => ({ ...prev, reorderLevel: Number(e.target.value) }))}
+        />
+      </label>
+      <div className="field">
+        <button className="button" type="submit">
+          {submitLabel}
+        </button>
+        <button className="button secondary" type="button" onClick={onCancel}>
+          {cancelLabel}
+        </button>
+      </div>
+    </form>
   );
 
   return (
@@ -432,161 +639,32 @@ export default function InventoryPage() {
       </section>
 
       <section className="panel">
-        <div className="action-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div
+          className="action-row"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+        >
           <div className="panel-title">Products</div>
-          <a className="button ghost" href="/inventory/scan">
-            Scan inventory
-          </a>
-        </div>
-        <form onSubmit={saveProduct} className="grid-two">
-          <label className="field">
-            Product name
-            <input
-              value={productForm.name}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))}
-              required
-            />
-          </label>
-          <label className="field">
-            Stockcode / SKU
-            <input
-              value={productForm.sku}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))}
-            />
-          </label>
-          <label className="field">
-            Barcode
-            <input
-              value={productForm.barcode}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, barcode: e.target.value }))}
-              placeholder="Optional"
-            />
-          </label>
-          <label className="field">
-            Scan barcode here
-            <input
-              value={barcodeScan}
-              onChange={(e) => setBarcodeScan(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const code = barcodeScan.trim();
-                  if (!code) return;
-                  setProductForm((prev) => ({ ...prev, barcode: code }));
-                  setBarcodeScan("");
-                }
-              }}
-              placeholder="Focus and scan"
-            />
-          </label>
-          <div className="field" style={{ alignSelf: "end" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button
-              className="button secondary"
+              className="button"
               type="button"
               onClick={() => {
-                setCameraError("");
-                setScanOverlayStatus("");
-                setScanOverlayTone("neutral");
-                cameraBusyRef.current = false;
-                setUseCamera((prev) => !prev);
+                if (showAddProductForm) {
+                  closeAddProductForm();
+                  return;
+                }
+                closeEditProductForm();
+                resetProductForm();
+                setShowAddProductForm(true);
               }}
             >
-              {useCamera ? "Stop camera" : "Use camera"}
+              {showAddProductForm ? "Close add form" : "Add product"}
             </button>
+            <a className="button ghost" href="/inventory/scan">
+              Scan inventory
+            </a>
           </div>
-          <div className="field" style={{ gridColumn: "1 / -1" }}>
-            <BarcodeCamera
-              active={useCamera}
-              onScan={(value) => {
-                if (cameraBusyRef.current) return;
-                cameraBusyRef.current = true;
-                setProductForm((prev) => ({ ...prev, barcode: value }));
-                setBarcodeScan("");
-                const matched = products.find((product) => product.barcode === value);
-                if (matched) {
-                  setScanOverlayStatus(`Found: ${matched.name}`);
-                  setScanOverlayTone("success");
-                } else {
-                  setScanOverlayStatus(`Captured: ${value}`);
-                  setScanOverlayTone("neutral");
-                }
-                if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
-                cameraCloseRef.current = setTimeout(() => {
-                  setUseCamera(false);
-                  setScanOverlayStatus("");
-                  setScanOverlayTone("neutral");
-                  cameraBusyRef.current = false;
-                }, 800);
-              }}
-              onError={(message) => setCameraError(message)}
-              mode="overlay"
-              onClose={() => {
-                if (cameraCloseRef.current) clearTimeout(cameraCloseRef.current);
-                cameraBusyRef.current = false;
-                setScanOverlayStatus("");
-                setScanOverlayTone("neutral");
-                setUseCamera(false);
-              }}
-              showLast={false}
-              title="Scanning barcode..."
-              subtitle="Align the barcode within the frame"
-              status={scanOverlayStatus}
-              statusTone={scanOverlayTone}
-            />
-            {cameraError ? <div className="muted" style={{ marginTop: 8 }}>{cameraError}</div> : null}
-          </div>
-          <label className="field">
-            Category
-            <input
-              value={productForm.category}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, category: e.target.value }))}
-            />
-          </label>
-          <label className="field">
-            Unit
-            <input
-              value={productForm.unit}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, unit: e.target.value }))}
-            />
-          </label>
-          <label className="field">
-            Order price
-            <input
-              type="number"
-              min={0}
-              value={productForm.costPrice}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, costPrice: Number(e.target.value) }))}
-            />
-          </label>
-          <label className="field">
-            Sale price
-            <input
-              type="number"
-              min={0}
-              value={productForm.salePrice}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, salePrice: Number(e.target.value) }))}
-            />
-          </label>
-          <label className="field">
-            Reorder level
-            <input
-              type="number"
-              min={0}
-              value={productForm.reorderLevel}
-              onChange={(e) => setProductForm((prev) => ({ ...prev, reorderLevel: Number(e.target.value) }))}
-            />
-          </label>
-          <div className="field">
-            <button className="button" type="submit">
-              {productForm.id ? "Update product" : "Add product"}
-            </button>
-            {productForm.id ? (
-              <button className="button secondary" type="button" onClick={resetProductForm}>
-                Cancel
-              </button>
-            ) : null}
-          </div>
-        </form>
+        </div>
         <div className="table-wrap">
           <table className="table desktop-table">
             <thead>
@@ -654,6 +732,34 @@ export default function InventoryPage() {
           ) : null}
         </div>
       </section>
+
+      {showAddProductForm ? (
+        <section className="panel">
+          <div className="panel-title">Add product</div>
+          {renderProductForm({
+            form: productForm,
+            setForm: setProductForm,
+            onSubmit: saveProduct,
+            submitLabel: "Add product",
+            cancelLabel: "Close",
+            onCancel: closeAddProductForm
+          })}
+        </section>
+      ) : null}
+
+      {editProductForm.id ? (
+        <section className="panel">
+          <div className="panel-title">Edit product</div>
+          {renderProductForm({
+            form: editProductForm,
+            setForm: setEditProductForm,
+            onSubmit: updateProduct,
+            submitLabel: "Update product",
+            cancelLabel: "Cancel edit",
+            onCancel: closeEditProductForm
+          })}
+        </section>
+      ) : null}
 
       <section className="panel">
         <div className="action-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
