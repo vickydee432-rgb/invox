@@ -16,13 +16,33 @@ const DEFAULT_LABELS = {
   expenses: "Expenses",
   projects: "Projects",
   reports: "Reports",
-  inventory: "Inventory"
+  inventory: "Inventory",
+  accounting: "Accounting",
+  purchases: "Purchases",
+  payroll: "Payroll",
+  banking: "Banking",
+  tax: "Tax",
+  documents: "Documents",
+  notifications: "Notifications"
 };
 
 const DEFAULTS: Record<string, WorkspaceConfig> = {
   construction: {
     businessType: "construction",
-    enabledModules: ["quotes", "invoices", "expenses", "projects", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "projects",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -30,7 +50,20 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
   },
   retail: {
     businessType: "retail",
-    enabledModules: ["sales", "invoices", "expenses", "inventory", "reports"],
+    enabledModules: [
+      "sales",
+      "invoices",
+      "expenses",
+      "inventory",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: {
       ...DEFAULT_LABELS,
       sales: "Sales",
@@ -44,7 +77,20 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
   },
   agency: {
     businessType: "agency",
-    enabledModules: ["quotes", "invoices", "expenses", "projects", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "projects",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -52,7 +98,19 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
   },
   services: {
     businessType: "services",
-    enabledModules: ["quotes", "invoices", "expenses", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -60,7 +118,19 @@ const DEFAULTS: Record<string, WorkspaceConfig> = {
   },
   freelance: {
     businessType: "freelance",
-    enabledModules: ["quotes", "invoices", "expenses", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: false,
     inventoryEnabled: false,

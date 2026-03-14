@@ -9,15 +9,41 @@ import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const MODULE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
+  accounting: "/accounting",
   quotes: "/quotes",
   sales: "/sales",
   invoices: "/invoices",
+  purchases: "/purchases",
   expenses: "/expenses",
   projects: "/projects",
   inventory: "/inventory",
+  payroll: "/payroll",
+  banking: "/banking",
+  tax: "/tax",
   reports: "/reports",
+  documents: "/documents",
+  notifications: "/notifications",
   settings: "/settings"
 };
+
+const MODULE_ORDER = [
+  "dashboard",
+  "accounting",
+  "quotes",
+  "sales",
+  "invoices",
+  "purchases",
+  "expenses",
+  "inventory",
+  "payroll",
+  "banking",
+  "tax",
+  "reports",
+  "documents",
+  "notifications",
+  "projects",
+  "settings"
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -67,7 +93,10 @@ export default function Sidebar() {
 
   const buildNavModules = () => {
     const enabledModules = workspace?.enabledModules || [];
-    const modules = ["dashboard", ...enabledModules, "settings"];
+    const baseModules = new Set(["dashboard", ...enabledModules, "settings"]);
+    const ordered = MODULE_ORDER.filter((module) => baseModules.has(module));
+    const extras = Array.from(baseModules).filter((module) => !MODULE_ORDER.includes(module));
+    const modules = [...ordered, ...extras];
     const filtered = modules.filter((module) => {
       if (module === "sales" && !enabledModules.includes("invoices")) return false;
       if (module === "inventory") return workspace?.inventoryEnabled;

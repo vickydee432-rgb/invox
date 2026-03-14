@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
@@ -39,6 +39,23 @@ type SeriesRow = {
   salesPaid?: number;
 };
 
+type Account = {
+  _id: string;
+  code?: string;
+  name: string;
+  type: string;
+};
+
+type Period = {
+  _id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isClosed?: boolean;
+};
+
+type FinancialReportType = "income" | "balance" | "cash" | "trial" | "ledger";
+
 const formatMoney = (value: number) => value.toFixed(2);
 
 export default function ReportsPage() {
@@ -50,6 +67,15 @@ export default function ReportsPage() {
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [financialType, setFinancialType] = useState<FinancialReportType>("income");
+  const [financialData, setFinancialData] = useState<any>(null);
+  const [financialLoading, setFinancialLoading] = useState(false);
+  const [financialError, setFinancialError] = useState("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
+  const [asAt, setAsAt] = useState("");
+  const [periodId, setPeriodId] = useState("");
+  const [ledgerAccountId, setLedgerAccountId] = useState("");
 
   const loadReports = async () => {
     setLoading(true);
@@ -73,6 +99,60 @@ export default function ReportsPage() {
       setError(err.message || "Failed to load reports");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFinancialLookups = async () => {
+    if (!workspace?.enabledModules?.includes("accounting")) return;
+    try {
+      const [accountData, periodData] = await Promise.all([
+        apiFetch<{ accounts: Account[] }>("/api/accounting/accounts"),
+        apiFetch<{ periods: Period[] }>("/api/accounting/periods")
+      ]);
+      const accountRows = accountData.accounts || [];
+      setAccounts(accountRows);
+      setPeriods(periodData.periods || []);
+      if (!ledgerAccountId && accountRows.length > 0) {
+        setLedgerAccountId(accountRows[0]._id);
+      }
+    } catch (err: any) {
+      setFinancialError(err.message || "Failed to load accounting lookups");
+    }
+  };
+
+  const loadFinancialReport = async () => {
+    setFinancialLoading(true);
+    setFinancialError("");
+    try {
+      let data: any = null;
+      if (financialType === "income") {
+        const params = new URLSearchParams();
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        data = await apiFetch(`/api/reports/income-statement${params.toString() ? `?${params}` : ""}`);
+      } else if (financialType === "balance") {
+        const params = new URLSearchParams();
+        if (asAt) params.set("asAt", asAt);
+        data = await apiFetch(`/api/reports/balance-sheet${params.toString() ? `?${params}` : ""}`);
+      } else if (financialType === "cash") {
+        const params = new URLSearchParams();
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        data = await apiFetch(`/api/reports/cash-flow${params.toString() ? `?${params}` : ""}`);
+      } else if (financialType === "trial") {
+        const params = new URLSearchParams();
+        if (periodId) params.set("periodId", periodId);
+        data = await apiFetch(`/api/reports/trial-balance${params.toString() ? `?${params}` : ""}`);
+      } else if (financialType === "ledger") {
+        if (!ledgerAccountId) throw new Error("Select an account to view the ledger.");
+        data = await apiFetch(`/api/reports/general-ledger?accountId=${ledgerAccountId}`);
+      }
+      setFinancialData(data);
+    } catch (err: any) {
+      setFinancialError(err.message || "Failed to load financial report");
+      setFinancialData(null);
+    } finally {
+      setFinancialLoading(false);
     }
   };
 
@@ -177,10 +257,196 @@ export default function ReportsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!asAt) {
+      setAsAt(new Date().toISOString().slice(0, 10));
+    }
+  }, [asAt]);
+
+  useEffect(() => {
+    loadFinancialLookups();
+  }, [workspace]);
+
   const invoiceLabel = workspace?.labels?.invoices || "Invoices";
   const quoteLabel = workspace?.labels?.quotes || "Quotes";
   const salesLabel = workspace?.labels?.sales || "Sales";
   const expenseLabel = workspace?.labels?.expenses || "Expenses";
+  const accountMap = useMemo(() => new Map(accounts.map((account) => [String(account._id), account])), [accounts]);
+
+  const renderFinancialReport = () => {
+    if (!workspace?.enabledModules?.includes("accounting")) {
+      return <div className="muted">Enable the Accounting module to view financial statements.</div>;
+    }
+    if (financialLoading) return <div className="muted">Loading report...</div>;
+    if (financialError) return <div className="muted">{financialError}</div>;
+    if (!financialData) return <div className="muted">Run a report to see results.</div>;
+
+    if (financialType === "income") {
+      return (
+        <>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="muted">Total income</div>
+              <div className="stat-value">{formatMoney(financialData.totalIncome || 0)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="muted">Total expenses</div>
+              <div className="stat-value">{formatMoney(financialData.totalExpense || 0)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="muted">Net profit</div>
+              <div className="stat-value">{formatMoney(financialData.netProfit || 0)}</div>
+            </div>
+          </div>
+          <div className="table-wrap" style={{ marginTop: 16 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Type</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(financialData.rows || []).map((row: any) => (
+                  <tr key={row.accountId || row._id}>
+                    <td>{row.name}</td>
+                    <td>{row.type}</td>
+                    <td>{formatMoney(Number(row.balance || 0))}</td>
+                  </tr>
+                ))}
+                {(financialData.rows || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      No income statement lines yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </>
+      );
+    }
+
+    if (financialType === "balance") {
+      const rows = financialData.rows || [];
+      return (
+        <>
+          <div className="muted">As at {new Date(financialData.asAt || new Date()).toLocaleDateString()}</div>
+          <div className="table-wrap" style={{ marginTop: 16 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Type</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row: any) => (
+                  <tr key={row.accountId || row._id}>
+                    <td>{row.name}</td>
+                    <td>{row.type}</td>
+                    <td>{formatMoney(Number(row.balance || 0))}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      No balance sheet data yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </>
+      );
+    }
+
+    if (financialType === "cash") {
+      return (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="muted">Net cash</div>
+            <div className="stat-value">{formatMoney(financialData.netCash || 0)}</div>
+          </div>
+        </div>
+      );
+    }
+
+    if (financialType === "trial") {
+      const rows = financialData.rows || [];
+      return (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Debit</th>
+                <th>Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row: any) => {
+                const account = accountMap.get(String(row._id));
+                return (
+                  <tr key={row._id}>
+                    <td>{account ? `${account.name}${account.code ? ` (${account.code})` : ""}` : row._id}</td>
+                    <td>{formatMoney(Number(row.debit || 0))}</td>
+                    <td>{formatMoney(Number(row.credit || 0))}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    No trial balance rows yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (financialType === "ledger") {
+      const lines = financialData.lines || [];
+      return (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Debit</th>
+                <th>Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line: any) => (
+                <tr key={line._id}>
+                  <td>{line.createdAt ? new Date(line.createdAt).toLocaleDateString() : "-"}</td>
+                  <td>{formatMoney(Number(line.debit || 0))}</td>
+                  <td>{formatMoney(Number(line.credit || 0))}</td>
+                </tr>
+              ))}
+              {lines.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    No ledger entries for this account.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   if (workspace && !workspace.enabledModules.includes("reports")) {
     return (
@@ -406,6 +672,70 @@ export default function ReportsPage() {
               ))}
               {series.length === 0 ? <div className="muted">No data for the selected range.</div> : null}
             </div>
+          </>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Financial Reports</div>
+        {!workspace?.enabledModules?.includes("accounting") ? (
+          <div className="muted">Enable Accounting in Settings to unlock financial statements.</div>
+        ) : (
+          <>
+            <div className="grid-2">
+              <label className="field">
+                Report type
+                <select value={financialType} onChange={(e) => setFinancialType(e.target.value as FinancialReportType)}>
+                  <option value="income">Income statement</option>
+                  <option value="balance">Balance sheet</option>
+                  <option value="cash">Cash flow</option>
+                  <option value="trial">Trial balance</option>
+                  <option value="ledger">General ledger</option>
+                </select>
+              </label>
+              {financialType === "balance" ? (
+                <label className="field">
+                  As at
+                  <input value={asAt} onChange={(e) => setAsAt(e.target.value)} type="date" />
+                </label>
+              ) : null}
+              {financialType === "trial" ? (
+                <label className="field">
+                  Period
+                  <select value={periodId} onChange={(e) => setPeriodId(e.target.value)}>
+                    <option value="">All periods</option>
+                    {periods.map((period) => (
+                      <option key={period._id} value={period._id}>
+                        {period.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {financialType === "ledger" ? (
+                <label className="field">
+                  Account
+                  <select value={ledgerAccountId} onChange={(e) => setLedgerAccountId(e.target.value)}>
+                    <option value="">Select account</option>
+                    {accounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.code ? `${account.code} · ` : ""}
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+            {(financialType === "income" || financialType === "cash") ? (
+              <div className="muted">Uses the date range from the overview filters above.</div>
+            ) : null}
+            <div className="action-row" style={{ marginTop: 12 }}>
+              <button className="button" type="button" onClick={loadFinancialReport}>
+                Run report
+              </button>
+            </div>
+            <div style={{ marginTop: 16 }}>{renderFinancialReport()}</div>
           </>
         )}
       </section>

@@ -6,13 +6,20 @@ import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const MODULE_OPTIONS = [
+  { key: "accounting", label: "Accounting" },
   { key: "quotes", label: "Quotes" },
   { key: "sales", label: "Sales" },
   { key: "invoices", label: "Invoices" },
+  { key: "purchases", label: "Purchases" },
   { key: "expenses", label: "Expenses" },
+  { key: "payroll", label: "Payroll" },
   { key: "projects", label: "Projects" },
   { key: "inventory", label: "Inventory" },
-  { key: "reports", label: "Reports" }
+  { key: "reports", label: "Reports" },
+  { key: "banking", label: "Banking" },
+  { key: "tax", label: "Tax" },
+  { key: "documents", label: "Documents" },
+  { key: "notifications", label: "Notifications" }
 ];
 
 const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; note: string }[] = [
@@ -25,14 +32,21 @@ const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; n
 
 const LABEL_FIELDS: { key: string; label: string }[] = [
   { key: "dashboard", label: "Dashboard label" },
+  { key: "accounting", label: "Accounting label" },
   { key: "quotes", label: "Quotes label" },
   { key: "sales", label: "Sales label" },
   { key: "invoices", label: "Invoices label" },
   { key: "invoiceSingular", label: "Invoice singular label" },
+  { key: "purchases", label: "Purchases label" },
   { key: "expenses", label: "Expenses label" },
+  { key: "payroll", label: "Payroll label" },
   { key: "projects", label: "Projects label" },
   { key: "inventory", label: "Inventory label" },
-  { key: "reports", label: "Reports label" }
+  { key: "reports", label: "Reports label" },
+  { key: "banking", label: "Banking label" },
+  { key: "tax", label: "Tax label" },
+  { key: "documents", label: "Documents label" },
+  { key: "notifications", label: "Notifications label" }
 ];
 
 type Company = {

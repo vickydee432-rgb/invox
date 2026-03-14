@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 import BarcodeCamera from "@/components/BarcodeCamera";
+import LedgerPreview, { LedgerPreviewLine } from "@/components/LedgerPreview";
 
 type InvoiceItem = {
   productId?: string;
@@ -106,6 +107,19 @@ function NewInvoicePageContent() {
   const subtotal = itemsSubtotal + shippingValue;
   const vatAmount = (itemsSubtotal * (Number(vatRate) || 0)) / 100 + shippingVat;
   const total = subtotal + vatAmount;
+  const ledgerLines = (
+    invoiceType === "purchase"
+      ? [
+          { accountKey: "purchasesExpense", label: "Purchases expense", debit: Math.max(0, total - vatAmount) },
+          vatAmount > 0 ? { accountKey: "vatInput", label: "VAT input", debit: vatAmount } : null,
+          { accountKey: "accountsPayable", label: "Accounts payable", credit: total }
+        ]
+      : [
+          { accountKey: "accountsReceivable", label: "Accounts receivable", debit: total },
+          { accountKey: "salesRevenue", label: "Sales revenue", credit: Math.max(0, total - vatAmount) },
+          vatAmount > 0 ? { accountKey: "vatOutput", label: "VAT output", credit: vatAmount } : null
+        ]
+  ).filter(Boolean) as LedgerPreviewLine[];
   const invoiceLabel = workspace?.labels?.invoiceSingular || "Invoice";
 
   useEffect(() => {
@@ -1095,6 +1109,18 @@ function NewInvoicePageContent() {
               </div>
             </div>
           </div>
+
+          {workspace?.enabledModules?.includes("accounting") ? (
+            <LedgerPreview
+              title="Ledger impact"
+              lines={ledgerLines}
+              hint={
+                invoiceType === "purchase"
+                  ? "Supplier invoices should be created in Purchases to post to Accounts Payable."
+                  : undefined
+              }
+            />
+          ) : null}
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <button className="button" type="submit" disabled={saving}>
