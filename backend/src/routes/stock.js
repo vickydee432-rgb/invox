@@ -91,7 +91,7 @@ router.delete("/:id", async (req, res) => {
         companyId: req.user.companyId,
         branchId: stock.branchId,
         productId: stock.productId,
-        type: "delete",
+        type: "adjustment",
         qty: -previousQty,
         unitCost: Number(stock.avgCost || 0),
         totalCost: Number(stock.avgCost || 0) * Math.abs(previousQty),
