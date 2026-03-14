@@ -49,6 +49,23 @@ const LABEL_FIELDS: { key: string; label: string }[] = [
   { key: "notifications", label: "Notifications label" }
 ];
 
+const ACCOUNTING_DEFAULT_FIELDS = [
+  { key: "accountsReceivable", label: "Accounts receivable" },
+  { key: "salesRevenue", label: "Sales revenue" },
+  { key: "vatOutput", label: "VAT output" },
+  { key: "expenses", label: "Operating expenses" },
+  { key: "cash", label: "Cash" },
+  { key: "bank", label: "Bank" },
+  { key: "accountsPayable", label: "Accounts payable" },
+  { key: "purchasesExpense", label: "Purchases expense" },
+  { key: "vatInput", label: "VAT input" },
+  { key: "payrollExpense", label: "Payroll expense" },
+  { key: "payePayable", label: "PAYE payable" },
+  { key: "napsaPayable", label: "NAPSA payable" },
+  { key: "nimaPayable", label: "NIMA payable" },
+  { key: "netSalaryPayable", label: "Net salary payable" }
+] as const;
+
 type Company = {
   name: string;
   legalName?: string;
@@ -75,6 +92,15 @@ type Company = {
     mobileMoney?: string;
     paymentInstructions?: string;
   };
+  accountingEnabled?: boolean;
+  accountingDefaults?: Record<string, string>;
+};
+
+type Account = {
+  _id: string;
+  code?: string;
+  name: string;
+  type: string;
 };
 
 type TeamUser = {
@@ -120,6 +146,10 @@ export default function SettingsPage() {
   const [swift, setSwift] = useState("");
   const [mobileMoney, setMobileMoney] = useState("");
   const [paymentInstructions, setPaymentInstructions] = useState("");
+  const [accountingEnabled, setAccountingEnabled] = useState(false);
+  const [accountingDefaults, setAccountingDefaults] = useState<Record<string, string>>({});
+  const [accountingAccounts, setAccountingAccounts] = useState<Account[]>([]);
+  const [accountingError, setAccountingError] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -225,6 +255,8 @@ export default function SettingsPage() {
         setSwift(company.payment?.swift || "");
         setMobileMoney(company.payment?.mobileMoney || "");
         setPaymentInstructions(company.payment?.paymentInstructions || "");
+        setAccountingEnabled(Boolean(company.accountingEnabled));
+        setAccountingDefaults(company.accountingDefaults || {});
       })
       .catch((err: any) => {
         if (!active) return;
@@ -284,9 +316,28 @@ export default function SettingsPage() {
     }
   };
 
+  const loadAccountingAccounts = async () => {
+    setAccountingError("");
+    try {
+      const data = await apiFetch<{ accounts: Account[] }>("/api/accounting/accounts");
+      setAccountingAccounts(data.accounts || []);
+    } catch (err: any) {
+      setAccountingAccounts([]);
+      setAccountingError(err.message || "Failed to load accounting accounts");
+    }
+  };
+
   useEffect(() => {
     loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    if (enabledModules.includes("accounting")) {
+      loadAccountingAccounts();
+    } else {
+      setAccountingAccounts([]);
+    }
+  }, [enabledModules]);
 
   useEffect(() => {
     let active = true;
@@ -384,6 +435,9 @@ export default function SettingsPage() {
     setError("");
     setSuccess("");
     try {
+      const cleanedDefaults = Object.fromEntries(
+        Object.entries(accountingDefaults).filter(([, value]) => Boolean(value))
+      );
       await apiFetch("/api/company/me", {
         method: "PUT",
         body: JSON.stringify({
@@ -411,7 +465,9 @@ export default function SettingsPage() {
             swift: swift || undefined,
             mobileMoney: mobileMoney || undefined,
             paymentInstructions: paymentInstructions || undefined
-          }
+          },
+          accountingEnabled,
+          accountingDefaults: cleanedDefaults
         })
       });
       setSuccess("Company settings updated.");
@@ -1186,6 +1242,52 @@ export default function SettingsPage() {
               />
             </label>
           </div>
+
+          <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+            Accounting Defaults
+          </div>
+          <div className="grid-2">
+            <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                type="checkbox"
+                checked={accountingEnabled}
+                onChange={(e) => setAccountingEnabled(e.target.checked)}
+              />
+              Enable accounting posting
+            </label>
+          </div>
+          {!enabledModules.includes("accounting") ? (
+            <div className="muted" style={{ marginTop: 6 }}>
+              Enable the Accounting module in Workspace settings to load accounts.
+            </div>
+          ) : null}
+          {accountingError ? <div className="muted">{accountingError}</div> : null}
+          {enabledModules.includes("accounting") ? (
+            <div className="grid-2">
+              {ACCOUNTING_DEFAULT_FIELDS.map((field) => (
+                <label key={field.key} className="field">
+                  {field.label}
+                  <select
+                    value={accountingDefaults[field.key] || ""}
+                    onChange={(e) =>
+                      setAccountingDefaults((prev) => ({
+                        ...prev,
+                        [field.key]: e.target.value
+                      }))
+                    }
+                  >
+                    <option value="">Select account</option>
+                    {accountingAccounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.code ? `${account.code} · ` : ""}
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          ) : null}
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <button className="button" type="submit" disabled={saving}>

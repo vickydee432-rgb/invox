@@ -21,6 +21,8 @@ const CompanyUpdateSchema = z.object({
   currency: z.string().optional(),
   dataRegion: z.string().optional(),
   dataRetentionDays: z.number().int().min(30).max(3650).optional(),
+  accountingEnabled: z.boolean().optional(),
+  accountingDefaults: z.record(z.string()).optional(),
   address: z
     .object({
       line1: z.string().optional(),
@@ -83,6 +85,8 @@ router.put("/me", async (req, res) => {
     if (parsed.address !== undefined) company.address = parsed.address;
     if (parsed.dataRegion !== undefined) company.dataRegion = parsed.dataRegion;
     if (parsed.dataRetentionDays !== undefined) company.dataRetentionDays = parsed.dataRetentionDays;
+    if (parsed.accountingEnabled !== undefined) company.accountingEnabled = parsed.accountingEnabled;
+    if (parsed.accountingDefaults !== undefined) company.accountingDefaults = parsed.accountingDefaults;
 
     await company.save();
     const revealSensitive = ["owner", "admin"].includes(req.user.role);
