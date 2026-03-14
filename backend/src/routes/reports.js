@@ -26,9 +26,9 @@ async function buildReportData(req) {
   const fromDate = parseOptionalDate(req.query.from, "from");
   const toDate = parseOptionalDate(req.query.to, "to");
 
-  const invoiceMatch = { companyId: req.user.companyId };
-  const quoteMatch = { companyId: req.user.companyId };
-  const expenseMatch = { companyId: req.user.companyId };
+  const invoiceMatch = { companyId: req.user.companyId, deletedAt: null };
+  const quoteMatch = { companyId: req.user.companyId, deletedAt: null };
+  const expenseMatch = { companyId: req.user.companyId, deletedAt: null };
   const salesMatch = { companyId: req.user.companyId, deletedAt: null };
 
   if (fromDate || toDate) {
