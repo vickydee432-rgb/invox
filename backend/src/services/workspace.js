@@ -13,7 +13,20 @@ const DEFAULT_LABELS = {
 const BUSINESS_DEFAULTS = {
   construction: {
     businessType: "construction",
-    enabledModules: ["quotes", "invoices", "expenses", "projects", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "projects",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -21,7 +34,20 @@ const BUSINESS_DEFAULTS = {
   },
   retail: {
     businessType: "retail",
-    enabledModules: ["sales", "invoices", "expenses", "inventory", "reports"],
+    enabledModules: [
+      "sales",
+      "invoices",
+      "expenses",
+      "inventory",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: {
       ...DEFAULT_LABELS,
       sales: "Sales",
@@ -35,7 +61,20 @@ const BUSINESS_DEFAULTS = {
   },
   agency: {
     businessType: "agency",
-    enabledModules: ["quotes", "invoices", "expenses", "projects", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "projects",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -43,7 +82,19 @@ const BUSINESS_DEFAULTS = {
   },
   services: {
     businessType: "services",
-    enabledModules: ["quotes", "invoices", "expenses", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: true,
     inventoryEnabled: false,
@@ -51,7 +102,19 @@ const BUSINESS_DEFAULTS = {
   },
   freelance: {
     businessType: "freelance",
-    enabledModules: ["quotes", "invoices", "expenses", "reports"],
+    enabledModules: [
+      "quotes",
+      "invoices",
+      "expenses",
+      "reports",
+      "accounting",
+      "purchases",
+      "payroll",
+      "banking",
+      "tax",
+      "documents",
+      "notifications"
+    ],
     labels: { ...DEFAULT_LABELS },
     taxEnabled: false,
     inventoryEnabled: false,

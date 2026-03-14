@@ -23,6 +23,13 @@ const inventoryRoutes = require("./routes/inventory");
 const syncRoutes = require("./routes/sync");
 const devicesRoutes = require("./routes/devices");
 const salesRoutes = require("./routes/sales");
+const accountingRoutes = require("./routes/accounting");
+const purchasesRoutes = require("./routes/purchases");
+const payrollRoutes = require("./routes/payroll");
+const taxRoutes = require("./routes/tax");
+const bankingRoutes = require("./routes/banking");
+const documentsRoutes = require("./routes/documents");
+const notificationsRoutes = require("./routes/notifications");
 const { shouldAuditRequest, logAuditFromRequest } = require("./services/audit");
 const { apiLimiter } = require("./middleware/rateLimit");
 
@@ -78,6 +85,13 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/sync", syncRoutes);
 app.use("/api/devices", devicesRoutes);
 app.use("/api/sales", salesRoutes);
+app.use("/api/accounting", accountingRoutes);
+app.use("/api/purchases", purchasesRoutes);
+app.use("/api/payroll", payrollRoutes);
+app.use("/api/tax", taxRoutes);
+app.use("/api/banking", bankingRoutes);
+app.use("/api/documents", documentsRoutes);
+app.use("/api/notifications", notificationsRoutes);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];

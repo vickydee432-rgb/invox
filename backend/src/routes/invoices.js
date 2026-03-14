@@ -30,6 +30,7 @@ const {
 } = require("../services/zra/transform");
 const { mapZraStatus } = require("../services/zra/mapping");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
+const { postInvoice } = require("../services/ledger");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("invoices"));
@@ -632,6 +633,12 @@ router.post("/", async (req, res) => {
       await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
       await session.commitTransaction();
       session.endSession();
+
+      try {
+        await postInvoice({ companyId: req.user.companyId, invoice });
+      } catch (err) {
+        console.warn("Ledger posting failed for invoice", err);
+      }
 
       return res.status(201).json({ invoice });
     } catch (err) {

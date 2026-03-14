@@ -8,6 +8,7 @@ const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
 const { buildExpensesWorkbook } = require("../services/export");
+const { postExpense } = require("../services/ledger");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("expenses"));
@@ -428,6 +429,11 @@ router.post("/", async (req, res) => {
     });
 
     await logExpenseChange({ expense, operation: "create", req });
+    try {
+      await postExpense({ companyId: req.user.companyId, expense });
+    } catch (err) {
+      console.warn("Ledger posting failed for expense", err);
+    }
     res.status(201).json({ expense });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create expense");

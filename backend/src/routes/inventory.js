@@ -3,6 +3,7 @@ const { z } = require("zod");
 const Product = require("../models/Product");
 const Stock = require("../models/Stock");
 const StockMovement = require("../models/StockMovement");
+const StockTransfer = require("../models/StockTransfer");
 const Branch = require("../models/Branch");
 const InventoryLog = require("../models/InventoryLog");
 const { ensureObjectId, handleRouteError } = require("./_helpers");
@@ -19,6 +20,20 @@ const AdjustSchema = z.object({
   reason: z.string().min(1),
   note: z.string().optional(),
   branchId: z.string().optional()
+});
+
+const TransferSchema = z.object({
+  fromBranchId: z.string().min(1),
+  toBranchId: z.string().min(1),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        qty: z.number().positive()
+      })
+    )
+    .min(1),
+  note: z.string().optional()
 });
 
 async function resolveBranch(companyId, branchId) {
@@ -103,6 +118,99 @@ router.post("/adjust", async (req, res) => {
     });
   } catch (err) {
     return handleRouteError(res, err, "Failed to adjust inventory");
+  }
+});
+
+router.post("/transfer", async (req, res) => {
+  try {
+    const parsed = TransferSchema.parse(req.body || {});
+    ensureObjectId(parsed.fromBranchId, "from branch id");
+    ensureObjectId(parsed.toBranchId, "to branch id");
+    if (parsed.fromBranchId === parsed.toBranchId) {
+      return res.status(400).json({ error: "Transfer branches must be different" });
+    }
+
+    const [fromBranch, toBranch] = await Promise.all([
+      Branch.findOne({ _id: parsed.fromBranchId, companyId: req.user.companyId }),
+      Branch.findOne({ _id: parsed.toBranchId, companyId: req.user.companyId })
+    ]);
+    if (!fromBranch || !toBranch) {
+      return res.status(404).json({ error: "Branch not found" });
+    }
+
+    for (const item of parsed.items) {
+      ensureObjectId(item.productId, "product id");
+      const product = await Product.findOne({ _id: item.productId, companyId: req.user.companyId });
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      const fromStock =
+        (await Stock.findOne({ companyId: req.user.companyId, branchId: fromBranch._id, productId: product._id })) ||
+        (await Stock.create({
+          companyId: req.user.companyId,
+          branchId: fromBranch._id,
+          productId: product._id,
+          onHand: 0,
+          avgCost: Number(product.costPrice || 0)
+        }));
+      if (Number(fromStock.onHand || 0) < item.qty) {
+        return res.status(409).json({ error: "Insufficient stock for transfer", productId: product._id });
+      }
+      fromStock.onHand = Number(fromStock.onHand || 0) - item.qty;
+      await fromStock.save();
+
+      const toStock =
+        (await Stock.findOne({ companyId: req.user.companyId, branchId: toBranch._id, productId: product._id })) ||
+        (await Stock.create({
+          companyId: req.user.companyId,
+          branchId: toBranch._id,
+          productId: product._id,
+          onHand: 0,
+          avgCost: Number(product.costPrice || 0)
+        }));
+      toStock.onHand = Number(toStock.onHand || 0) + item.qty;
+      if (product.costPrice) {
+        toStock.avgCost = Number(product.costPrice || toStock.avgCost || 0);
+      }
+      await toStock.save();
+
+      await StockMovement.create({
+        companyId: req.user.companyId,
+        branchId: fromBranch._id,
+        productId: product._id,
+        type: "transfer_out",
+        qty: -item.qty,
+        unitCost: Number(product.costPrice || 0),
+        totalCost: Number(product.costPrice || 0) * item.qty,
+        sourceType: "inventory_transfer",
+        note: parsed.note
+      });
+
+      await StockMovement.create({
+        companyId: req.user.companyId,
+        branchId: toBranch._id,
+        productId: product._id,
+        type: "transfer_in",
+        qty: item.qty,
+        unitCost: Number(product.costPrice || 0),
+        totalCost: Number(product.costPrice || 0) * item.qty,
+        sourceType: "inventory_transfer",
+        note: parsed.note
+      });
+    }
+
+    const transfer = await StockTransfer.create({
+      companyId: req.user.companyId,
+      fromWarehouseId: fromBranch._id,
+      toWarehouseId: toBranch._id,
+      date: new Date(),
+      notes: parsed.note,
+      items: parsed.items
+    });
+
+    res.status(201).json({ transfer });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to transfer stock");
   }
 });
 

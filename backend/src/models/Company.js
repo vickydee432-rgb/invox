@@ -61,6 +61,10 @@ const CompanySchema = new mongoose.Schema(
     taxEnabled: { type: Boolean, default: true },
     inventoryEnabled: { type: Boolean, default: false },
     projectTrackingEnabled: { type: Boolean, default: true },
+    accountingEnabled: { type: Boolean, default: false },
+    accountingDefaults: { type: mongoose.Schema.Types.Mixed, default: {} },
+    fiscalYearStart: { type: Date },
+    payrollConfig: { type: mongoose.Schema.Types.Mixed, default: {} },
     workspaceConfigured: { type: Boolean, default: false },
     subscriptionStatus: {
       type: String,
