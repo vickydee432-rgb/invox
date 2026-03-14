@@ -2,6 +2,7 @@ const express = require("express");
 const { z } = require("zod");
 const Stock = require("../models/Stock");
 const StockMovement = require("../models/StockMovement");
+const InventoryLog = require("../models/InventoryLog");
 const { ensureObjectId, handleRouteError, parseLimit, parsePage } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
@@ -75,6 +76,46 @@ router.get("/movements", async (req, res) => {
     res.json({ movements, page, pages, total, count: movements.length });
   } catch (err) {
     return handleRouteError(res, err, "Failed to list movements");
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    ensureObjectId(req.params.id, "stock id");
+    const stock = await Stock.findOne({ _id: req.params.id, companyId: req.user.companyId });
+    if (!stock) return res.status(404).json({ error: "Stock not found" });
+    const previousQty = Number(stock.onHand || 0);
+
+    if (previousQty !== 0) {
+      await StockMovement.create({
+        companyId: req.user.companyId,
+        branchId: stock.branchId,
+        productId: stock.productId,
+        type: "delete",
+        qty: -previousQty,
+        unitCost: Number(stock.avgCost || 0),
+        totalCost: Number(stock.avgCost || 0) * Math.abs(previousQty),
+        sourceType: "stock_delete",
+        note: "Stock record deleted"
+      });
+
+      await InventoryLog.create({
+        companyId: req.user.companyId,
+        productId: stock.productId,
+        branchId: stock.branchId,
+        userId: req.user._id,
+        change: -previousQty,
+        previousQty,
+        newQty: 0,
+        reason: "delete",
+        note: "Stock record deleted"
+      });
+    }
+
+    await stock.deleteOne();
+    res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to delete stock record");
   }
 });
 

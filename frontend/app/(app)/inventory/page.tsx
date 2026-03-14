@@ -347,6 +347,19 @@ export default function InventoryPage() {
     return `/inventory/stock/edit?${params.toString()}`;
   };
 
+  const removeStockRow = async (row: StockRow) => {
+    const productName = row.product?.name || "this item";
+    const branchName = row.branch?.name || "this branch";
+    const ok = window.confirm(`Delete stock for ${productName} in ${branchName}?`);
+    if (!ok) return;
+    try {
+      await apiFetch(`/api/stock/${row._id}`, { method: "DELETE" });
+      await loadStock(stockBranchId || undefined);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete stock record");
+    }
+  };
+
   const renderProductForm = <T extends ProductFormState>({
     form,
     setForm,
@@ -773,6 +786,9 @@ export default function InventoryPage() {
                       >
                         Edit
                       </button>
+                      <button className="button ghost" type="button" onClick={() => removeStockRow(row)}>
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -821,6 +837,9 @@ export default function InventoryPage() {
                   }}
                 >
                   Edit
+                </button>
+                <button className="button ghost" type="button" onClick={() => removeStockRow(row)}>
+                  Delete
                 </button>
               </div>
             </article>
