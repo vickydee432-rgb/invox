@@ -66,6 +66,40 @@ const ACCOUNTING_DEFAULT_FIELDS = [
   { key: "netSalaryPayable", label: "Net salary payable" }
 ] as const;
 
+const DEFAULT_ACCOUNT_CODES: Record<string, string> = {
+  cash: "1000",
+  bank: "1010",
+  accountsReceivable: "1100",
+  accountsPayable: "2000",
+  payePayable: "2100",
+  napsaPayable: "2110",
+  nimaPayable: "2120",
+  netSalaryPayable: "2200",
+  salesRevenue: "4000",
+  purchasesExpense: "5000",
+  expenses: "5100",
+  payrollExpense: "5200",
+  vatInput: "5300",
+  vatOutput: "5400"
+};
+
+const DEFAULT_ACCOUNT_NAMES: Record<string, string[]> = {
+  cash: ["cash"],
+  bank: ["bank"],
+  accountsReceivable: ["accounts receivable"],
+  accountsPayable: ["accounts payable"],
+  salesRevenue: ["sales revenue"],
+  purchasesExpense: ["purchases expense"],
+  expenses: ["operating expenses"],
+  payrollExpense: ["payroll expense"],
+  vatInput: ["vat input"],
+  vatOutput: ["vat output"],
+  payePayable: ["paye payable"],
+  napsaPayable: ["napsa payable"],
+  nimaPayable: ["nima payable"],
+  netSalaryPayable: ["net salary payable"]
+};
+
 type Company = {
   name: string;
   legalName?: string;
@@ -329,6 +363,25 @@ export default function SettingsPage() {
     }
   };
 
+  const buildDefaultMapping = (accounts: Account[], current: Record<string, string>) => {
+    const byCode = new Map(accounts.filter((acc) => acc.code).map((acc) => [acc.code as string, acc._id]));
+    const byName = new Map(accounts.map((acc) => [acc.name.toLowerCase(), acc._id]));
+    const next = { ...current };
+    Object.entries(DEFAULT_ACCOUNT_CODES).forEach(([key, code]) => {
+      if (next[key]) return;
+      if (byCode.has(code)) {
+        next[key] = byCode.get(code) as string;
+        return;
+      }
+      const names = DEFAULT_ACCOUNT_NAMES[key] || [];
+      const match = names.find((name) => byName.has(name));
+      if (match) {
+        next[key] = byName.get(match) as string;
+      }
+    });
+    return next;
+  };
+
   const handleSeedAccounts = async () => {
     setAccountingSeedLoading(true);
     setAccountingSeedMessage("");
@@ -336,7 +389,9 @@ export default function SettingsPage() {
     try {
       const data = await apiFetch<{ created: number; total: number }>("/api/accounting/seed", { method: "POST" });
       setAccountingSeedMessage(`Seeded ${data.created} of ${data.total} accounts.`);
-      await loadAccountingAccounts();
+      const accountsData = await apiFetch<{ accounts: Account[] }>("/api/accounting/accounts");
+      setAccountingAccounts(accountsData.accounts || []);
+      setAccountingDefaults((prev) => buildDefaultMapping(accountsData.accounts || [], prev));
     } catch (err: any) {
       setAccountingError(err.message || "Failed to seed chart of accounts");
     } finally {
