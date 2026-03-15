@@ -150,6 +150,8 @@ export default function SettingsPage() {
   const [accountingDefaults, setAccountingDefaults] = useState<Record<string, string>>({});
   const [accountingAccounts, setAccountingAccounts] = useState<Account[]>([]);
   const [accountingError, setAccountingError] = useState("");
+  const [accountingSeedLoading, setAccountingSeedLoading] = useState(false);
+  const [accountingSeedMessage, setAccountingSeedMessage] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -324,6 +326,21 @@ export default function SettingsPage() {
     } catch (err: any) {
       setAccountingAccounts([]);
       setAccountingError(err.message || "Failed to load accounting accounts");
+    }
+  };
+
+  const handleSeedAccounts = async () => {
+    setAccountingSeedLoading(true);
+    setAccountingSeedMessage("");
+    setAccountingError("");
+    try {
+      const data = await apiFetch<{ created: number; total: number }>("/api/accounting/seed", { method: "POST" });
+      setAccountingSeedMessage(`Seeded ${data.created} of ${data.total} accounts.`);
+      await loadAccountingAccounts();
+    } catch (err: any) {
+      setAccountingError(err.message || "Failed to seed chart of accounts");
+    } finally {
+      setAccountingSeedLoading(false);
     }
   };
 
@@ -1262,31 +1279,45 @@ export default function SettingsPage() {
             </div>
           ) : null}
           {accountingError ? <div className="muted">{accountingError}</div> : null}
+          {accountingSeedMessage ? <div className="muted">{accountingSeedMessage}</div> : null}
           {enabledModules.includes("accounting") ? (
-            <div className="grid-2">
-              {ACCOUNTING_DEFAULT_FIELDS.map((field) => (
-                <label key={field.key} className="field">
-                  {field.label}
-                  <select
-                    value={accountingDefaults[field.key] || ""}
-                    onChange={(e) =>
-                      setAccountingDefaults((prev) => ({
-                        ...prev,
-                        [field.key]: e.target.value
-                      }))
-                    }
-                  >
-                    <option value="">Select account</option>
-                    {accountingAccounts.map((account) => (
-                      <option key={account._id} value={account._id}>
-                        {account.code ? `${account.code} · ` : ""}
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
+            <>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={handleSeedAccounts}
+                  disabled={accountingSeedLoading}
+                >
+                  {accountingSeedLoading ? "Seeding..." : "Seed chart of accounts"}
+                </button>
+                <span className="muted">Adds a standard COA for quick setup.</span>
+              </div>
+              <div className="grid-2">
+                {ACCOUNTING_DEFAULT_FIELDS.map((field) => (
+                  <label key={field.key} className="field">
+                    {field.label}
+                    <select
+                      value={accountingDefaults[field.key] || ""}
+                      onChange={(e) =>
+                        setAccountingDefaults((prev) => ({
+                          ...prev,
+                          [field.key]: e.target.value
+                        }))
+                      }
+                    >
+                      <option value="">Select account</option>
+                      {accountingAccounts.map((account) => (
+                        <option key={account._id} value={account._id}>
+                          {account.code ? `${account.code} · ` : ""}
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </>
           ) : null}
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

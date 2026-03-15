@@ -148,6 +148,56 @@ router.post("/journals", async (req, res) => {
   }
 });
 
+router.post("/seed", async (req, res) => {
+  try {
+    const defaultAccounts = [
+      { code: "1000", name: "Cash", type: "Asset", subType: "Current Asset" },
+      { code: "1010", name: "Bank", type: "Asset", subType: "Current Asset" },
+      { code: "1100", name: "Accounts Receivable", type: "Asset", subType: "Current Asset" },
+      { code: "2000", name: "Accounts Payable", type: "Liability", subType: "Current Liability" },
+      { code: "2100", name: "PAYE Payable", type: "Liability", subType: "Payroll Taxes" },
+      { code: "2110", name: "NAPSA Payable", type: "Liability", subType: "Payroll Taxes" },
+      { code: "2120", name: "NIMA Payable", type: "Liability", subType: "Payroll Taxes" },
+      { code: "2200", name: "Net Salary Payable", type: "Liability", subType: "Payroll" },
+      { code: "3000", name: "Owner's Equity", type: "Equity", subType: "Capital" },
+      { code: "4000", name: "Sales Revenue", type: "Income", subType: "Sales" },
+      { code: "4100", name: "Other Income", type: "Income", subType: "Other" },
+      { code: "5000", name: "Purchases Expense", type: "Expense", subType: "COGS" },
+      { code: "5100", name: "Operating Expenses", type: "Expense", subType: "Operating" },
+      { code: "5200", name: "Payroll Expense", type: "Expense", subType: "Payroll" },
+      { code: "5300", name: "VAT Input", type: "Asset", subType: "Tax" },
+      { code: "5400", name: "VAT Output", type: "Liability", subType: "Tax" }
+    ];
+
+    const existing = await Account.find({ companyId: req.user.companyId })
+      .select("code name")
+      .lean();
+    const existingCodes = new Set(existing.map((acc) => acc.code));
+    const existingNames = new Set(existing.map((acc) => acc.name.toLowerCase()));
+
+    const toCreate = defaultAccounts.filter(
+      (acc) => !existingCodes.has(acc.code) && !existingNames.has(acc.name.toLowerCase())
+    );
+
+    if (toCreate.length > 0) {
+      await Account.insertMany(
+        toCreate.map((acc) => ({
+          companyId: req.user.companyId,
+          code: acc.code,
+          name: acc.name,
+          type: acc.type,
+          subType: acc.subType || null,
+          isControl: false
+        }))
+      );
+    }
+
+    res.status(201).json({ created: toCreate.length, total: defaultAccounts.length });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to seed chart of accounts");
+  }
+});
+
 router.get("/trial-balance", async (req, res) => {
   try {
     const { periodId } = req.query;
