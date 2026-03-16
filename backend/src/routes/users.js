@@ -17,6 +17,11 @@ const InviteSchema = z.object({
   role: z.enum(["admin", "member"]).optional()
 });
 
+const PermissionsSchema = z.object({
+  userId: z.string().min(1),
+  permissions: z.array(z.string()).optional().default([])
+});
+
 const AcceptSchema = z.object({
   token: z.string().min(1),
   name: z.string().min(2),
@@ -95,7 +100,7 @@ router.get("/", async (req, res) => {
   try {
     const [users, invites, company] = await Promise.all([
       User.find({ companyId: req.user.companyId })
-        .select("_id name email role createdAt")
+        .select("_id name email role permissions createdAt")
         .sort({ createdAt: 1 })
         .lean(),
       UserInvite.find({
@@ -202,6 +207,22 @@ router.put("/role", requireRole(["owner"]), async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update role");
+  }
+});
+
+router.put("/permissions", requireRole(["owner", "admin"]), async (req, res) => {
+  try {
+    const parsed = PermissionsSchema.parse(req.body || {});
+    const user = await User.findOne({ _id: parsed.userId, companyId: req.user.companyId });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role === "owner" && req.user.role !== "owner") {
+      return res.status(403).json({ error: "Only the owner can modify owner permissions" });
+    }
+    user.permissions = parsed.permissions;
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to update permissions");
   }
 });
 

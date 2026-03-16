@@ -9,6 +9,7 @@ const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
 const { buildExpensesWorkbook } = require("../services/export");
 const { postExpense } = require("../services/ledger");
+const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("expenses"));
@@ -657,7 +658,9 @@ router.get("/", async (req, res) => {
 
     const safeLimit = parseLimit(limit, { defaultLimit: 500, maxLimit: 1000 });
     const pageNum = parsePage(page);
-    const total = await Expense.countDocuments({ ...filter, companyId: req.user.companyId });
+    const workspaceId = resolveWorkspaceId(req);
+    const scopedFilter = withWorkspaceScope({ ...filter, companyId: req.user.companyId }, workspaceId);
+    const total = await Expense.countDocuments(scopedFilter);
     const skip = (pageNum - 1) * safeLimit;
     const sortMap = {
       date: "date",
@@ -671,7 +674,7 @@ router.get("/", async (req, res) => {
     const sort = { [sortField]: direction };
     if (sortField !== "createdAt") sort.createdAt = -1;
     sort._id = -1;
-    const expenses = await Expense.find({ ...filter, companyId: req.user.companyId })
+    const expenses = await Expense.find(scopedFilter)
       .sort(sort)
       .skip(skip)
       .limit(safeLimit)
@@ -688,7 +691,8 @@ router.get("/export.xlsx", async (req, res) => {
   try {
     const { projectId, category, from, to, q, limit, funding } = req.query;
 
-    const filter = { deletedAt: null, companyId: req.user.companyId };
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope({ deletedAt: null, companyId: req.user.companyId }, workspaceId);
     if (projectId) {
       ensureObjectId(projectId, "project id");
       filter.projectId = projectId;

@@ -1,5 +1,6 @@
 const Company = require("../models/Company");
 const { buildWorkspaceDefaults } = require("../services/workspace");
+const { hasPermission } = require("../services/permissions");
 
 async function resolveWorkspace(req) {
   if (req.workspace) return req.workspace;
@@ -36,6 +37,12 @@ function requireModule(moduleKey) {
       }
       if (moduleKey === "projects" && !workspace.projectTrackingEnabled) {
         return res.status(403).json({ error: "Project tracking disabled" });
+      }
+
+      const isRead = ["GET", "HEAD", "OPTIONS"].includes(String(req.method || "GET").toUpperCase());
+      const needed = isRead ? `module:${moduleKey}:read` : `module:${moduleKey}:write`;
+      if (!hasPermission(req.user, needed)) {
+        return res.status(403).json({ error: "Insufficient permissions" });
       }
       return next();
     } catch (err) {

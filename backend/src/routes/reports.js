@@ -17,6 +17,7 @@ const JournalLine = require("../models/JournalLine");
 const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
 const { generateVatReturn, generateTurnoverTax } = require("../services/tax");
+const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("reports"));
@@ -26,11 +27,12 @@ async function buildReportData(req) {
   const businessType = company?.businessType || "construction";
   const fromDate = parseOptionalDate(req.query.from, "from");
   const toDate = parseOptionalDate(req.query.to, "to");
+  const workspaceId = resolveWorkspaceId(req);
 
-  const invoiceMatch = { companyId: req.user.companyId, deletedAt: null };
+  const invoiceMatch = withWorkspaceScope({ companyId: req.user.companyId, deletedAt: null }, workspaceId);
   const quoteMatch = { companyId: req.user.companyId, deletedAt: null };
-  const expenseMatch = { companyId: req.user.companyId, deletedAt: null };
-  const salesMatch = { companyId: req.user.companyId, deletedAt: null };
+  const expenseMatch = withWorkspaceScope({ companyId: req.user.companyId, deletedAt: null }, workspaceId);
+  const salesMatch = withWorkspaceScope({ companyId: req.user.companyId, deletedAt: null }, workspaceId);
 
   if (fromDate || toDate) {
     invoiceMatch.issueDate = {};
@@ -200,11 +202,11 @@ async function buildReportData(req) {
     const [salesTodayAgg, expensesTodayAgg, cogsAgg, stockValueAgg, lowStockAgg] =
       await Promise.all([
         Sale.aggregate([
-          { $match: { companyId: req.user.companyId, issueDate: { $gte: start, $lt: end }, deletedAt: null } },
+          { $match: withWorkspaceScope({ companyId: req.user.companyId, issueDate: { $gte: start, $lt: end }, deletedAt: null }, workspaceId) },
           { $group: { _id: null, total: { $sum: "$total" } } }
         ]),
         Expense.aggregate([
-          { $match: { companyId: req.user.companyId, date: { $gte: start, $lt: end }, deletedAt: null } },
+          { $match: withWorkspaceScope({ companyId: req.user.companyId, date: { $gte: start, $lt: end }, deletedAt: null }, workspaceId) },
           { $group: { _id: null, total: { $sum: "$amount" } } }
         ]),
         StockMovement.aggregate([

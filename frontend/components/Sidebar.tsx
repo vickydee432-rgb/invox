@@ -7,6 +7,14 @@ import { clearToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
+type SessionUser = {
+  _id: string;
+  name: string;
+  email: string;
+  role?: string;
+  permissions?: string[];
+};
+
 const MODULE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
   accounting: "/accounting",
@@ -23,6 +31,7 @@ const MODULE_ROUTES: Record<string, string> = {
   reports: "/reports",
   documents: "/documents",
   notifications: "/notifications",
+  audit: "/audit",
   settings: "/settings"
 };
 
@@ -42,8 +51,20 @@ const MODULE_ORDER = [
   "documents",
   "notifications",
   "projects",
+  "audit",
   "settings"
 ];
+
+function hasPermission(permissions: string[] | undefined, permission: string) {
+  const perms = Array.isArray(permissions) ? permissions : [];
+  return perms.some((pattern) => {
+    if (pattern === "*") return true;
+    if (pattern === permission) return true;
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    const re = new RegExp(`^${escaped}$`);
+    return re.test(permission);
+  });
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -51,6 +72,7 @@ export default function Sidebar() {
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
@@ -62,6 +84,22 @@ export default function Sidebar() {
       // ignore workspace errors
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ user: SessionUser }>("/api/auth/me")
+      .then((data) => {
+        if (!active) return;
+        setUser(data.user);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUser(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +139,7 @@ export default function Sidebar() {
   const buildNavModules = () => {
     const enabledModules = workspace?.enabledModules || [];
     const baseModules = new Set(["dashboard", ...enabledModules, "settings"]);
+    if (hasPermission(user?.permissions, "audit:read")) baseModules.add("audit");
     const ordered = MODULE_ORDER.filter((module) => baseModules.has(module));
     const extras = Array.from(baseModules).filter((module) => !MODULE_ORDER.includes(module));
     const modules = [...ordered, ...extras];
@@ -111,7 +150,13 @@ export default function Sidebar() {
       return true;
     });
     const unique = Array.from(new Set(filtered));
-    return unique.filter((module) => MODULE_ROUTES[module]);
+    return unique
+      .filter((module) => MODULE_ROUTES[module])
+      .filter((module) => {
+        if (module === "settings") return hasPermission(user?.permissions, "settings:read");
+        if (module === "audit") return hasPermission(user?.permissions, "audit:read");
+        return hasPermission(user?.permissions, `module:${module}:read`) || hasPermission(user?.permissions, "module:*:read");
+      });
   };
 
   const navModules = buildNavModules();
@@ -121,7 +166,12 @@ export default function Sidebar() {
     const items = navModules.map((module) => ({
       key: module,
       href: MODULE_ROUTES[module],
-      label: module === "settings" ? "Settings" : workspace?.labels?.[module] || module
+      label:
+        module === "settings"
+          ? "Settings"
+          : module === "audit"
+          ? "Audit"
+          : workspace?.labels?.[module] || module
     }));
     if (showPlans) {
       items.push({ key: "plans", href: "/plans", label: "Plans" });

@@ -31,6 +31,7 @@ const {
 const { mapZraStatus } = require("../services/zra/mapping");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
 const { postInvoice } = require("../services/ledger");
+const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("invoices"));
@@ -107,7 +108,11 @@ function requiresBranch(items) {
 router.get("/", async (req, res) => {
   try {
     const { limit, page } = req.query;
-    const filter = { ...buildInvoiceFilter(req.query), companyId: req.user.companyId };
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope(
+      { ...buildInvoiceFilter(req.query), companyId: req.user.companyId, deletedAt: null },
+      workspaceId
+    );
 
     const safeLimit = parseLimit(limit, { defaultLimit: 200, maxLimit: 500 });
     const pageNum = parsePage(page);
@@ -125,7 +130,11 @@ router.get("/", async (req, res) => {
 router.get("/export.xlsx", async (req, res) => {
   try {
     const { limit } = req.query;
-    const filter = { ...buildInvoiceFilter(req.query), companyId: req.user.companyId };
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope(
+      { ...buildInvoiceFilter(req.query), companyId: req.user.companyId, deletedAt: null },
+      workspaceId
+    );
     const safeLimit = parseLimit(limit, { defaultLimit: 2000, maxLimit: 5000 });
     const invoices = await Invoice.find(filter).sort({ createdAt: -1 }).limit(safeLimit).lean();
     const workbook = buildInvoicesWorkbook(invoices);
@@ -144,7 +153,7 @@ router.get("/export.xlsx", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
-    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId }).lean();
+    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }).lean();
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
     res.json({ invoice });
   } catch (err) {
@@ -158,7 +167,7 @@ router.delete("/:id", async (req, res) => {
     const session = await Invoice.startSession();
     session.startTransaction();
     try {
-      const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId }).session(
+      const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }).session(
         session
       );
       if (!invoice) {
@@ -200,7 +209,7 @@ router.delete("/:id", async (req, res) => {
 router.get("/:id/pdf", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
-    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId }).lean();
+    const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }).lean();
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
     const company = await Company.findById(invoice.companyId).lean();
     return generateInvoicePdf(res, invoice, company);
@@ -585,9 +594,13 @@ router.post("/", async (req, res) => {
     const session = await Invoice.startSession();
     session.startTransaction();
     try {
+      const deviceId = req.headers["x-device-id"] || "server";
       const invoice = new Invoice({
         invoiceNo,
         companyId: req.user.companyId,
+        workspaceId: String(req.user.companyId),
+        userId: req.user._id,
+        deviceId: String(deviceId),
         customerName: parsed.customerName,
         customerPhone: parsed.customerPhone,
         customerTpin: parsed.customerTpin,
@@ -679,6 +692,9 @@ router.put("/:id", async (req, res) => {
       }
 
       const previousInvoice = invoice.toObject();
+      invoice.workspaceId = invoice.workspaceId || String(req.user.companyId);
+      invoice.userId = invoice.userId || req.user._id;
+      invoice.deviceId = invoice.deviceId || String(req.headers["x-device-id"] || "server");
 
       if (parsed.projectId !== undefined && parsed.projectId) {
         ensureObjectId(parsed.projectId, "project id");

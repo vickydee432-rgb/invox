@@ -20,6 +20,7 @@ const { requireSubscription } = require("../middleware/subscription");
 const { requireModule } = require("../middleware/workspace");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
 const { buildSalesWorkbook } = require("../services/export");
+const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("sales"));
@@ -153,7 +154,8 @@ function buildSaleFilter(query) {
 router.get("/", async (req, res) => {
   try {
     const { limit, page } = req.query;
-    const filter = { ...buildSaleFilter(req.query), companyId: req.user.companyId };
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope({ ...buildSaleFilter(req.query), companyId: req.user.companyId }, workspaceId);
     const safeLimit = parseLimit(limit, { defaultLimit: 200, maxLimit: 500 });
     const pageNum = parsePage(page);
     const total = await Sale.countDocuments(filter);
@@ -170,7 +172,8 @@ router.get("/", async (req, res) => {
 router.get("/export.xlsx", async (req, res) => {
   try {
     const { limit } = req.query;
-    const filter = { ...buildSaleFilter(req.query), companyId: req.user.companyId };
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope({ ...buildSaleFilter(req.query), companyId: req.user.companyId }, workspaceId);
     const safeLimit = parseLimit(limit, { defaultLimit: 2000, maxLimit: 5000 });
     const sales = await Sale.find(filter).sort({ createdAt: -1 }).limit(safeLimit).lean();
     const workbook = buildSalesWorkbook(sales);
@@ -189,7 +192,10 @@ router.get("/export.xlsx", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "sale id");
-    const sale = await Sale.findOne({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }).lean();
+    const workspaceId = resolveWorkspaceId(req);
+    const sale = await Sale.findOne(
+      withWorkspaceScope({ _id: req.params.id, companyId: req.user.companyId, deletedAt: null }, workspaceId)
+    ).lean();
     if (!sale) return res.status(404).json({ error: "Sale not found" });
     res.json({ sale });
   } catch (err) {

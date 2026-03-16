@@ -7,6 +7,7 @@ const UserSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     role: { type: String, enum: ["owner", "admin", "member"], default: "member", index: true },
+    permissions: { type: [String], default: [] },
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },
     lastLoginAt: { type: Date },

@@ -13,6 +13,7 @@ const { handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { authLimiter, authSlowDown } = require("../middleware/rateLimit");
 const { sendMail, buildResetEmail } = require("../services/email");
+const { computeUserPermissions } = require("../services/permissions");
 
 const router = express.Router();
 
@@ -233,7 +234,8 @@ router.post("/login", authLimiter, authSlowDown, async (req, res) => {
 });
 
 router.get("/me", requireAuth, async (req, res) => {
-  res.json({ user: req.user });
+  const permissions = computeUserPermissions(req.user);
+  res.json({ user: { ...req.user, permissions } });
 });
 
 router.put("/password", requireAuth, async (req, res) => {

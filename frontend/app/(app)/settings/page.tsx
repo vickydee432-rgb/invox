@@ -144,6 +144,7 @@ type TeamUser = {
   name: string;
   email: string;
   role: "owner" | "admin" | "member";
+  permissions?: string[];
   createdAt?: string;
 };
 
@@ -814,6 +815,43 @@ export default function SettingsPage() {
   const canManageTeam = currentUserRole === "owner" || currentUserRole === "admin";
   const canChangeRoles = currentUserRole === "owner";
 
+  const basePermissionsForMember = ["module:*:read", "module:*:write", "settings:read", "settings:write"];
+
+  const hasPermission = (permissions: string[] | undefined, permission: string) => {
+    const perms = Array.isArray(permissions) ? permissions : [];
+    return perms.some((pattern) => {
+      if (pattern === "*") return true;
+      if (pattern === permission) return true;
+      const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+      const re = new RegExp(`^${escaped}$`);
+      return re.test(permission);
+    });
+  };
+
+  const handleAuditAccess = async (user: TeamUser, enabled: boolean) => {
+    if (!canManageTeam) return;
+    setTeamError("");
+    setTeamSuccess("");
+    try {
+      if (user.role === "owner" || user.role === "admin") {
+        setTeamError("Admins already have full access.");
+        return;
+      }
+      const current = Array.isArray(user.permissions) && user.permissions.length ? user.permissions : basePermissionsForMember;
+      const next = new Set(current);
+      if (enabled) next.add("audit:read");
+      else next.delete("audit:read");
+      await apiFetch("/api/users/permissions", {
+        method: "PUT",
+        body: JSON.stringify({ userId: user._id, permissions: Array.from(next) })
+      });
+      setTeamSuccess("Permissions updated.");
+      await loadTeam();
+    } catch (err: any) {
+      setTeamError(err.message || "Failed to update permissions");
+    }
+  };
+
   const handleInvite = async (event: React.FormEvent) => {
     event.preventDefault();
     setTeamError("");
@@ -1029,6 +1067,7 @@ export default function SettingsPage() {
                     <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Audit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1049,11 +1088,32 @@ export default function SettingsPage() {
                           user.role
                         )}
                       </td>
+                      <td>
+                        {user.role === "member" && canManageTeam ? (
+                          <input
+                            type="checkbox"
+                            checked={hasPermission(
+                              (user.permissions?.length ? user.permissions : basePermissionsForMember) as string[],
+                              "audit:read"
+                            )}
+                            onChange={(e) => handleAuditAccess(user, e.target.checked)}
+                          />
+                        ) : user.role === "member" ? (
+                          hasPermission(
+                            (user.permissions?.length ? user.permissions : basePermissionsForMember) as string[],
+                            "audit:read"
+                          )
+                          ? "Yes"
+                          : "No"
+                        ) : (
+                          "All"
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {teamUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="muted">
+                      <td colSpan={4} className="muted">
                         No users found.
                       </td>
                     </tr>
@@ -1084,6 +1144,28 @@ export default function SettingsPage() {
                         </select>
                       ) : (
                         <span>{user.role}</span>
+                      )}
+                    </div>
+                    <div className="mobile-record-item">
+                      <span className="mobile-record-label">Audit</span>
+                      {user.role === "member" && canManageTeam ? (
+                        <input
+                          type="checkbox"
+                          checked={hasPermission(
+                            (user.permissions?.length ? user.permissions : basePermissionsForMember) as string[],
+                            "audit:read"
+                          )}
+                          onChange={(e) => handleAuditAccess(user, e.target.checked)}
+                        />
+                      ) : user.role === "member" ? (
+                        hasPermission(
+                          (user.permissions?.length ? user.permissions : basePermissionsForMember) as string[],
+                          "audit:read"
+                        )
+                        ? "Yes"
+                        : "No"
+                      ) : (
+                        "All"
                       )}
                     </div>
                   </div>

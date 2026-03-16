@@ -14,7 +14,7 @@ async function requireAuth(req, res, next) {
 
     const payload = jwt.verify(token, secret);
     const user = await User.findById(payload.sub)
-      .select("_id name email companyId role mfaEnabled")
+      .select("_id name email companyId role permissions mfaEnabled passwordChangedAt")
       .lean();
     if (!user) return res.status(401).json({ error: "Invalid auth token" });
     if (user.passwordChangedAt && payload.iat) {
