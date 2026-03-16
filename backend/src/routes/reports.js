@@ -204,7 +204,7 @@ async function buildReportData(req) {
           { $group: { _id: null, total: { $sum: "$total" } } }
         ]),
         Expense.aggregate([
-          { $match: { companyId: req.user.companyId, date: { $gte: start, $lt: end } } },
+          { $match: { companyId: req.user.companyId, date: { $gte: start, $lt: end }, deletedAt: null } },
           { $group: { _id: null, total: { $sum: "$amount" } } }
         ]),
         StockMovement.aggregate([

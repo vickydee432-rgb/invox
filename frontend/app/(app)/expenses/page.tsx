@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { BaseRecord, getDb } from "@/lib/db";
@@ -57,6 +57,7 @@ export default function ExpensesPage() {
   const [applyToAll, setApplyToAll] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [seeded, setSeeded] = useState(false);
+  const seedAttemptedRef = useRef(false);
 
   const mapServerExpense = (expense: any, context: { companyId: string; workspaceId: string; userId: string }) => {
     const deviceId = getDeviceId();
@@ -142,7 +143,8 @@ export default function ExpensesPage() {
       };
 
       let items = await queryLocal();
-      if (items.length === 0 && typeof navigator !== "undefined" && navigator.onLine && !seeded) {
+      if (typeof navigator !== "undefined" && navigator.onLine && !seedAttemptedRef.current && !seeded) {
+        seedAttemptedRef.current = true;
         const params = new URLSearchParams();
         params.set("page", "1");
         params.set("limit", "500");
