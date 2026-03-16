@@ -1,15 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import SyncStatus from "@/components/SyncStatus";
+import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+
+type SearchItem = {
+  key: string;
+  title: string;
+  subtitle: string;
+  href: string;
+};
+
+type SearchGroup = {
+  label: string;
+  items: SearchItem[];
+};
 
 export default function Topbar() {
+  const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [groups, setGroups] = useState<SearchGroup[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -38,6 +60,143 @@ export default function Topbar() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        setWorkspace(buildWorkspace(data.company));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (!searchRef.current) return;
+      if (event.target instanceof Node && !searchRef.current.contains(event.target)) {
+        setSearchOpen(false);
+      }
+    };
+    const keyHandler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
+  }, []);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setGroups([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSearchLoading(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const tasks: Array<Promise<SearchGroup | null>> = [];
+
+        if (workspace?.inventoryEnabled) {
+          tasks.push(
+            apiFetch<{ products: { _id: string; name: string; sku?: string }[] }>(`/api/products?q=${encodeURIComponent(term)}`)
+              .then((data) => {
+                const items = (data.products || []).slice(0, 5).map((p) => ({
+                  key: `product:${p._id}`,
+                  title: p.name,
+                  subtitle: p.sku ? `SKU ${p.sku}` : "Product",
+                  href: "/inventory"
+                }));
+                return items.length ? { label: "Products", items } : null;
+              })
+              .catch(() => null)
+          );
+        }
+
+        if (workspace?.enabledModules.includes("invoices")) {
+          tasks.push(
+            apiFetch<{ invoices: { _id: string; invoiceNo: string; customerName: string; total: number; issueDate: string }[] }>(
+              `/api/invoices?limit=5&page=1&q=${encodeURIComponent(term)}`
+            )
+              .then((data) => {
+                const items = (data.invoices || []).slice(0, 5).map((inv) => ({
+                  key: `invoice:${inv._id}`,
+                  title: `${inv.customerName} · ${inv.invoiceNo}`,
+                  subtitle: new Date(inv.issueDate).toLocaleDateString(),
+                  href: `/invoices/${inv._id}`
+                }));
+                return items.length ? { label: workspace?.labels?.invoices || "Invoices", items } : null;
+              })
+              .catch(() => null)
+          );
+        }
+
+        if (workspace?.enabledModules.includes("expenses")) {
+          tasks.push(
+            apiFetch<{ expenses: { _id: string; title: string; amount: number; date: string }[] }>(
+              `/api/expenses?limit=5&page=1&q=${encodeURIComponent(term)}&sortBy=date&sortDir=desc`
+            )
+              .then((data) => {
+                const items = (data.expenses || []).slice(0, 5).map((exp) => ({
+                  key: `expense:${exp._id}`,
+                  title: exp.title,
+                  subtitle: `${new Date(exp.date).toLocaleDateString()} · ${Number(exp.amount || 0).toFixed(2)}`,
+                  href: `/expenses/${exp._id}`
+                }));
+                return items.length ? { label: "Expenses", items } : null;
+              })
+              .catch(() => null)
+          );
+        }
+
+        if (workspace?.enabledModules.includes("sales")) {
+          tasks.push(
+            apiFetch<{ sales: { _id: string; saleNo: string; customerName: string; total: number; issueDate: string }[] }>(
+              `/api/sales?limit=5&page=1&q=${encodeURIComponent(term)}`
+            )
+              .then((data) => {
+                const items = (data.sales || []).slice(0, 5).map((sale) => ({
+                  key: `sale:${sale._id}`,
+                  title: `${sale.customerName || "Sale"} · ${sale.saleNo}`,
+                  subtitle: new Date(sale.issueDate).toLocaleDateString(),
+                  href: `/sales/${sale._id}`
+                }));
+                return items.length ? { label: "Sales", items } : null;
+              })
+              .catch(() => null)
+          );
+        }
+
+        const resolved = await Promise.all(tasks);
+        if (!active) return;
+        setGroups(resolved.filter(Boolean) as SearchGroup[]);
+      } finally {
+        if (active) setSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [query, workspace]);
+
+  const hasResults = useMemo(() => groups.some((g) => g.items.length), [groups]);
+
+  const handleSelect = (href: string) => {
+    setSearchOpen(false);
+    setQuery("");
+    router.push(href);
+  };
+
   return (
     <div className="topbar">
       <div>
@@ -62,6 +221,43 @@ export default function Topbar() {
         ) : null}
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="topbar-search" ref={searchRef}>
+          <input
+            className="topbar-search-input"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            placeholder="Search invoices, expenses, products..."
+            type="search"
+          />
+          {searchOpen && (query.trim().length >= 2 || searchLoading) ? (
+            <div className="topbar-search-menu">
+              {searchLoading ? <div className="topbar-search-empty">Searching…</div> : null}
+              {!searchLoading && !hasResults ? <div className="topbar-search-empty">No results.</div> : null}
+              {groups.map((group) => (
+                <div key={group.label} className="topbar-search-group">
+                  <div className="topbar-search-group-title">{group.label}</div>
+                  <div className="topbar-search-items">
+                    {group.items.map((item) => (
+                      <button
+                        key={item.key}
+                        className="topbar-search-item"
+                        type="button"
+                        onClick={() => handleSelect(item.href)}
+                      >
+                        <div className="topbar-search-item-title">{item.title}</div>
+                        <div className="topbar-search-item-sub">{item.subtitle}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <SyncStatus />
         <div className="badge">{user ? `${user.name} · ${user.email}` : "Loading user..."}</div>
       </div>
