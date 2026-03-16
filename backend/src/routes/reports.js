@@ -16,6 +16,7 @@ const Journal = require("../models/Journal");
 const JournalLine = require("../models/JournalLine");
 const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
+const { generateVatReturn, generateTurnoverTax } = require("../services/tax");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("reports"));
@@ -457,6 +458,30 @@ router.get("/general-ledger", async (req, res) => {
     res.json({ lines });
   } catch (err) {
     return handleRouteError(res, err, "Failed to build general ledger");
+  }
+});
+
+router.get("/tax/vat-return", async (req, res) => {
+  try {
+    const from = parseOptionalDate(req.query.from, "from") || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const to = parseOptionalDate(req.query.to, "to") || new Date();
+    
+    const report = await generateVatReturn(req.user.companyId, from, to);
+    res.json(report);
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to generate VAT return");
+  }
+});
+
+router.get("/tax/turnover-tax", async (req, res) => {
+  try {
+    const from = parseOptionalDate(req.query.from, "from") || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const to = parseOptionalDate(req.query.to, "to") || new Date();
+    
+    const report = await generateTurnoverTax(req.user.companyId, from, to);
+    res.json(report);
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to generate Turnover Tax report");
   }
 });
 

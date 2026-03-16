@@ -54,7 +54,7 @@ type Period = {
   isClosed?: boolean;
 };
 
-type FinancialReportType = "income" | "balance" | "cash" | "trial" | "ledger";
+type FinancialReportType = "income" | "balance" | "cash" | "trial" | "ledger" | "tax-vat" | "tax-turnover";
 
 const formatMoney = (value: number) => value.toFixed(2);
 
@@ -146,6 +146,16 @@ export default function ReportsPage() {
       } else if (financialType === "ledger") {
         if (!ledgerAccountId) throw new Error("Select an account to view the ledger.");
         data = await apiFetch(`/api/reports/general-ledger?accountId=${ledgerAccountId}`);
+      } else if (financialType === "tax-vat") {
+        const params = new URLSearchParams();
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        data = await apiFetch(`/api/reports/tax/vat-return?${params}`);
+      } else if (financialType === "tax-turnover") {
+        const params = new URLSearchParams();
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        data = await apiFetch(`/api/reports/tax/turnover-tax?${params}`);
       }
       setFinancialData(data);
     } catch (err: any) {
@@ -445,6 +455,52 @@ export default function ReportsPage() {
       );
     }
 
+    if (financialType === "tax-vat") {
+      return (
+        <div className="stack">
+           <div className="stat-grid">
+            <div className="stat-card">
+              <div className="muted">Net VAT Payable</div>
+              <div className="stat-value">{formatMoney(financialData.netVatPayable || 0)}</div>
+              <div className="muted">{financialData.status}</div>
+            </div>
+            <div className="stat-card">
+              <div className="muted">Output VAT (Sales)</div>
+              <div className="stat-value">{formatMoney(financialData.outputs?.outputVat || 0)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="muted">Input VAT (Purchases)</div>
+              <div className="stat-value">{formatMoney(financialData.inputs?.inputVat || 0)}</div>
+            </div>
+          </div>
+          <div className="panel-subtle" style={{marginTop: 16}}>
+            <div style={{fontWeight: 600}}>Details</div>
+            <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8}}>
+              <div>Standard Rated Sales: {formatMoney(financialData.outputs?.standardRatedSales || 0)}</div>
+              <div>Standard Rated Purchases: {formatMoney(financialData.inputs?.standardRatedPurchases || 0)}</div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (financialType === "tax-turnover") {
+      return (
+        <div className="stack">
+           <div className="stat-grid">
+            <div className="stat-card">
+              <div className="muted">Tax Due (4%)</div>
+              <div className="stat-value">{formatMoney(financialData.taxDue || 0)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="muted">Gross Turnover</div>
+              <div className="stat-value">{formatMoney(financialData.grossTurnover || 0)}</div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return null;
   };
 
@@ -691,6 +747,8 @@ export default function ReportsPage() {
                   <option value="cash">Cash flow</option>
                   <option value="trial">Trial balance</option>
                   <option value="ledger">General ledger</option>
+                  <option value="tax-vat">VAT Return (VAT 100)</option>
+                  <option value="tax-turnover">Turnover Tax (TOT)</option>
                 </select>
               </label>
               {financialType === "balance" ? (
@@ -727,7 +785,7 @@ export default function ReportsPage() {
                 </label>
               ) : null}
             </div>
-            {(financialType === "income" || financialType === "cash") ? (
+            {(financialType === "income" || financialType === "cash" || financialType.startsWith("tax")) ? (
               <div className="muted">Uses the date range from the overview filters above.</div>
             ) : null}
             <div className="action-row" style={{ marginTop: 12 }}>

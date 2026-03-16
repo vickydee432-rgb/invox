@@ -128,6 +128,8 @@ type Company = {
   };
   accountingEnabled?: boolean;
   accountingDefaults?: Record<string, string>;
+  taxMode?: "vat" | "turnover" | "none";
+  taxRate?: number;
 };
 
 type Account = {
@@ -266,6 +268,8 @@ export default function SettingsPage() {
   const [inventoryEnabled, setInventoryEnabled] = useState(false);
   const [projectTrackingEnabled, setProjectTrackingEnabled] = useState(true);
   const [labels, setLabels] = useState<WorkspaceConfig["labels"]>({});
+  const [taxMode, setTaxMode] = useState<"vat" | "turnover" | "none">("none");
+  const [taxRate, setTaxRate] = useState(16);
 
   useEffect(() => {
     let active = true;
@@ -297,6 +301,8 @@ export default function SettingsPage() {
         setPaymentInstructions(company.payment?.paymentInstructions || "");
         setAccountingEnabled(Boolean(company.accountingEnabled));
         setAccountingDefaults(company.accountingDefaults || {});
+        setTaxMode(company.taxMode || "none");
+        setTaxRate(company.taxRate || 16);
       })
       .catch((err: any) => {
         if (!active) return;
@@ -560,7 +566,9 @@ export default function SettingsPage() {
             paymentInstructions: paymentInstructions || undefined
           },
           accountingEnabled,
-          accountingDefaults: cleanedDefaults
+          accountingDefaults: cleanedDefaults,
+          taxMode,
+          taxRate
         })
       });
       setSuccess("Company settings updated.");
@@ -1177,10 +1185,24 @@ export default function SettingsPage() {
               Feature Flags
             </div>
             <div className="grid-2">
-              <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
-                Tax / VAT enabled
+              <label className="field">
+                Tax Mode (Zambia)
+                <select value={taxMode} onChange={(e) => setTaxMode(e.target.value as any)}>
+                  <option value="none">No Tax</option>
+                  <option value="vat">VAT (Standard 16%)</option>
+                  <option value="turnover">Turnover Tax (4%)</option>
+                </select>
               </label>
+              {taxMode !== "none" ? (
+                <label className="field">
+                  Default Tax Rate (%)
+                  <input
+                    type="number"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                  />
+                </label>
+              ) : null}
               <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <input
                   type="checkbox"
