@@ -7,6 +7,7 @@ import MobileNav from "@/components/MobileNav";
 import MobileHeader from "@/components/MobileHeader";
 import Topbar from "@/components/Topbar";
 import SyncBootstrap from "@/components/SyncBootstrap";
+import NotificationPopups from "@/components/NotificationPopups";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
@@ -58,6 +59,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <MobileHeader />
         <Topbar />
         <SyncBootstrap />
+        <NotificationPopups />
         {children}
         <footer className="app-footer">
           <span className="muted">© {new Date().getFullYear()} Invox</span>

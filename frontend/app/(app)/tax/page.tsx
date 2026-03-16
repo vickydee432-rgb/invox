@@ -19,12 +19,23 @@ type TaxReturn = {
   createdAt?: string;
 };
 
+type TaxDeadline = {
+  _id: string;
+  taxType: string;
+  title: string;
+  dueDate: string;
+  status?: string;
+  notifyDaysBefore?: number[];
+};
+
 export default function TaxPage() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [codes, setCodes] = useState<TaxCode[]>([]);
   const [returns, setReturns] = useState<TaxReturn[]>([]);
+  const [deadlines, setDeadlines] = useState<TaxDeadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [seedLoading, setSeedLoading] = useState(false);
 
   const [codeName, setCodeName] = useState("");
   const [codeRate, setCodeRate] = useState(0);
@@ -37,12 +48,14 @@ export default function TaxPage() {
     setLoading(true);
     setError("");
     try {
-      const [codeData, returnData] = await Promise.all([
+      const [codeData, returnData, deadlineData] = await Promise.all([
         apiFetch<{ codes: TaxCode[] }>("/api/tax/tax-codes"),
-        apiFetch<{ returns: TaxReturn[] }>("/api/tax/tax-returns")
+        apiFetch<{ returns: TaxReturn[] }>("/api/tax/tax-returns"),
+        apiFetch<{ deadlines: TaxDeadline[] }>("/api/tax/deadlines")
       ]);
       setCodes(codeData.codes || []);
       setReturns(returnData.returns || []);
+      setDeadlines(deadlineData.deadlines || []);
     } catch (err: any) {
       setError(err.message || "Failed to load tax data");
     } finally {
@@ -73,6 +86,31 @@ export default function TaxPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleSeedDeadlines = async () => {
+    setSeedLoading(true);
+    setError("");
+    try {
+      await apiFetch("/api/tax/deadlines/seed", { method: "POST", body: JSON.stringify({}) });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || "Failed to seed deadlines");
+    } finally {
+      setSeedLoading(false);
+    }
+  };
+
+  const deadlineTone = (dueDate: string) => {
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) return "badge";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+    const diffDays = Math.floor((dueDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays < 0) return "badge danger";
+    if (diffDays <= 5) return "badge warn";
+    return "badge";
+  };
 
   const handleCreateCode = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -122,6 +160,57 @@ export default function TaxPage() {
         <div className="panel-title">{workspace?.labels?.tax || "Tax"}</div>
         <div className="muted">Manage VAT, turnover tax, and reminders.</div>
         {error ? <div className="muted">{error}</div> : null}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">Tax deadlines</div>
+        <div className="muted">Automatic reminders for filing and payments.</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+          <button className="button secondary" type="button" onClick={handleSeedDeadlines} disabled={seedLoading}>
+            {seedLoading ? "Seeding..." : "Generate upcoming deadlines"}
+          </button>
+        </div>
+        <div className="table-wrap" style={{ marginTop: 16 }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Due</th>
+                <th>Tax</th>
+                <th>Title</th>
+                <th>Notify</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Loading deadlines...
+                  </td>
+                </tr>
+              ) : (
+                deadlines.map((d) => (
+                  <tr key={d._id}>
+                    <td>{d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}</td>
+                    <td>
+                      <span className={deadlineTone(d.dueDate)}>{d.taxType}</span>
+                    </td>
+                    <td>{d.title}</td>
+                    <td>{Array.isArray(d.notifyDaysBefore) && d.notifyDaysBefore.length ? d.notifyDaysBefore.join(", ") + " days" : "—"}</td>
+                    <td>{d.status || "pending"}</td>
+                  </tr>
+                ))
+              )}
+              {!loading && deadlines.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    No deadlines yet. Click “Generate upcoming deadlines”.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="panel">

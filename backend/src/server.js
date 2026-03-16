@@ -14,6 +14,7 @@ const companyRoutes = require("./routes/company");
 const zraRoutes = require("./routes/integrations/zra");
 const { billingRouter, dodoWebhookHandler } = require("./routes/billing");
 const { startZraSyncWorker } = require("./workers/zraWorker");
+const { startTaxDeadlineWorker } = require("./workers/taxDeadlineWorker");
 const branchesRoutes = require("./routes/branches");
 const productsRoutes = require("./routes/products");
 const stockRoutes = require("./routes/stock");
@@ -111,6 +112,7 @@ connectDB(process.env.MONGO_URI)
   .then(() => {
     app.listen(port, () => console.log(`🚀 Running on http://localhost:${port}`));
     startZraSyncWorker();
+    startTaxDeadlineWorker();
   })
   .catch((err) => {
     console.error("❌ DB connect error:", err);

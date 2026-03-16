@@ -11,10 +11,13 @@ router.use(requireAuth, requireSubscription, requireModule("notifications"));
 
 router.get("/", async (req, res) => {
   try {
-    const notifications = await Notification.find({
+    const status = String(req.query.status || "").trim();
+    const filter = {
       companyId: req.user.companyId,
       userId: req.user._id
-    })
+    };
+    if (status) filter.status = status;
+    const notifications = await Notification.find(filter)
       .sort({ triggeredAt: -1 })
       .limit(50)
       .lean();
@@ -36,11 +39,27 @@ router.post("/", async (req, res) => {
       companyId: req.user.companyId,
       userId: req.user._id,
       type: parsed.type,
-      message: parsed.message
+      message: parsed.message,
+      severity: "info"
     });
     res.status(201).json({ notification });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create notification");
+  }
+});
+
+router.patch("/:id", async (req, res) => {
+  try {
+    const parsed = z
+      .object({ status: z.enum(["unread", "read", "dismissed"]) })
+      .parse(req.body || {});
+    const note = await Notification.findOne({ _id: req.params.id, companyId: req.user.companyId, userId: req.user._id });
+    if (!note) return res.status(404).json({ error: "Notification not found" });
+    note.status = parsed.status;
+    await note.save();
+    res.json({ notification: note });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to update notification");
   }
 });
 

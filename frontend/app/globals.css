@@ -479,6 +479,46 @@ a {
   font-size: 12px;
 }
 
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+  width: min(420px, calc(100vw - 36px));
+}
+
+.toast {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+
+.toast.warning {
+  border-color: rgba(215, 143, 22, 0.35);
+  background: rgba(215, 143, 22, 0.08);
+}
+
+.toast.danger {
+  border-color: rgba(176, 42, 42, 0.35);
+  background: rgba(176, 42, 42, 0.08);
+}
+
+.toast-message {
+  font-weight: 650;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .panel {
   background: var(--card);
   border: 1px solid var(--border);

@@ -52,6 +52,14 @@ type ActivityItem = {
   href: string;
 };
 
+type TaxDeadline = {
+  _id: string;
+  taxType: string;
+  title: string;
+  dueDate: string;
+  status?: string;
+};
+
 const formatMoney = (value: number) => value.toFixed(2);
 
 function toISODateLocal(date: Date) {
@@ -97,6 +105,7 @@ export default function DashboardPage() {
       branchId?: { name?: string; code?: string };
     }[]
   >([]);
+  const [taxDeadlines, setTaxDeadlines] = useState<TaxDeadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [period, setPeriod] = useState<PeriodKey>("month");
@@ -229,6 +238,26 @@ export default function DashboardPage() {
       active = false;
     };
   }, [workspace?.inventoryEnabled]);
+
+  useEffect(() => {
+    if (!workspace?.enabledModules.includes("tax")) {
+      setTaxDeadlines([]);
+      return;
+    }
+    let active = true;
+    apiFetch<{ deadlines: TaxDeadline[] }>("/api/tax/deadlines")
+      .then((data) => {
+        if (!active) return;
+        setTaxDeadlines(data.deadlines || []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTaxDeadlines([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace?.enabledModules]);
 
   useEffect(() => {
     if (!workspace?.inventoryEnabled) {
@@ -604,6 +633,39 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
+
+        {workspace?.enabledModules.includes("tax") ? (
+          <section className="panel dashboard-panel">
+            <div className="dashboard-activity-header">
+              <div className="panel-title">Tax deadlines</div>
+              <button className="button secondary" type="button" onClick={() => router.push("/tax")}>
+                Open tax
+              </button>
+            </div>
+            <div className="dashboard-activity-list">
+              {taxDeadlines.length ? (
+                taxDeadlines
+                  .slice(0, 6)
+                  .map((d) => (
+                    <div key={d._id} className="dashboard-activity-item" style={{ cursor: "default" }}>
+                      <span className="badge">{d.taxType}</span>
+                      <span className="dashboard-activity-main">
+                        <span className="dashboard-activity-title">{d.title}</span>
+                        <span className="muted dashboard-activity-sub">
+                          Due {d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}
+                        </span>
+                      </span>
+                      <span className="dashboard-activity-meta">
+                        <span className="muted">{d.status || "pending"}</span>
+                      </span>
+                    </div>
+                  ))
+              ) : (
+                <div className="muted">No upcoming deadlines yet. Open Tax to generate them.</div>
+              )}
+            </div>
+          </section>
+        ) : null}
       </div>
     </>
   );
