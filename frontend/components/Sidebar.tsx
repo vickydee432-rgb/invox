@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clearToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
@@ -51,6 +51,8 @@ export default function Sidebar() {
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
 
   const loadWorkspace = async () => {
     try {
@@ -91,6 +93,11 @@ export default function Sidebar() {
     router.push("/login");
   };
 
+  const isActiveHref = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   const buildNavModules = () => {
     const enabledModules = workspace?.enabledModules || [];
     const baseModules = new Set(["dashboard", ...enabledModules, "settings"]);
@@ -108,6 +115,74 @@ export default function Sidebar() {
   };
 
   const navModules = buildNavModules();
+  const showPlans = readOnly || isTrial;
+
+  const allNavItems = useMemo(() => {
+    const items = navModules.map((module) => ({
+      key: module,
+      href: MODULE_ROUTES[module],
+      label: module === "settings" ? "Settings" : workspace?.labels?.[module] || module
+    }));
+    if (showPlans) {
+      items.push({ key: "plans", href: "/plans", label: "Plans" });
+    }
+    return items;
+  }, [navModules, workspace, showPlans]);
+
+  const { visibleItems, overflowItems } = useMemo(() => {
+    const MAX_VISIBLE = 7;
+    const pinnedStart = ["dashboard"];
+    const pinnedEnd = showPlans ? ["plans", "settings"] : ["settings"];
+
+    const startItems = allNavItems.filter((item) => pinnedStart.includes(item.key));
+    const endItems = allNavItems.filter((item) => pinnedEnd.includes(item.key));
+    const middleItems = allNavItems.filter(
+      (item) => !pinnedStart.includes(item.key) && !pinnedEnd.includes(item.key)
+    );
+
+    const slots = Math.max(0, MAX_VISIBLE - startItems.length - endItems.length);
+    const visibleMiddle = middleItems.slice(0, slots);
+    const overflow = middleItems.slice(slots);
+
+    const activeOverflowIndex = overflow.findIndex((item) => isActiveHref(item.href));
+    if (activeOverflowIndex >= 0 && visibleMiddle.length > 0) {
+      const swappedVisible = [...visibleMiddle];
+      const swappedOverflow = [...overflow];
+      const lastVisible = swappedVisible[swappedVisible.length - 1];
+      swappedVisible[swappedVisible.length - 1] = swappedOverflow[activeOverflowIndex];
+      swappedOverflow[activeOverflowIndex] = lastVisible;
+      return {
+        visibleItems: [...startItems, ...swappedVisible, ...endItems],
+        overflowItems: swappedOverflow
+      };
+    }
+
+    return {
+      visibleItems: [...startItems, ...visibleMiddle, ...endItems],
+      overflowItems: overflow
+    };
+  }, [allNavItems, pathname, showPlans]);
+
+  const overflowHasActive = overflowItems.some((item) => isActiveHref(item.href));
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (!moreRef.current) return;
+      if (event.target instanceof Node && moreRef.current.contains(event.target)) return;
+      setMoreOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+    if (moreOpen) {
+      window.addEventListener("mousedown", handler);
+      window.addEventListener("keydown", onKey);
+    }
+    return () => {
+      window.removeEventListener("mousedown", handler);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   return (
     <header className="sidebar">
@@ -116,20 +191,39 @@ export default function Sidebar() {
         <span className="brand-tag">Studio Ledger</span>
       </div>
       <nav className="nav">
-        {navModules.map((module) => {
-          const href = MODULE_ROUTES[module];
-          const label =
-            module === "settings" ? "Settings" : workspace?.labels?.[module] || module;
+        {visibleItems.map((item) => {
           return (
-            <Link key={module} href={href} className={pathname === href ? "active" : ""}>
-              {label}
+            <Link key={item.key} href={item.href} className={isActiveHref(item.href) ? "active" : ""}>
+              {item.label}
             </Link>
           );
         })}
-        {readOnly || isTrial ? (
-          <Link href="/plans" className={pathname === "/plans" ? "active" : ""}>
-            Plans
-          </Link>
+        {overflowItems.length > 0 ? (
+          <div className="nav-more" ref={moreRef}>
+            <button
+              type="button"
+              className={`nav-more-trigger${moreOpen || overflowHasActive ? " active" : ""}`}
+              onClick={() => setMoreOpen((prev) => !prev)}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+            >
+              More
+            </button>
+            {moreOpen ? (
+              <div className="nav-more-menu" role="menu">
+                {overflowItems.map((item) => (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    className={isActiveHref(item.href) ? "active" : ""}
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </nav>
       <div className="nav-actions">

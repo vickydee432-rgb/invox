@@ -291,6 +291,73 @@ a {
   border-color: var(--border);
 }
 
+.nav-more {
+  position: relative;
+}
+
+.nav-more-trigger {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nav-more-trigger.active {
+  color: var(--ink);
+  border-color: rgba(240, 93, 35, 0.4);
+  background: rgba(240, 93, 35, 0.12);
+}
+
+.nav-more-trigger:hover {
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.nav-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 220px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 4px;
+  z-index: 30;
+}
+
+.nav-more-menu a {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.nav-more-menu a.active {
+  color: var(--ink);
+  border-color: rgba(240, 93, 35, 0.4);
+  background: rgba(240, 93, 35, 0.12);
+}
+
+.nav-more-menu a:hover {
+  color: var(--ink);
+  border-color: var(--border);
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
