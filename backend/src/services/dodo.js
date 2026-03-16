@@ -72,6 +72,20 @@ async function createCheckoutSession({ productId, customer, returnUrl, metadata 
   });
 }
 
+async function cancelSubscriptionAtNextBillingDate(subscriptionId) {
+  if (!subscriptionId) {
+    const err = new Error("Missing subscription id");
+    err.status = 400;
+    throw err;
+  }
+  return dodoRequest(`/subscriptions/${subscriptionId}`, {
+    method: "PATCH",
+    body: {
+      cancel_at_next_billing_date: true
+    }
+  });
+}
+
 function extractSignatures(signature) {
   if (!signature) return [];
   const raw = String(signature).trim();
@@ -111,4 +125,4 @@ function verifyWebhookSignature({ rawBody, signature, webhookId, webhookTimestam
   return false;
 }
 
-module.exports = { createCheckoutSession, verifyWebhookSignature };
+module.exports = { createCheckoutSession, cancelSubscriptionAtNextBillingDate, verifyWebhookSignature };

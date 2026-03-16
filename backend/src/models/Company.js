@@ -76,6 +76,7 @@ const CompanySchema = new mongoose.Schema(
     subscriptionCycle: { type: String, enum: ["monthly", "yearly"], default: null },
     trialEndsAt: { type: Date },
     currentPeriodEnd: { type: Date },
+    subscriptionCancelAtNextBillingDate: { type: Boolean, default: false },
     dodoSubscriptionId: { type: String, trim: true },
     dodoCustomerId: { type: String, trim: true },
     lastPaymentAt: { type: Date }

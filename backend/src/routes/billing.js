@@ -3,7 +3,7 @@ const { z } = require("zod");
 const Company = require("../models/Company");
 const User = require("../models/User");
 const { requireAuth } = require("../middleware/auth");
-const { createCheckoutSession, verifyWebhookSignature } = require("../services/dodo");
+const { createCheckoutSession, cancelSubscriptionAtNextBillingDate, verifyWebhookSignature } = require("../services/dodo");
 const { getSeatLimit, countSeatsUsed } = require("../services/planLimits");
 const { handleRouteError } = require("./_helpers");
 
@@ -66,6 +66,7 @@ billingRouter.get("/status", async (req, res) => {
     plan: company.subscriptionPlan || null,
     billingCycle: company.subscriptionCycle || null,
     dodoSubscriptionId: company.dodoSubscriptionId || null,
+    cancelAtNextBillingDate: Boolean(company.subscriptionCancelAtNextBillingDate),
     seatLimit,
     seatsUsed,
     ...access
@@ -105,6 +106,7 @@ billingRouter.post("/checkout", async (req, res) => {
     const session = await createCheckoutSession({ productId, customer, returnUrl, metadata });
 
     company.subscriptionStatus = "pending";
+    company.subscriptionCancelAtNextBillingDate = false;
     applyPlanDetails(company, productId);
     await company.save();
 
@@ -112,6 +114,56 @@ billingRouter.post("/checkout", async (req, res) => {
   } catch (err) {
     console.error("Checkout error", err?.message || err, err?.details || "");
     return handleRouteError(res, err, "Failed to start checkout");
+  }
+});
+
+billingRouter.post("/cancel", async (req, res) => {
+  try {
+    const company = await Company.findById(req.user.companyId);
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (!company.dodoSubscriptionId) {
+      return res.status(400).json({ error: "No active subscription found" });
+    }
+
+    if (company.subscriptionCancelAtNextBillingDate) {
+      const access = computeAccess(company);
+      const seatLimit = getSeatLimit(company);
+      const seatsUsed = await countSeatsUsed(company._id);
+      return res.json({
+        status: company.subscriptionStatus,
+        plan: company.subscriptionPlan || null,
+        billingCycle: company.subscriptionCycle || null,
+        dodoSubscriptionId: company.dodoSubscriptionId || null,
+        cancelAtNextBillingDate: Boolean(company.subscriptionCancelAtNextBillingDate),
+        seatLimit,
+        seatsUsed,
+        ...access
+      });
+    }
+
+    const result = await cancelSubscriptionAtNextBillingDate(company.dodoSubscriptionId);
+
+    company.subscriptionCancelAtNextBillingDate = true;
+    const periodEnd =
+      result?.current_period_end || result?.current_period_end_at || result?.next_billing_date;
+    if (periodEnd) company.currentPeriodEnd = new Date(periodEnd);
+    await company.save();
+
+    const access = computeAccess(company);
+    const seatLimit = getSeatLimit(company);
+    const seatsUsed = await countSeatsUsed(company._id);
+    res.json({
+      status: company.subscriptionStatus,
+      plan: company.subscriptionPlan || null,
+      billingCycle: company.subscriptionCycle || null,
+      dodoSubscriptionId: company.dodoSubscriptionId || null,
+      cancelAtNextBillingDate: Boolean(company.subscriptionCancelAtNextBillingDate),
+      seatLimit,
+      seatsUsed,
+      ...access
+    });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to cancel subscription");
   }
 });
 
@@ -192,6 +244,9 @@ async function dodoWebhookHandler(req, res) {
     else if (eventType.includes("payment_failed") || status === "past_due") company.subscriptionStatus = "past_due";
     else if (eventType.includes("activate") || status === "active") company.subscriptionStatus = "active";
     else if (status === "trialing") company.subscriptionStatus = "trialing";
+    if (company.subscriptionStatus === "active") {
+      company.subscriptionCancelAtNextBillingDate = false;
+    }
 
     const periodEnd = payload.current_period_end || payload.current_period_end_at || payload.next_billing_date;
     if (periodEnd) company.currentPeriodEnd = new Date(periodEnd);

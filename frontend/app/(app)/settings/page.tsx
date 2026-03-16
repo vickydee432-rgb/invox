@@ -206,6 +206,8 @@ export default function SettingsPage() {
     status: string;
     plan: string | null;
     billingCycle: string | null;
+    dodoSubscriptionId?: string | null;
+    cancelAtNextBillingDate?: boolean;
     isActive: boolean;
     isTrial: boolean;
     readOnly: boolean;
@@ -216,6 +218,8 @@ export default function SettingsPage() {
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
+  const [billingCancelLoading, setBillingCancelLoading] = useState(false);
+  const [billingCancelError, setBillingCancelError] = useState("");
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
   const [teamInvites, setTeamInvites] = useState<TeamInvite[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
@@ -460,6 +464,8 @@ export default function SettingsPage() {
         status: string;
         plan: string | null;
         billingCycle: string | null;
+        dodoSubscriptionId?: string | null;
+        cancelAtNextBillingDate?: boolean;
         isActive: boolean;
         isTrial: boolean;
         readOnly: boolean;
@@ -473,6 +479,21 @@ export default function SettingsPage() {
       setBillingError(err.message || "Failed to load billing status");
     } finally {
       setBillingLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setBillingCancelError("");
+    const ok = window.confirm("Cancel your subscription at the end of the current billing period?");
+    if (!ok) return;
+    setBillingCancelLoading(true);
+    try {
+      await apiFetch("/api/billing/cancel", { method: "POST", body: JSON.stringify({}) });
+      await loadBillingStatus();
+    } catch (err: any) {
+      setBillingCancelError(err.message || "Failed to cancel subscription");
+    } finally {
+      setBillingCancelLoading(false);
     }
   };
 
@@ -905,12 +926,31 @@ export default function SettingsPage() {
                 <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
                   Refresh status
                 </button>
+                {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={handleCancelSubscription}
+                    disabled={billingCancelLoading}
+                    data-allow="true"
+                  >
+                    {billingCancelLoading ? "Cancelling..." : "Cancel subscription"}
+                  </button>
+                ) : null}
               </div>
               <div className="muted">
                 Seats used: {billingStatus?.seatsUsed ?? "—"} /{" "}
                 {billingStatus?.seatLimit === null ? "Unlimited" : billingStatus?.seatLimit ?? "—"}
               </div>
+              {billingStatus?.cancelAtNextBillingDate ? (
+                <div className="muted">
+                  Cancellation scheduled{billingStatus?.currentPeriodEnd
+                    ? ` for ${new Date(billingStatus.currentPeriodEnd).toLocaleDateString()}`
+                    : ""}.
+                </div>
+              ) : null}
               {billingError ? <div className="muted">{billingError}</div> : null}
+              {billingCancelError ? <div className="muted">{billingCancelError}</div> : null}
             </div>
           </>
         )}

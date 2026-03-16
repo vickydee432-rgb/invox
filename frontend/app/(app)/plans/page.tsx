@@ -8,6 +8,8 @@ export default function PlansPage() {
     status: string;
     plan: string | null;
     billingCycle: string | null;
+    dodoSubscriptionId?: string | null;
+    cancelAtNextBillingDate?: boolean;
     isActive: boolean;
     isTrial: boolean;
     readOnly: boolean;
@@ -18,6 +20,8 @@ export default function PlansPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const [subscribingPlan, setSubscribingPlan] = useState("");
   const [checkoutReady, setCheckoutReady] = useState(false);
   const checkoutRef = useRef<any>(null);
@@ -45,6 +49,8 @@ export default function PlansPage() {
         status: string;
         plan: string | null;
         billingCycle: string | null;
+        dodoSubscriptionId?: string | null;
+        cancelAtNextBillingDate?: boolean;
         isActive: boolean;
         isTrial: boolean;
         readOnly: boolean;
@@ -87,6 +93,7 @@ export default function PlansPage() {
 
   const startCheckout = async (planKey: string) => {
     setCheckoutError("");
+    setCancelError("");
     setSubscribingPlan(planKey);
     try {
       const data = await apiFetch<{ checkoutUrl?: string }>("/api/billing/checkout", {
@@ -112,6 +119,23 @@ export default function PlansPage() {
       setCheckoutError(err.message || "Failed to start checkout");
     } finally {
       setSubscribingPlan("");
+    }
+  };
+
+  const cancelSubscription = async () => {
+    setCancelError("");
+    setCheckoutError("");
+    const ok = window.confirm("Cancel your subscription at the end of the current billing period?");
+    if (!ok) return;
+    setCancelling(true);
+    try {
+      const data = await apiFetch<any>("/api/billing/cancel", { method: "POST", body: JSON.stringify({}) });
+      if (data) setBillingStatus(data);
+      await loadBillingStatus();
+    } catch (err: any) {
+      setCancelError(err.message || "Failed to cancel subscription");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -258,14 +282,36 @@ export default function PlansPage() {
                     Refresh status
                   </button>
                 </div>
+                {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
+                  <div>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={cancelSubscription}
+                      disabled={cancelling}
+                      data-allow="true"
+                    >
+                      {cancelling ? "Cancelling..." : "Cancel subscription"}
+                    </button>
+                  </div>
+                ) : null}
+                {billingStatus?.cancelAtNextBillingDate ? (
+                  <div style={{ gridColumn: "1 / -1" }} className="muted">
+                    Cancellation scheduled{billingStatus?.currentPeriodEnd
+                      ? ` for ${new Date(billingStatus.currentPeriodEnd).toLocaleDateString()}`
+                      : ""}.
+                  </div>
+                ) : null}
               </div>
             )}
             {checkoutError ? <div className="muted">{checkoutError}</div> : null}
+            {cancelError ? <div className="muted">{cancelError}</div> : null}
             {billingError ? <div className="muted">{billingError}</div> : null}
           </section>
         ) : (
           <section className="plans-status">
             {checkoutError ? <div className="muted">{checkoutError}</div> : null}
+            {cancelError ? <div className="muted">{cancelError}</div> : null}
             {billingError ? <div className="muted">{billingError}</div> : null}
           </section>
         )}
