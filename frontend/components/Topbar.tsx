@@ -142,7 +142,7 @@ export default function Topbar() {
         if (workspace?.enabledModules.includes("expenses")) {
           tasks.push(
             apiFetch<{ expenses: { _id: string; title: string; amount: number; date: string }[] }>(
-              `/api/expenses?limit=5&page=1&q=${encodeURIComponent(term)}&sortBy=date&sortDir=desc`
+              `/expenses?limit=5&page=1&q=${encodeURIComponent(term)}&sortBy=date&sortDir=desc`
             )
               .then((data) => {
                 const items = (data.expenses || []).slice(0, 5).map((exp) => ({

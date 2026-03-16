@@ -54,7 +54,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
         const db = getDb(context.companyId, getDeviceId());
         let local = (await db.expenses.get(id)) as Expense | undefined;
         if (!local && typeof navigator !== "undefined" && navigator.onLine) {
-          const data = await apiFetch<{ expense: any }>(`/api/expenses/${id}`);
+          const data = await apiFetch<{ expense: any }>(`/expenses/${id}`);
           if (data.expense) {
             const mapped = {
               id: data.expense._id,
@@ -132,7 +132,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
         projectLabel: projectLabel || undefined
       };
       if (typeof navigator !== "undefined" && navigator.onLine && existing.serverId) {
-        await apiFetch(`/api/expenses/${existing.serverId}`, {
+        await apiFetch(`/expenses/${existing.serverId}`, {
           method: "PUT",
           body: JSON.stringify(serverPayload)
         });
@@ -187,7 +187,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
       const existing = await db.expenses.get(id);
       if (!existing) {
         if (typeof navigator !== "undefined" && navigator.onLine) {
-          await apiFetch(`/api/expenses/${id}`, { method: "DELETE" });
+          await apiFetch(`/expenses/${id}`, { method: "DELETE" });
         }
         router.push("/expenses");
         return;

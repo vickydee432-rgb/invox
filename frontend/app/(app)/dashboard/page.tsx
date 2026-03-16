@@ -182,7 +182,7 @@ export default function DashboardPage() {
     }
     let active = true;
     apiFetch<{ expenses: { _id: string; title: string; amount: number; date: string }[] }>(
-      "/api/expenses?limit=4&page=1&sortBy=date&sortDir=desc"
+      "/expenses?limit=4&page=1&sortBy=date&sortDir=desc"
     )
       .then((data) => {
         if (!active) return;

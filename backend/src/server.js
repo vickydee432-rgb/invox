@@ -74,7 +74,7 @@ app.use("/api/company", companyRoutes);
 app.use("/api/quotes", quotesRoutes);
 app.use("/api/invoices", invoicesRoutes);
 app.use("/api/projects", projectsRoutes);
-app.use("/api/expenses", expensesRoutes);
+app.use("/expenses", expensesRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/integrations/zra", zraRoutes);
 app.use("/api/billing", billingRouter);

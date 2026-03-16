@@ -199,7 +199,7 @@ export default function ReportsPage() {
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     const query = params.toString();
-    const path = `/api/expenses/export.xlsx${query ? `?${query}` : ""}`;
+    const path = `/expenses/export.xlsx${query ? `?${query}` : ""}`;
     try {
       const filename = `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
       await apiDownload(path, filename);

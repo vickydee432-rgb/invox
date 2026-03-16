@@ -61,7 +61,7 @@ export default function NewExpensePage() {
         createdCount: number;
         errors?: { line: number; error: string; raw: string }[];
         skipped?: { line: number; error: string; raw: string }[];
-      }>("/api/expenses/bulk", {
+      }>("/expenses/bulk", {
         method: "POST",
         body: JSON.stringify({ text: pasteText })
       });
@@ -82,7 +82,7 @@ export default function NewExpensePage() {
           const params = new URLSearchParams();
           params.set("page", "1");
           params.set("limit", "500");
-          const seed = await apiFetch<{ expenses: any[] }>(`/api/expenses?${params.toString()}`);
+          const seed = await apiFetch<{ expenses: any[] }>(`/expenses?${params.toString()}`);
           if (seed.expenses?.length) {
             const mapped = seed.expenses.map((expense) => ({
               id: expense._id,

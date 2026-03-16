@@ -92,10 +92,10 @@ Note: registration requires a `company` object with at least `name`.
 - `GET /api/projects/:id/summary` income vs expenses
 
 ### Expenses
-- `POST /api/expenses` create
-- `POST /api/expenses/bulk` import from pasted text
-- `PUT /api/expenses/:id` update
-- `GET /api/expenses` list (filters + `limit` + `page`)
+- `POST /expenses` create
+- `POST /expenses/bulk` import from pasted text
+- `PUT /expenses/:id` update
+- `GET /expenses` list (filters + `limit` + `page`)
 
 Bulk paste format (one per line):
 - `Title | Amount | Category | Date` (recommended)

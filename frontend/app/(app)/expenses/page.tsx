@@ -153,7 +153,7 @@ export default function ExpensesPage() {
         if (projectValue) params.set("projectId", projectValue);
         if (fromValue) params.set("from", fromValue);
         if (toValue) params.set("to", toValue);
-        const data = await apiFetch<{ expenses: any[] }>(`/api/expenses?${params.toString()}`);
+        const data = await apiFetch<{ expenses: any[] }>(`/expenses?${params.toString()}`);
         if (data.expenses?.length) {
           await db.expenses.bulkPut(data.expenses.map((exp) => mapServerExpense(exp, context)));
         }
@@ -300,7 +300,7 @@ export default function ExpensesPage() {
               .filter((exp) => selectedIds.includes(exp.id))
               .map((exp) => exp.serverId as string)
           };
-      const data = await apiFetch<{ updatedCount: number }>("/api/expenses/bulk/project", {
+      const data = await apiFetch<{ updatedCount: number }>("/expenses/bulk/project", {
         method: "PUT",
         body: JSON.stringify(payload)
       });
@@ -327,7 +327,7 @@ export default function ExpensesPage() {
       const existing = await db.expenses.get(expenseId);
       if (!existing) {
         if (typeof navigator !== "undefined" && navigator.onLine) {
-          await apiFetch(`/api/expenses/${expenseId}`, { method: "DELETE" });
+          await apiFetch(`/expenses/${expenseId}`, { method: "DELETE" });
         }
       } else {
         const now = new Date().toISOString();
