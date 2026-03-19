@@ -1649,6 +1649,62 @@ a {
   }
 }
 
+/* Print styles for receipt */
+@media print {
+  body {
+    background: white;
+  }
+
+  .app-shell,
+  .sidebar,
+  .topbar,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .content-area {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .panel {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .receipt-page {
+    gap: 0 !important;
+  }
+
+  .receipt-toolbar {
+    display: none !important;
+  }
+
+  .receipt-sheet {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .panel-title {
+    display: none !important;
+  }
+
+  .receipt-page {
+    display: block !important;
+  }
+
+  @page {
+    margin: 0.5in;
+    size: auto;
+  }
+}
+
 @media (max-width: 960px) {
   .app-shell {
     grid-template-rows: auto 1fr;
