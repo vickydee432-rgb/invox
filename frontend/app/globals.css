@@ -1651,21 +1651,37 @@ a {
 
 /* Print styles for receipt */
 @media print {
-  body {
-    background: white;
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
 
-  .app-shell,
+  body {
+    background: white;
+    margin: 0;
+    padding: 0;
+  }
+
   .sidebar,
   .topbar,
   nav,
-  header {
+  header,
+  .receipt-toolbar {
     display: none !important;
   }
 
-  .content-area {
+  .app-shell {
+    display: block !important;
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  .content-area {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
   }
 
   .panel {
@@ -1673,22 +1689,7 @@ a {
     box-shadow: none !important;
     padding: 0 !important;
     background: white !important;
-  }
-
-  .receipt-page {
-    gap: 0 !important;
-  }
-
-  .receipt-toolbar {
-    display: none !important;
-  }
-
-  .receipt-sheet {
-    max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
   }
 
   .panel-title {
@@ -1697,6 +1698,17 @@ a {
 
   .receipt-page {
     display: block !important;
+    gap: 0 !important;
+    margin: 0 !important;
+  }
+
+  .receipt-sheet {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
   }
 
   @page {
