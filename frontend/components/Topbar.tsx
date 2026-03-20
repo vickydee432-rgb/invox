@@ -28,10 +28,24 @@ export default function Topbar() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
 
   const searchRef = useRef<HTMLDivElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [groups, setGroups] = useState<SearchGroup[]>([]);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<{
+    status: string;
+    plan: string | null;
+    billingCycle: string | null;
+    dodoSubscriptionId?: string | null;
+    cancelAtNextBillingDate?: boolean;
+    seatLimit?: number | null;
+    seatsUsed?: number;
+    isActive: boolean;
+    trialValid?: boolean;
+    periodValid?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -42,18 +56,34 @@ export default function Topbar() {
       .catch(() => {
         if (active) setUser(null);
       });
-    apiFetch<{ readOnly: boolean; isTrial?: boolean; trialEndsAt?: string }>("/api/billing/status")
+    apiFetch<{
+      status: string;
+      plan: string | null;
+      billingCycle: string | null;
+      dodoSubscriptionId?: string | null;
+      cancelAtNextBillingDate?: boolean;
+      seatLimit?: number | null;
+      seatsUsed?: number;
+      isActive: boolean;
+      trialValid?: boolean;
+      periodValid?: boolean;
+      readOnly: boolean;
+      isTrial?: boolean;
+      trialEndsAt?: string;
+    }>("/api/billing/status")
       .then((data) => {
         if (!active) return;
-        setReadOnly(Boolean(data.readOnly));
-        setIsTrial(Boolean(data.isTrial));
+        setReadOnly(!data.isActive);
+        setIsTrial(Boolean(data.trialValid));
         setTrialEndsAt(data.trialEndsAt || null);
+        setBillingStatus(data);
       })
       .catch(() => {
         if (!active) return;
         setReadOnly(false);
         setIsTrial(false);
         setTrialEndsAt(null);
+        setBillingStatus(null);
       });
     return () => {
       active = false;
@@ -79,9 +109,16 @@ export default function Topbar() {
       if (event.target instanceof Node && !searchRef.current.contains(event.target)) {
         setSearchOpen(false);
       }
+      if (!userMenuRef.current) return;
+      if (event.target instanceof Node && !userMenuRef.current.contains(event.target)) {
+        setUserMenuOpen(false);
+      }
     };
     const keyHandler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSearchOpen(false);
+      if (event.key === "Escape") {
+        setSearchOpen(false);
+        setUserMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     document.addEventListener("keydown", keyHandler);
@@ -197,6 +234,37 @@ export default function Topbar() {
     router.push(href);
   };
 
+  const handleCancelSubscription = async () => {
+    setUserMenuOpen(false);
+    const ok = window.confirm("Cancel your subscription at the end of the current billing period?");
+    if (!ok) return;
+    try {
+      await apiFetch("/api/billing/cancel", { method: "POST", body: JSON.stringify({}) });
+      // Refresh billing status
+      const data = await apiFetch<{
+        status: string;
+        plan: string | null;
+        billingCycle: string | null;
+        dodoSubscriptionId?: string | null;
+        cancelAtNextBillingDate?: boolean;
+        seatLimit?: number | null;
+        seatsUsed?: number;
+        isActive: boolean;
+        trialValid?: boolean;
+        periodValid?: boolean;
+        readOnly: boolean;
+        isTrial?: boolean;
+        trialEndsAt?: string;
+      }>("/api/billing/status");
+      setBillingStatus(data);
+      setReadOnly(!data.isActive);
+      setIsTrial(Boolean(data.trialValid));
+      setTrialEndsAt(data.trialEndsAt || null);
+    } catch (err: any) {
+      alert(err.message || "Failed to cancel subscription");
+    }
+  };
+
   return (
     <div className="topbar">
       <div>
@@ -259,7 +327,36 @@ export default function Topbar() {
           ) : null}
         </div>
         <SyncStatus />
-        <div className="badge">{user ? `${user.name} · ${user.email}` : "Loading user..."}</div>
+        <div className="topbar-user-menu" ref={userMenuRef}>
+          <button
+            className="badge topbar-user-trigger"
+            type="button"
+            onClick={() => setUserMenuOpen((prev) => !prev)}
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
+          >
+            {user ? `${user.name} · ${user.email}` : "Loading user..."}
+          </button>
+          {userMenuOpen ? (
+            <div className="topbar-user-dropdown" role="menu">
+              <Link href="/settings" onClick={() => setUserMenuOpen(false)}>
+                Settings
+              </Link>
+              <Link href="/plans" onClick={() => setUserMenuOpen(false)}>
+                Plans & Billing
+              </Link>
+              {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
+                <button
+                  className="topbar-user-dropdown-item"
+                  type="button"
+                  onClick={handleCancelSubscription}
+                >
+                  Cancel Subscription
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

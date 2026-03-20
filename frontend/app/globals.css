@@ -479,6 +479,58 @@ a {
   font-size: 12px;
 }
 
+.topbar-user-menu {
+  position: relative;
+}
+
+.topbar-user-trigger {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.topbar-user-trigger:hover {
+  background: rgba(240, 93, 35, 0.1);
+}
+
+.topbar-user-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: var(--shadow);
+  z-index: 40;
+  min-width: 180px;
+  display: grid;
+  gap: 6px;
+}
+
+.topbar-user-dropdown a,
+.topbar-user-dropdown button {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: none;
+  display: block;
+  transition: border-color 0.2s;
+}
+
+.topbar-user-dropdown a:hover,
+.topbar-user-dropdown button:hover {
+  border-color: rgba(240, 93, 35, 0.35);
+}
+
+.topbar-user-dropdown button {
+  width: 100%;
+}
+
 .toast-stack {
   position: fixed;
   right: 18px;
