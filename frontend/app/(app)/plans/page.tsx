@@ -278,23 +278,23 @@ export default function PlansPage() {
                   </div>
                 </div>
                 <div>
-                  <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
-                    Refresh status
-                  </button>
-                </div>
-                {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
-                  <div>
-                    <button
-                      className="button secondary"
-                      type="button"
-                      onClick={cancelSubscription}
-                      disabled={cancelling}
-                      data-allow="true"
-                    >
-                      {cancelling ? "Cancelling..." : "Cancel subscription"}
+                  <div className="plans-status-actions">
+                    <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
+                      Refresh status
                     </button>
+                    {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
+                      <button
+                        className="button secondary"
+                        type="button"
+                        onClick={cancelSubscription}
+                        disabled={cancelling}
+                        data-allow="true"
+                      >
+                        {cancelling ? "Cancelling..." : "Cancel subscription"}
+                      </button>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
                 {billingStatus?.cancelAtNextBillingDate ? (
                   <div style={{ gridColumn: "1 / -1" }} className="muted">
                     Cancellation scheduled{billingStatus?.currentPeriodEnd

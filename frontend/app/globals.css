@@ -1235,6 +1235,13 @@ a {
   align-items: end;
 }
 
+.plans-status-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .invoice-editor {
   display: grid;
   gap: 18px;
