@@ -92,9 +92,15 @@ export default function SalesPage() {
   };
 
   const renderSaleActions = (sale: Sale) => (
-    <Link className="button secondary" href={`/sales/${sale._id}/edit`}>
-      Edit
-    </Link>
+    sale._id ? (
+      <Link className="button secondary" href={`/sales/${sale._id}/edit`}>
+        Edit
+      </Link>
+    ) : (
+      <button className="button secondary" type="button" disabled title="Missing sale id">
+        Edit
+      </button>
+    )
   );
 
   if (workspace && !workspace.enabledModules.includes("sales")) {

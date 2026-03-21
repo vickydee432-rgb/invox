@@ -119,6 +119,13 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    if (!id || id === "undefined") {
+      setError("Invalid sale id");
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
     apiFetch<{ sale: Sale }>(`/api/sales/${id}`)
       .then((data) => {
         if (!active) return;
@@ -171,6 +178,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
     setSaving(true);
     setError("");
     try {
+      if (!id || id === "undefined") throw new Error("Invalid sale id");
       await apiFetch(`/api/sales/${id}`, {
         method: "PUT",
         body: JSON.stringify({
