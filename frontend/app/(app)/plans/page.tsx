@@ -139,6 +139,10 @@ export default function PlansPage() {
     }
   };
 
+  const canCancel = Boolean(
+    billingStatus?.plan && billingStatus?.status !== "pending" && !billingStatus?.cancelAtNextBillingDate
+  );
+
   return (
     <>
       <div className="plans-page plans-allow">
@@ -282,17 +286,20 @@ export default function PlansPage() {
                     <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
                       Refresh status
                     </button>
-                    {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
-                      <button
-                        className="button secondary"
-                        type="button"
-                        onClick={cancelSubscription}
-                        disabled={cancelling}
-                        data-allow="true"
-                      >
-                        {cancelling ? "Cancelling..." : "Cancel subscription"}
-                      </button>
-                    ) : null}
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={cancelSubscription}
+                      disabled={!canCancel || cancelling}
+                      data-allow="true"
+                      title={!canCancel ? "No active subscription to cancel (or cancellation already scheduled)." : ""}
+                    >
+                      {billingStatus?.cancelAtNextBillingDate
+                        ? "Cancellation scheduled"
+                        : cancelling
+                          ? "Cancelling..."
+                          : "Cancel subscription"}
+                    </button>
                   </div>
                 </div>
                 {billingStatus?.cancelAtNextBillingDate ? (

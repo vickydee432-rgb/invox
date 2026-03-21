@@ -913,6 +913,9 @@ export default function SettingsPage() {
 
   const businessNote = BUSINESS_TYPES.find((item) => item.value === businessType)?.note;
   const isPending = billingStatus?.status === "pending";
+  const canCancel = Boolean(
+    billingStatus?.plan && billingStatus?.status !== "pending" && !billingStatus?.cancelAtNextBillingDate
+  );
 
   if (loading) {
     return (
@@ -964,7 +967,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+              <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <Link className="button" href="/plans" data-allow="true">
                   View plans
@@ -972,17 +975,20 @@ export default function SettingsPage() {
                 <button className="button secondary" type="button" onClick={loadBillingStatus} data-allow="true">
                   Refresh status
                 </button>
-                {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={handleCancelSubscription}
-                    disabled={billingCancelLoading}
-                    data-allow="true"
-                  >
-                    {billingCancelLoading ? "Cancelling..." : "Cancel subscription"}
-                  </button>
-                ) : null}
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={handleCancelSubscription}
+                  disabled={!canCancel || billingCancelLoading}
+                  data-allow="true"
+                  title={!canCancel ? "No active subscription to cancel (or cancellation already scheduled)." : ""}
+                >
+                  {billingStatus?.cancelAtNextBillingDate
+                    ? "Cancellation scheduled"
+                    : billingCancelLoading
+                      ? "Cancelling..."
+                      : "Cancel subscription"}
+                </button>
               </div>
               <div className="muted">
                 Seats used: {billingStatus?.seatsUsed ?? "—"} /{" "}
