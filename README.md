@@ -113,6 +113,11 @@ Bulk paste format (one per line):
 - `GET /api/reports/overview?from&to` summary + monthly series
 - `GET /api/reports/export.xlsx?from&to` export Excel
 - `GET /api/reports/export.pdf?from&to` export PDF
+- `GET /api/financial-reports/dashboard?from&to&groupBy=month|quarter|year` transaction-based dashboard
+- `GET /api/financial-reports/income-statement?from&to&groupBy=month|quarter|year` P&L from invoices + expenses
+- `GET /api/financial-reports/balance-sheet?asAt=YYYY-MM-DD` balance sheet from payments + invoices + supplier invoices
+- `GET /api/financial-reports/cash-flow?from&to` simplified cash flow from payments + expenses
+- `GET /api/financial-reports/<report>/export.(pdf|csv|xlsx)` where `<report>` is `income-statement`, `balance-sheet`, or `cash-flow`
 
 ## Notes
 - Invoice/Quote numbers use a simple "latest + 1" approach (fine for MVP).

@@ -1,6 +1,7 @@
 const express = require("express");
 const { z } = require("zod");
 const Invoice = require("../models/Invoice");
+const Payment = require("../models/Payment");
 const {
   ensureObjectId,
   nextNumber,
@@ -643,6 +644,27 @@ router.post("/", async (req, res) => {
       }
 
       await invoice.save({ session });
+      if (amountPaid > 0) {
+        await Payment.create(
+          [
+            {
+              companyId: req.user.companyId,
+              workspaceId: String(req.user.companyId),
+              userId: req.user._id,
+              deviceId: String(deviceId),
+              invoiceId: invoice._id,
+              invoiceNo: invoice.invoiceNo,
+              customerName: invoice.customerName,
+              date: issueDate,
+              amount: amountPaid,
+              note: "Auto payment from invoice created as paid",
+              deletedAt: null,
+              version: 1
+            }
+          ],
+          { session }
+        );
+      }
       await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
       await session.commitTransaction();
       session.endSession();
@@ -695,6 +717,8 @@ router.put("/:id", async (req, res) => {
       invoice.workspaceId = invoice.workspaceId || String(req.user.companyId);
       invoice.userId = invoice.userId || req.user._id;
       invoice.deviceId = invoice.deviceId || String(req.headers["x-device-id"] || "server");
+      let paymentDelta = 0;
+      let paymentEventDate = new Date();
 
       if (parsed.projectId !== undefined && parsed.projectId) {
         ensureObjectId(parsed.projectId, "project id");
@@ -754,6 +778,7 @@ router.put("/:id", async (req, res) => {
       if (parsed.status !== undefined) {
         invoice.status = parsed.status;
         if (parsed.status === "paid") {
+          paymentDelta = Number(invoice.total || 0) - Number(previousInvoice.amountPaid || 0);
           invoice.amountPaid = invoice.total;
           invoice.balance = 0;
         }
@@ -779,6 +804,27 @@ router.put("/:id", async (req, res) => {
       }
 
       await invoice.save({ session });
+      if (paymentDelta !== 0) {
+        await Payment.create(
+          [
+            {
+              companyId: req.user.companyId,
+              workspaceId: invoice.workspaceId || String(req.user.companyId),
+              userId: invoice.userId || req.user._id,
+              deviceId: invoice.deviceId || String(req.headers["x-device-id"] || "server"),
+              invoiceId: invoice._id,
+              invoiceNo: invoice.invoiceNo,
+              customerName: invoice.customerName,
+              date: paymentEventDate,
+              amount: paymentDelta,
+              note: "Auto payment from invoice marked as paid",
+              deletedAt: null,
+              version: 1
+            }
+          ],
+          { session }
+        );
+      }
       await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
       await session.commitTransaction();
       session.endSession();
@@ -796,7 +842,11 @@ router.put("/:id", async (req, res) => {
 
 // Simple payment update (MVP): set amountPaid, auto status
 const PaymentUpdateSchema = z.object({
-  amountPaid: z.number().nonnegative()
+  amountPaid: z.number().nonnegative(),
+  paymentDate: z.string().optional(),
+  method: z.string().optional(),
+  reference: z.string().optional(),
+  note: z.string().optional()
 });
 
 router.post("/:id/payment", async (req, res) => {
@@ -806,6 +856,7 @@ router.post("/:id/payment", async (req, res) => {
     const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
+    const previousPaid = Number(invoice.amountPaid || 0);
     invoice.amountPaid = parsed.amountPaid;
     invoice.balance = Math.max(0, invoice.total - invoice.amountPaid);
 
@@ -814,6 +865,28 @@ router.post("/:id/payment", async (req, res) => {
     else invoice.status = "partial";
 
     await invoice.save();
+
+    const delta = Number(invoice.amountPaid || 0) - previousPaid;
+    if (delta !== 0) {
+      const deviceId = String(req.headers["x-device-id"] || invoice.deviceId || "server");
+      const paymentDate = parsed.paymentDate ? parseDateOrThrow(parsed.paymentDate, "paymentDate") : new Date();
+      await Payment.create({
+        companyId: req.user.companyId,
+        workspaceId: invoice.workspaceId || String(req.user.companyId),
+        userId: req.user._id,
+        deviceId,
+        invoiceId: invoice._id,
+        invoiceNo: invoice.invoiceNo,
+        customerName: invoice.customerName,
+        date: paymentDate,
+        amount: delta,
+        method: parsed.method,
+        reference: parsed.reference,
+        note: parsed.note || "Payment update",
+        deletedAt: null,
+        version: 1
+      });
+    }
     res.json({ invoice });
   } catch (err) {
     return handleRouteError(res, err, "Failed to update payment");

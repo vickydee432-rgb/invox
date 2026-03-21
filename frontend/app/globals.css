@@ -601,6 +601,90 @@ a {
   gap: 16px;
 }
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.report-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tab-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.tab.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.export-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.chart-panel .panel-title {
+  font-size: 16px;
+  margin-bottom: 10px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.chart {
+  width: 100%;
+}
+
+.chart-legend {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -1800,6 +1884,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
   .grid-two {
     grid-template-columns: 1fr;
   }
@@ -1817,6 +1905,10 @@ a {
   }
 
   .dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-grid {
     grid-template-columns: 1fr;
   }
 

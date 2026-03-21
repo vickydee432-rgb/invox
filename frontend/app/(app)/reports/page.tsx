@@ -734,8 +734,15 @@ export default function ReportsPage() {
 
       <section className="panel">
         <div className="panel-title">Financial Reports</div>
+        <div className="dashboard-toolbar-actions" style={{ marginBottom: 12 }}>
+          <a className="button secondary" href="/reports/financial">
+            Open financial reporting (Invoices/Payments/Expenses)
+          </a>
+        </div>
         {!workspace?.enabledModules?.includes("accounting") ? (
-          <div className="muted">Enable Accounting in Settings to unlock financial statements.</div>
+          <div className="muted">
+            Accounting-based statements (chart of accounts, journals) are disabled. Use the financial reporting page above for transaction-based reports.
+          </div>
         ) : (
           <>
             <div className="grid-2">

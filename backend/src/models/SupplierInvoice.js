@@ -34,5 +34,7 @@ const SupplierInvoiceSchema = new mongoose.Schema(
 );
 
 SupplierInvoiceSchema.index({ companyId: 1, number: 1 }, { unique: true });
+SupplierInvoiceSchema.index({ companyId: 1, status: 1, dueDate: 1 });
+SupplierInvoiceSchema.index({ companyId: 1, date: -1 });
 
 module.exports = mongoose.model("SupplierInvoice", SupplierInvoiceSchema);

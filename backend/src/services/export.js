@@ -307,11 +307,134 @@ function buildExpensesWorkbook(expenses, options = {}) {
   return buildDetailedExpensesWorkbook(expenses, options);
 }
 
+function buildFinancialIncomeStatementWorkbook(report) {
+  const workbook = new ExcelJS.Workbook();
+  const summarySheet = workbook.addWorksheet("Summary");
+  summarySheet.columns = [
+    { header: "Metric", key: "metric", width: 26 },
+    { header: "Value", key: "value", width: 22 }
+  ];
+
+  summarySheet.addRow({ metric: "From", value: report?.range?.from || "" });
+  summarySheet.addRow({ metric: "To", value: report?.range?.to || "" });
+  summarySheet.addRow({ metric: "Total Revenue", value: report?.totals?.totalRevenue || 0 });
+  summarySheet.addRow({ metric: "Total Expenses", value: report?.totals?.totalExpenses || 0 });
+  summarySheet.addRow({ metric: "Net Profit", value: report?.totals?.netProfit || 0 });
+  if (report?.comparison) {
+    summarySheet.addRow({ metric: "Prev Revenue", value: report.comparison.previousTotals?.totalRevenue || 0 });
+    summarySheet.addRow({ metric: "Prev Expenses", value: report.comparison.previousTotals?.totalExpenses || 0 });
+    summarySheet.addRow({ metric: "Prev Net Profit", value: report.comparison.previousTotals?.netProfit || 0 });
+    summarySheet.addRow({ metric: "Δ Revenue", value: report.comparison.deltas?.revenue || 0 });
+    summarySheet.addRow({ metric: "Δ Expenses", value: report.comparison.deltas?.expenses || 0 });
+    summarySheet.addRow({ metric: "Δ Net Profit", value: report.comparison.deltas?.netProfit || 0 });
+  }
+
+  const revenueSheet = workbook.addWorksheet("Revenue (Invoices)");
+  revenueSheet.columns = [
+    { header: "Invoice No", key: "invoiceNo", width: 16 },
+    { header: "Customer", key: "customerName", width: 24 },
+    { header: "Issue Date", key: "issueDate", width: 14 },
+    { header: "Status", key: "status", width: 12 },
+    { header: "Total", key: "total", width: 14 },
+    { header: "Paid", key: "amountPaid", width: 14 },
+    { header: "Balance", key: "balance", width: 14 }
+  ];
+  (report?.breakdown?.revenueByInvoice || []).forEach((inv) => {
+    revenueSheet.addRow({
+      invoiceNo: inv.invoiceNo || "",
+      customerName: inv.customerName || "",
+      issueDate: inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "",
+      status: inv.status || "",
+      total: inv.total || 0,
+      amountPaid: inv.amountPaid || 0,
+      balance: inv.balance || 0
+    });
+  });
+
+  const expenseSheet = workbook.addWorksheet("Expenses (Categories)");
+  expenseSheet.columns = [
+    { header: "Category", key: "category", width: 26 },
+    { header: "Total", key: "total", width: 18 },
+    { header: "Count", key: "count", width: 10 }
+  ];
+  (report?.breakdown?.expensesByCategory || []).forEach((row) => {
+    expenseSheet.addRow({ category: row.category || "Uncategorized", total: row.total || 0, count: row.count || 0 });
+  });
+
+  const seriesSheet = workbook.addWorksheet("Series");
+  seriesSheet.columns = [
+    { header: "Period", key: "period", width: 12 },
+    { header: "Revenue", key: "revenue", width: 14 },
+    { header: "Expenses", key: "expenses", width: 14 },
+    { header: "Profit", key: "profit", width: 14 }
+  ];
+  (report?.series || []).forEach((row) => {
+    seriesSheet.addRow({
+      period: row.period,
+      revenue: row.revenue || 0,
+      expenses: row.expenses || 0,
+      profit: row.profit || 0
+    });
+  });
+
+  return workbook;
+}
+
+function buildFinancialBalanceSheetWorkbook(report) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Balance Sheet");
+  sheet.columns = [
+    { header: "Section", key: "section", width: 18 },
+    { header: "Item", key: "item", width: 26 },
+    { header: "Amount", key: "amount", width: 18 }
+  ];
+
+  sheet.addRow({ section: "Meta", item: "As At", amount: report?.asAt || "" });
+  sheet.addRow({});
+  sheet.addRow({ section: "Assets", item: "Cash", amount: report?.assets?.cash || 0 });
+  sheet.addRow({ section: "Assets", item: "Accounts Receivable", amount: report?.assets?.accountsReceivable || 0 });
+  sheet.addRow({ section: "Assets", item: "Total Assets", amount: report?.assets?.total || 0 });
+  sheet.addRow({});
+  sheet.addRow({ section: "Liabilities", item: "Obligations", amount: report?.liabilities?.obligations || 0 });
+  sheet.addRow({ section: "Liabilities", item: "Total Liabilities", amount: report?.liabilities?.total || 0 });
+  sheet.addRow({});
+  sheet.addRow({ section: "Equity", item: "Owner Equity", amount: report?.equity?.ownerEquity || 0 });
+  sheet.addRow({ section: "Equity", item: "Retained Earnings", amount: report?.equity?.retainedEarnings || 0 });
+  sheet.addRow({ section: "Equity", item: "Total Equity", amount: report?.equity?.total || 0 });
+  sheet.addRow({});
+  sheet.addRow({ section: "Meta", item: "Balanced", amount: report?.balanced ? "true" : "false" });
+  sheet.addRow({ section: "Meta", item: "Balance Diff", amount: report?.balanceDiff || 0 });
+
+  return workbook;
+}
+
+function buildFinancialCashFlowWorkbook(report) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Cash Flow");
+  sheet.columns = [
+    { header: "Metric", key: "metric", width: 24 },
+    { header: "Value", key: "value", width: 22 }
+  ];
+  sheet.addRow({ metric: "From", value: report?.range?.from || "" });
+  sheet.addRow({ metric: "To", value: report?.range?.to || "" });
+  sheet.addRow({});
+  sheet.addRow({ metric: "Cash In", value: report?.cashIn || 0 });
+  sheet.addRow({ metric: "Cash Out", value: report?.cashOut || 0 });
+  sheet.addRow({ metric: "Net Cash Flow", value: report?.netCashFlow || 0 });
+  sheet.addRow({ metric: "Opening Cash", value: report?.openingCash || 0 });
+  sheet.addRow({ metric: "Closing Cash", value: report?.closingCash || 0 });
+  sheet.addRow({ metric: "Cash Source", value: report?.cashSource || "" });
+  return workbook;
+}
+
 module.exports = {
   buildQuotesWorkbook,
   buildInvoicesWorkbook,
   buildSalesWorkbook,
   buildReportsWorkbook,
   buildProjectExpensesWorkbook,
-  buildExpensesWorkbook
+  buildExpensesWorkbook,
+  buildFinancialIncomeStatementWorkbook,
+  buildFinancialBalanceSheetWorkbook,
+  buildFinancialCashFlowWorkbook
 };

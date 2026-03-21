@@ -84,6 +84,8 @@ const InvoiceSchema = new mongoose.Schema(
 );
 
 InvoiceSchema.index({ companyId: 1, invoiceNo: 1 }, { unique: true });
+InvoiceSchema.index({ companyId: 1, workspaceId: 1, issueDate: -1 });
+InvoiceSchema.index({ companyId: 1, workspaceId: 1, status: 1, issueDate: -1 });
 InvoiceSchema.index({ projectId: 1, issueDate: -1 });
 InvoiceSchema.index({ dueDate: 1 });
 
