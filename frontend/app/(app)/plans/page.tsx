@@ -182,7 +182,7 @@ export default function PlansPage() {
         <section className="plans-cards">
           <article className="plan-card">
             <div className="plan-title">Starter</div>
-            <div className="plan-subtitle">For small teams getting started</div>
+            <div className="plan-subtitle">For solo founders getting started</div>
             <div className="plan-price">
               {pricing.starter[billingCycle].price} <span>{pricing.starter[billingCycle].note}</span>
             </div>
@@ -196,16 +196,16 @@ export default function PlansPage() {
               {subscribingPlan === `starter_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
-              <li>Invoices & quotes</li>
-              <li>Basic expense tracking</li>
+              <li>Create invoices & quotes</li>
+              <li>Track expenses (basic)</li>
               <li>PDF exports</li>
-              <li>Email support</li>
+              <li>1 seat included</li>
             </ul>
           </article>
 
           <article className="plan-card">
             <div className="plan-title">Pro</div>
-            <div className="plan-subtitle">For fast-moving teams</div>
+            <div className="plan-subtitle">For small teams needing reporting</div>
             <div className="plan-price">
               {pricing.pro[billingCycle].price} <span>{pricing.pro[billingCycle].note}</span>
             </div>
@@ -219,10 +219,11 @@ export default function PlansPage() {
               {subscribingPlan === `pro_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
+              <li>Everything in Starter</li>
               <li>Unlimited invoices & quotes</li>
               <li>Project tracking + exports</li>
-              <li>PDF & Excel reporting</li>
-              <li>Email support</li>
+              <li>PDF + Excel exports</li>
+              <li>Up to 5 seats</li>
             </ul>
           </article>
 
@@ -244,9 +245,10 @@ export default function PlansPage() {
             </button>
             <ul className="plan-features">
               <li>Everything in Pro</li>
-              <li>ZRA Smart Invoice sync</li>
-              <li>Advanced reports + trends</li>
-              <li>Priority support</li>
+              <li>ZRA Smart invoice sync</li>
+              <li>Advanced financial reports + trends</li>
+              <li>Audit logs</li>
+              <li>Up to 15 seats</li>
             </ul>
           </article>
         </section>
