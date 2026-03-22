@@ -245,7 +245,7 @@ export default function PlansPage() {
             </button>
             <ul className="plan-features">
               <li>Everything in Pro</li>
-              <li>ZRA Smart invoice sync</li>
+              <li>ZRA Smart invoice sync (BusinessPlus only)</li>
               <li>Advanced financial reports + trends</li>
               <li>Audit logs</li>
               <li>Up to 15 seats</li>
