@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f05d23" />
+    <title>Invox • Offline</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0c;
+        --panel: #121214;
+        --text: #f4f1ea;
+        --muted: #a7a3a0;
+        --accent: #f05d23;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(1200px 600px at 50% 20%, rgba(240, 93, 35, 0.12), transparent 55%), var(--bg);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(520px, 100%);
+        background: rgba(18, 18, 20, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 22px 20px;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 6px rgba(240, 93, 35, 0.14);
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 6px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      button,
+      a {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button.primary {
+        background: rgba(240, 93, 35, 0.16);
+        border-color: rgba(240, 93, 35, 0.45);
+      }
+      button:hover,
+      a:hover {
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+      .hint {
+        margin-top: 14px;
+        font-size: 12px;
+        color: rgba(167, 163, 160, 0.9);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" role="main" aria-label="Offline">
+      <div class="badge"><span class="dot" aria-hidden="true"></span> Offline</div>
+      <h1>You’re offline</h1>
+      <p>Reconnect to the internet and try again. Some pages may not be available without a connection.</p>
+      <div class="actions">
+        <button class="primary" type="button" onclick="location.reload()">Retry</button>
+        <a href="/dashboard">Go to dashboard</a>
+      </div>
+      <div class="hint">If this keeps happening while online, refresh once to update the service worker.</div>
+    </main>
+  </body>
+</html>

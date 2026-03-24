@@ -363,7 +363,7 @@ export default function DashboardPage() {
         subtitle: workspace?.labels?.invoiceSingular || "Invoice",
         amount: inv.total,
         occurredAt: new Date(inv.issueDate),
-        href: `/invoices/${inv._id}`
+        href: `/invoices/${inv._id}/receipt`
       });
     }
     for (const exp of recentExpenses) {
@@ -374,7 +374,7 @@ export default function DashboardPage() {
         subtitle: "Expense",
         amount: exp.amount,
         occurredAt: new Date(exp.date),
-        href: `/expenses/${exp._id}`
+        href: `/expenses/${exp._id}/edit`
       });
     }
     for (const sale of recentSales) {
@@ -385,7 +385,7 @@ export default function DashboardPage() {
         subtitle: "Sale",
         amount: sale.total,
         occurredAt: new Date(sale.issueDate),
-        href: `/sales/${sale._id}`
+        href: `/sales/${sale._id}/edit`
       });
     }
     for (const move of recentMovements) {

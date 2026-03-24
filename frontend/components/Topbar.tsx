@@ -168,7 +168,7 @@ export default function Topbar() {
                   key: `invoice:${inv._id}`,
                   title: `${inv.customerName} · ${inv.invoiceNo}`,
                   subtitle: new Date(inv.issueDate).toLocaleDateString(),
-                  href: `/invoices/${inv._id}`
+                  href: `/invoices/${inv._id}/receipt`
                 }));
                 return items.length ? { label: workspace?.labels?.invoices || "Invoices", items } : null;
               })
@@ -186,7 +186,7 @@ export default function Topbar() {
                   key: `expense:${exp._id}`,
                   title: exp.title,
                   subtitle: `${new Date(exp.date).toLocaleDateString()} · ${Number(exp.amount || 0).toFixed(2)}`,
-                  href: `/expenses/${exp._id}`
+                  href: `/expenses/${exp._id}/edit`
                 }));
                 return items.length ? { label: "Expenses", items } : null;
               })
@@ -204,7 +204,7 @@ export default function Topbar() {
                   key: `sale:${sale._id}`,
                   title: `${sale.customerName || "Sale"} · ${sale.saleNo}`,
                   subtitle: new Date(sale.issueDate).toLocaleDateString(),
-                  href: `/sales/${sale._id}`
+                  href: `/sales/${sale._id}/edit`
                 }));
                 return items.length ? { label: "Sales", items } : null;
               })

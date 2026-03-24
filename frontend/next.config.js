@@ -33,6 +33,15 @@ const nextConfig = {
         ]
       }
     ];
+  },
+  async redirects() {
+    const mongoId = "([0-9a-fA-F]{24})";
+    return [
+      { source: `/expenses/:id${mongoId}`, destination: "/expenses/:id/edit", permanent: false },
+      { source: `/sales/:id${mongoId}`, destination: "/sales/:id/edit", permanent: false },
+      { source: `/quotes/:id${mongoId}`, destination: "/quotes/:id/edit", permanent: false },
+      { source: `/invoices/:id${mongoId}`, destination: "/invoices/:id/receipt", permanent: false }
+    ];
   }
 };
 
