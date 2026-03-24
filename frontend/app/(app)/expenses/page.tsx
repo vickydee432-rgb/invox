@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { BaseRecord, getDb } from "@/lib/db";
 import { getDeviceId } from "@/lib/device";
+import { normalizeRecordId } from "@/lib/ids";
 import { enqueueChange } from "@/lib/sync";
 import { getSyncContext } from "@/lib/syncContext";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
@@ -58,12 +59,15 @@ export default function ExpensesPage() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [seeded, setSeeded] = useState(false);
   const seedAttemptedRef = useRef(false);
+  const repairAttemptedRef = useRef(false);
 
   const mapServerExpense = (expense: any, context: { companyId: string; workspaceId: string; userId: string }) => {
     const deviceId = getDeviceId();
+    const serverId = normalizeRecordId(expense?._id ?? expense?.id ?? expense?.serverId);
+    if (!serverId) return null;
     return {
-      id: expense._id,
-      serverId: expense._id,
+      id: serverId,
+      serverId,
       companyId: context.companyId,
       workspaceId: context.workspaceId,
       userId: context.userId,
@@ -86,6 +90,46 @@ export default function ExpensesPage() {
     };
   };
 
+  const repairLocalExpenseIds = async (
+    db: ReturnType<typeof getDb>,
+    context: { companyId: string; workspaceId: string; userId: string }
+  ) => {
+    if (repairAttemptedRef.current) return;
+    repairAttemptedRef.current = true;
+
+    const candidates = (await db.expenses
+      .where("companyId")
+      .equals(context.companyId)
+      .and((exp: any) => exp.workspaceId === context.workspaceId)
+      .toArray()) as any[];
+
+    const updates: any[] = [];
+    const deletes: any[] = [];
+
+    for (const exp of candidates) {
+      const nextId = normalizeRecordId(exp?.id) || normalizeRecordId(exp?.serverId);
+      if (nextId && typeof exp?.id === "string" && exp.id === nextId) {
+        const nextServerId = exp?.serverId ? normalizeRecordId(exp.serverId) : null;
+        if (nextServerId && nextServerId !== exp.serverId) {
+          updates.push({ ...exp, serverId: nextServerId });
+        }
+        continue;
+      }
+
+      if (!nextId) continue;
+
+      const nextServerId = normalizeRecordId(exp?.serverId) || null;
+      const migrated = { ...exp, id: nextId, serverId: nextServerId };
+      updates.push(migrated);
+      if (exp?.id !== undefined && exp?.id !== null) deletes.push(exp.id);
+    }
+
+    if (updates.length > 0) {
+      await db.expenses.bulkPut(updates);
+      await db.expenses.bulkDelete(deletes);
+    }
+  };
+
   const loadExpenses = async (
     targetPage = page,
     keyword = query,
@@ -106,6 +150,8 @@ export default function ExpensesPage() {
         return;
       }
       const db = getDb(context.companyId, getDeviceId());
+
+      await repairLocalExpenseIds(db, context);
       const queryLocal = async (): Promise<ExpenseRecord[]> => {
         let items = (await db.expenses
           .where("companyId")
@@ -155,7 +201,8 @@ export default function ExpensesPage() {
         if (toValue) params.set("to", toValue);
         const data = await apiFetch<{ expenses: any[] }>(`/expenses?${params.toString()}`);
         if (data.expenses?.length) {
-          await db.expenses.bulkPut(data.expenses.map((exp) => mapServerExpense(exp, context)));
+          const mapped = data.expenses.map((exp) => mapServerExpense(exp, context)).filter(Boolean);
+          if (mapped.length > 0) await db.expenses.bulkPut(mapped as any[]);
         }
         setSeeded(true);
         items = await queryLocal();

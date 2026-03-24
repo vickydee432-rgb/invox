@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { BaseRecord, getDb } from "@/lib/db";
 import { getDeviceId } from "@/lib/device";
+import { isProbablyMongoObjectId, normalizeRecordId } from "@/lib/ids";
 import { enqueueChange } from "@/lib/sync";
 import { getSyncContext } from "@/lib/syncContext";
 
@@ -26,7 +27,7 @@ const toDateInputValue = (value?: string) => {
 export default function EditExpensePage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const rawId: any = params?.id;
-  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+  const id = normalizeRecordId(Array.isArray(rawId) ? rawId[0] : rawId);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +43,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     setLoading(true);
     const load = async () => {
       try {
-        if (!id || typeof id !== "string") {
+        if (!id) {
           setError("Invalid expense id.");
           return;
         }
@@ -54,27 +55,42 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
         const db = getDb(context.companyId, getDeviceId());
         let local = (await db.expenses.get(id)) as Expense | undefined;
         if (!local && typeof navigator !== "undefined" && navigator.onLine) {
-          const data = await apiFetch<{ expense: any }>(`/expenses/${id}`);
-          if (data.expense) {
-            const mapped = {
-              id: data.expense._id,
-              serverId: data.expense._id,
-              companyId: context.companyId,
-              workspaceId: context.workspaceId,
-              userId: context.userId,
-              deviceId: getDeviceId(),
-              createdAt: data.expense.createdAt || new Date().toISOString(),
-              updatedAt: data.expense.updatedAt || new Date().toISOString(),
-              deletedAt: data.expense.deletedAt || null,
-              version: data.expense.version || 1,
-              title: data.expense.title,
-              category: data.expense.category,
-              amount: data.expense.amount,
-              date: data.expense.date,
-              projectLabel: data.expense.projectLabel || ""
-            };
-            await db.expenses.put(mapped);
-            local = mapped;
+          let serverLookupId: string | null = isProbablyMongoObjectId(id) ? id : null;
+          if (!serverLookupId) {
+            const map = await db.id_map
+              .where("companyId")
+              .equals(context.companyId)
+              .and((row: any) => row.workspaceId === context.workspaceId && row.entityType === "expense" && row.localId === id)
+              .first();
+            if (map?.serverId && isProbablyMongoObjectId(map.serverId)) {
+              serverLookupId = map.serverId;
+            }
+          }
+
+          if (serverLookupId) {
+            const data = await apiFetch<{ expense: any }>(`/expenses/${serverLookupId}`);
+            const serverExpenseId = normalizeRecordId(data.expense?._id ?? data.expense?.id);
+            if (data.expense && serverExpenseId) {
+              const mapped = {
+                id,
+                serverId: serverExpenseId,
+                companyId: context.companyId,
+                workspaceId: context.workspaceId,
+                userId: context.userId,
+                deviceId: getDeviceId(),
+                createdAt: data.expense.createdAt || new Date().toISOString(),
+                updatedAt: data.expense.updatedAt || new Date().toISOString(),
+                deletedAt: data.expense.deletedAt || null,
+                version: data.expense.version || 1,
+                title: data.expense.title,
+                category: data.expense.category,
+                amount: data.expense.amount,
+                date: data.expense.date,
+                projectLabel: data.expense.projectLabel || ""
+              };
+              await db.expenses.put(mapped);
+              local = mapped;
+            }
           }
         }
         if (!local) {
@@ -105,7 +121,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     setSaving(true);
     setError("");
     try {
-      if (!id || typeof id !== "string") {
+      if (!id) {
         setError("Invalid expense id.");
         setSaving(false);
         return;
@@ -174,7 +190,7 @@ export default function EditExpensePage({ params }: { params: { id: string } }) 
     const ok = window.confirm("Delete this expense? This cannot be undone.");
     if (!ok) return;
     try {
-      if (!id || typeof id !== "string") {
+      if (!id) {
         setError("Invalid expense id.");
         return;
       }

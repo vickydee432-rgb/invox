@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getDb } from "@/lib/db";
 import { getDeviceId } from "@/lib/device";
+import { normalizeRecordId } from "@/lib/ids";
 import { enqueueChange } from "@/lib/sync";
 import { getSyncContext } from "@/lib/syncContext";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
@@ -84,30 +85,36 @@ export default function NewExpensePage() {
           params.set("limit", "500");
           const seed = await apiFetch<{ expenses: any[] }>(`/expenses?${params.toString()}`);
           if (seed.expenses?.length) {
-            const mapped = seed.expenses.map((expense) => ({
-              id: expense._id,
-              serverId: expense._id,
-              companyId: context.companyId,
-              workspaceId: context.workspaceId,
-              userId: context.userId,
-              deviceId,
-              createdAt: expense.createdAt || new Date().toISOString(),
-              updatedAt: expense.updatedAt || new Date().toISOString(),
-              deletedAt: expense.deletedAt || null,
-              version: expense.version || 1,
-              title: expense.title,
-              category: expense.category,
-              amount: expense.amount,
-              date: expense.date,
-              projectId: expense.projectId || null,
-              projectLabel: expense.projectLabel || undefined,
-              supplier: expense.supplier,
-              paidTo: expense.paidTo,
-              paymentMethod: expense.paymentMethod,
-              note: expense.note,
-              receipts: expense.receipts || []
-            }));
-            await db.expenses.bulkPut(mapped);
+            const mapped = seed.expenses
+              .map((expense) => {
+                const serverId = normalizeRecordId(expense?._id ?? expense?.id ?? expense?.serverId);
+                if (!serverId) return null;
+                return {
+                  id: serverId,
+                  serverId,
+                  companyId: context.companyId,
+                  workspaceId: context.workspaceId,
+                  userId: context.userId,
+                  deviceId,
+                  createdAt: expense.createdAt || new Date().toISOString(),
+                  updatedAt: expense.updatedAt || new Date().toISOString(),
+                  deletedAt: expense.deletedAt || null,
+                  version: expense.version || 1,
+                  title: expense.title,
+                  category: expense.category,
+                  amount: expense.amount,
+                  date: expense.date,
+                  projectId: expense.projectId || null,
+                  projectLabel: expense.projectLabel || undefined,
+                  supplier: expense.supplier,
+                  paidTo: expense.paidTo,
+                  paymentMethod: expense.paymentMethod,
+                  note: expense.note,
+                  receipts: expense.receipts || []
+                };
+              })
+              .filter(Boolean);
+            if (mapped.length > 0) await db.expenses.bulkPut(mapped as any[]);
           }
         }
       } catch (err) {
