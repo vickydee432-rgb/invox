@@ -911,6 +911,11 @@ async function resolveZraConnection(companyId, branchId) {
 router.post("/:id/zra/submit", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (company.subscriptionPlan !== "businessplus") {
+      return res.status(403).json({ error: "ZRA integration is available on BusinessPlus plan." });
+    }
     const parsed = ZraSubmitSchema.parse(req.body || {});
     const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
@@ -941,6 +946,11 @@ router.post("/:id/zra/submit", requireTaxEnabled(), async (req, res) => {
 router.post("/:id/zra/cancel", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (company.subscriptionPlan !== "businessplus") {
+      return res.status(403).json({ error: "ZRA integration is available on BusinessPlus plan." });
+    }
     const parsed = ZraSubmitSchema.parse(req.body || {});
     const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
@@ -966,6 +976,11 @@ router.post("/:id/zra/cancel", requireTaxEnabled(), async (req, res) => {
 router.post("/:id/zra/credit-note", requireTaxEnabled(), async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (company.subscriptionPlan !== "businessplus") {
+      return res.status(403).json({ error: "ZRA integration is available on BusinessPlus plan." });
+    }
     const parsed = ZraSubmitSchema.parse(req.body || {});
     const invoice = await Invoice.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });

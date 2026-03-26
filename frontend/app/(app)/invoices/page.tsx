@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { normalizePlanKey, PlanKey } from "@/lib/plans";
 
 type InvoiceItem = {
   productId?: string;
@@ -101,6 +102,7 @@ export default function InvoicesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [planKey, setPlanKey] = useState<PlanKey>("starter");
 
   const loadInvoices = async (targetPage = page) => {
     setLoading(true);
@@ -163,6 +165,7 @@ export default function InvoicesPage() {
     apiFetch<{ company: any }>("/api/company/me")
       .then((data) => {
         if (!active) return;
+        setPlanKey(normalizePlanKey(data.company?.subscriptionPlan));
         setWorkspace(buildWorkspace(data.company));
       })
       .catch(() => {});
@@ -314,11 +317,21 @@ export default function InvoicesPage() {
 
   const handleSubmitZra = async (invoice: Invoice) => {
     try {
+      if (planKey !== "businessplus") {
+        setError("ZRA integration is available on BusinessPlus plan.");
+        return;
+      }
       await apiFetch(`/api/invoices/${invoice._id}/zra/submit`, { method: "POST" });
       await loadInvoices(page);
     } catch (err: any) {
       setError(err.message || "Failed to submit to ZRA");
     }
+  };
+
+  const renderSourceLabel = (invoice: Invoice) => {
+    const src = invoice.source || "APP";
+    if (planKey !== "businessplus" && src === "ZRA") return "External";
+    return src;
   };
 
   const renderInvoiceActions = (invoice: Invoice) => (
@@ -331,7 +344,7 @@ export default function InvoicesPage() {
           Print
         </button>
       ) : null}
-      {workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
+      {planKey === "businessplus" && workspace?.taxEnabled !== false && invoice.source !== "ZRA" && !invoice.lockedAt ? (
         <button className="button secondary" type="button" onClick={() => handleSubmitZra(invoice)}>
           Submit ZRA
         </button>
@@ -661,7 +674,7 @@ export default function InvoicesPage() {
                 <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
                   <option value="">All</option>
                   <option value="APP">App</option>
-                  <option value="ZRA">ZRA</option>
+                  {planKey === "businessplus" ? <option value="ZRA">ZRA</option> : null}
                 </select>
               </label>
               <button className="button secondary" type="button" onClick={handleExport}>
@@ -692,7 +705,7 @@ export default function InvoicesPage() {
                     <td>{invoice.customerName}</td>
                     <td>{invoice.invoiceType || "sale"}</td>
                     <td>{invoice.branchName || "-"}</td>
-                    <td>{invoice.source || "APP"}</td>
+                    <td>{renderSourceLabel(invoice)}</td>
                     <td>{formatMoney(invoice.total)}</td>
                     <td>{formatMoney(invoice.amountPaid)}</td>
                     <td>{formatMoney(invoice.balance)}</td>

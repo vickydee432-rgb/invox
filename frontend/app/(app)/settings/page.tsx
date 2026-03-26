@@ -25,7 +25,7 @@ const MODULE_OPTIONS = [
 
 const BUSINESS_TYPES: { value: WorkspaceConfig["businessType"]; label: string; note: string }[] = [
   { value: "retail", label: "Retail", note: "Sales receipts, inventory, quick expenses." },
-  { value: "construction", label: "Construction", note: "Quotes → invoices, projects, VAT/ZRA." },
+  { value: "construction", label: "Construction", note: "Quotes → invoices, projects, VAT (optional)." },
   { value: "agency", label: "Agency", note: "Projects + client billing with quotes." },
   { value: "services", label: "Services", note: "Invoices + expenses, no projects." },
   { value: "freelance", label: "Freelance", note: "Simple invoicing and expenses." }
@@ -533,12 +533,13 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (taxEnabled) {
+    const planKey = normalizePlanKey(billingStatus?.plan);
+    if (taxEnabled && planKey === "businessplus") {
       loadZraStatus();
     } else {
       setZraConnections([]);
     }
-  }, [taxEnabled]);
+  }, [taxEnabled, billingStatus?.plan]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1695,7 +1696,7 @@ export default function SettingsPage() {
         {mfaError ? <div className="muted" style={{ marginTop: 12 }}>{mfaError}</div> : null}
       </section>
 
-      {taxEnabled ? (
+      {taxEnabled && planKey === "businessplus" ? (
         <section className="panel">
           <div className="panel-title">Integrations · ZRA Smart Invoice</div>
           <form onSubmit={handleZraConnect} style={{ display: "grid", gap: 16 }}>
