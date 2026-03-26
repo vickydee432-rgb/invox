@@ -4,10 +4,26 @@ const AuditLog = require("../models/AuditLog");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { requirePermission } = require("../middleware/permissions");
+const Company = require("../models/Company");
 const { parseOptionalDate, parseLimit, parsePage, handleRouteError } = require("./_helpers");
 
 const router = express.Router();
-router.use(requireAuth, requireSubscription, requirePermission("audit:read"));
+router.use(requireAuth, requireSubscription);
+
+router.use(async (req, res, next) => {
+  try {
+    const company = await Company.findById(req.user.companyId).lean();
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (company.subscriptionPlan !== "businessplus") {
+      return res.status(403).json({ error: "Audit logs are available on BusinessPlus plan." });
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.use(requirePermission("audit:read"));
 
 const QuerySchema = z.object({
   from: z.string().optional(),
@@ -60,4 +76,3 @@ router.get("/", async (req, res) => {
 });
 
 module.exports = router;
-

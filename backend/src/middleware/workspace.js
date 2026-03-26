@@ -1,5 +1,6 @@
 const Company = require("../models/Company");
 const { buildWorkspaceDefaults } = require("../services/workspace");
+const { clampModules } = require("../services/planFeatures");
 const { hasPermission } = require("../services/permissions");
 
 async function resolveWorkspace(req) {
@@ -12,9 +13,10 @@ async function resolveWorkspace(req) {
     company.businessType === "retail" && enabledModules.includes("invoices") && !enabledModules.includes("sales")
       ? [...enabledModules, "sales"]
       : enabledModules;
+  const planModules = clampModules(normalizedModules, company.subscriptionPlan);
   const workspace = {
     businessType: company.businessType || defaults.businessType,
-    enabledModules: normalizedModules,
+    enabledModules: planModules,
     labels: { ...defaults.labels, ...(company.labels || {}) },
     taxEnabled: company.taxEnabled ?? defaults.taxEnabled,
     inventoryEnabled: company.inventoryEnabled ?? defaults.inventoryEnabled,

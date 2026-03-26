@@ -1,3 +1,5 @@
+import { clampModulesByPlan } from "./plans";
+
 export type WorkspaceConfig = {
   businessType: "retail" | "construction" | "agency" | "services" | "freelance";
   enabledModules: string[];
@@ -146,9 +148,10 @@ export function buildWorkspace(company: any): WorkspaceConfig {
     businessType === "retail" && enabledModules.includes("invoices") && !enabledModules.includes("sales")
       ? [...enabledModules, "sales"]
       : enabledModules;
+  const plannedModules = clampModulesByPlan(normalizedModules, company?.subscriptionPlan);
   return {
     businessType,
-    enabledModules: normalizedModules,
+    enabledModules: plannedModules,
     labels: { ...defaults.labels, ...(company?.labels || {}) },
     taxEnabled: company?.taxEnabled ?? defaults.taxEnabled,
     inventoryEnabled: company?.inventoryEnabled ?? defaults.inventoryEnabled,

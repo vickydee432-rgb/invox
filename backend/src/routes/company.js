@@ -5,6 +5,7 @@ const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
 const { handleRouteError } = require("./_helpers");
 const { applyWorkspace } = require("../services/workspace");
+const { clampModules, getAllowedModules, normalizePlanKey } = require("../services/planFeatures");
 const { setCompanySensitive, sanitizeCompany } = require("../services/companySensitive");
 
 const router = express.Router();
@@ -100,9 +101,13 @@ router.get("/workspace", async (req, res) => {
   try {
     const company = await Company.findById(req.user.companyId).lean();
     if (!company) return res.status(404).json({ error: "Company not found" });
+    const plan = normalizePlanKey(company.subscriptionPlan);
+    const effectiveModules = clampModules(company.enabledModules || [], plan);
     res.json({
       businessType: company.businessType,
-      enabledModules: company.enabledModules || [],
+      enabledModules: effectiveModules,
+      allowedModules: getAllowedModules(plan),
+      plan,
       labels: company.labels || {},
       taxEnabled: company.taxEnabled ?? true,
       inventoryEnabled: company.inventoryEnabled ?? false,

@@ -155,8 +155,8 @@ export default function HomePage() {
               Start free
             </Link>
             <ul className="plan-features">
-              <li>Invoices & quotes</li>
-              <li>Basic expense tracking</li>
+              <li>Invoices, quotes, sales & inventory</li>
+              <li>Expenses & purchases</li>
               <li>PDF exports</li>
             </ul>
           </article>
@@ -170,9 +170,9 @@ export default function HomePage() {
               Start free
             </Link>
             <ul className="plan-features">
-              <li>Projects & exports</li>
-              <li>PDF & Excel reporting</li>
-              <li>Email support</li>
+              <li>Projects + reports</li>
+              <li>Tax + Excel exports</li>
+              <li>Up to 5 seats</li>
             </ul>
           </article>
           <article className="plan-card featured">
@@ -187,8 +187,8 @@ export default function HomePage() {
             </Link>
             <ul className="plan-features">
               <li>ZRA smart invoice sync</li>
-              <li>Advanced reports + trends</li>
-              <li>Priority support</li>
+              <li>Accounting, banking & payroll</li>
+              <li>Audit logs</li>
             </ul>
           </article>
         </div>

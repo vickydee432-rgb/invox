@@ -196,8 +196,9 @@ export default function PlansPage() {
               {subscribingPlan === `starter_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
             </button>
             <ul className="plan-features">
-              <li>Create invoices & quotes</li>
-              <li>Track expenses (basic)</li>
+              <li>Invoices, quotes, sales & inventory</li>
+              <li>Expenses & purchases</li>
+              <li>Documents (receipts)</li>
               <li>PDF exports</li>
               <li>1 seat included</li>
             </ul>
@@ -220,8 +221,8 @@ export default function PlansPage() {
             </button>
             <ul className="plan-features">
               <li>Everything in Starter</li>
-              <li>Unlimited invoices & quotes</li>
-              <li>Project tracking + exports</li>
+              <li>Projects + reports</li>
+              <li>Tax module (VAT / Turnover)</li>
               <li>PDF + Excel exports</li>
               <li>Up to 5 seats</li>
             </ul>
@@ -246,7 +247,7 @@ export default function PlansPage() {
             <ul className="plan-features">
               <li>Everything in Pro</li>
               <li>ZRA Smart invoice sync (BusinessPlus only)</li>
-              <li>Advanced financial reports + trends</li>
+              <li>Accounting, banking & payroll</li>
               <li>Audit logs</li>
               <li>Up to 15 seats</li>
             </ul>

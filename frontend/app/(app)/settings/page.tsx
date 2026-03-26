@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { PLAN_ALLOWED_MODULES, PLAN_LABEL, minPlanForModule, normalizePlanKey } from "@/lib/plans";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
 const MODULE_OPTIONS = [
@@ -337,6 +338,8 @@ export default function SettingsPage() {
       const data = await apiFetch<{
         businessType: WorkspaceConfig["businessType"];
         enabledModules: string[];
+        allowedModules?: string[];
+        plan?: string;
         labels: Record<string, string>;
         taxEnabled: boolean;
         inventoryEnabled: boolean;
@@ -345,6 +348,7 @@ export default function SettingsPage() {
       const config = buildWorkspace({
         businessType: data.businessType,
         enabledModules: data.enabledModules,
+        subscriptionPlan: data.plan || billingStatus?.plan,
         labels: data.labels,
         taxEnabled: data.taxEnabled,
         inventoryEnabled: data.inventoryEnabled,
@@ -413,6 +417,13 @@ export default function SettingsPage() {
   useEffect(() => {
     loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    if (billingStatus?.plan) {
+      loadWorkspace();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingStatus?.plan]);
 
   useEffect(() => {
     if (enabledModules.includes("accounting")) {
@@ -677,7 +688,7 @@ export default function SettingsPage() {
   };
 
   const handleBusinessTypeChange = (nextType: WorkspaceConfig["businessType"]) => {
-    const config = buildWorkspace({ businessType: nextType });
+    const config = buildWorkspace({ businessType: nextType, subscriptionPlan: billingStatus?.plan });
     setBusinessType(config.businessType);
     setEnabledModules(config.enabledModules);
     setTaxEnabled(config.taxEnabled);
@@ -687,6 +698,13 @@ export default function SettingsPage() {
   };
 
   const toggleModule = (moduleKey: string) => {
+    const planKey = normalizePlanKey(billingStatus?.plan);
+    const allowed = new Set(PLAN_ALLOWED_MODULES[planKey]);
+    if (!allowed.has(moduleKey)) {
+      const minPlan = minPlanForModule(moduleKey);
+      setWorkspaceError(`Upgrade to ${PLAN_LABEL[minPlan]} to enable ${moduleKey}.`);
+      return;
+    }
     setEnabledModules((prev) => {
       const hasModule = prev.includes(moduleKey);
       const next = hasModule ? prev.filter((key) => key !== moduleKey) : [...prev, moduleKey];
@@ -697,6 +715,13 @@ export default function SettingsPage() {
   };
 
   const handleInventoryToggle = (checked: boolean) => {
+    const planKey = normalizePlanKey(billingStatus?.plan);
+    const allowed = new Set(PLAN_ALLOWED_MODULES[planKey]);
+    if (!allowed.has("inventory")) {
+      const minPlan = minPlanForModule("inventory");
+      setWorkspaceError(`Upgrade to ${PLAN_LABEL[minPlan]} to enable inventory.`);
+      return;
+    }
     setInventoryEnabled(checked);
     setEnabledModules((prev) => {
       const hasModule = prev.includes("inventory");
@@ -707,6 +732,13 @@ export default function SettingsPage() {
   };
 
   const handleProjectToggle = (checked: boolean) => {
+    const planKey = normalizePlanKey(billingStatus?.plan);
+    const allowed = new Set(PLAN_ALLOWED_MODULES[planKey]);
+    if (!allowed.has("projects")) {
+      const minPlan = minPlanForModule("projects");
+      setWorkspaceError(`Upgrade to ${PLAN_LABEL[minPlan]} to enable projects.`);
+      return;
+    }
     setProjectTrackingEnabled(checked);
     setEnabledModules((prev) => {
       const hasModule = prev.includes("projects");
@@ -916,6 +948,8 @@ export default function SettingsPage() {
   const canCancel = Boolean(
     billingStatus?.plan && billingStatus?.status !== "pending" && !billingStatus?.cancelAtNextBillingDate
   );
+  const planKey = normalizePlanKey(billingStatus?.plan);
+  const allowedSet = new Set(PLAN_ALLOWED_MODULES[planKey]);
 
   if (loading) {
     return (
@@ -1312,6 +1346,12 @@ export default function SettingsPage() {
             <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
               Enabled Modules
             </div>
+            <div className="muted">
+              Your plan: <strong>{PLAN_LABEL[planKey]}</strong>. Some modules require an upgrade.
+              <Link href="/plans" style={{ marginLeft: 8 }}>
+                View plans
+              </Link>
+            </div>
             <div className="grid-2">
               {MODULE_OPTIONS.map((module) => (
                 <label key={module.key} className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1319,6 +1359,12 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={enabledModules.includes(module.key)}
                     onChange={() => toggleModule(module.key)}
+                    disabled={!allowedSet.has(module.key)}
+                    title={
+                      allowedSet.has(module.key)
+                        ? ""
+                        : `Available on ${PLAN_LABEL[minPlanForModule(module.key)]} plan`
+                    }
                   />
                   {module.label}
                 </label>
