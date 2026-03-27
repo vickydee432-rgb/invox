@@ -217,6 +217,7 @@ export default function HomePage() {
         <div className="footer-links">
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>
+          <Link href="/cookies">Cookies</Link>
           <Link href="/acceptable-use">Acceptable Use</Link>
           <Link href="/billing-refund">Billing &amp; Refunds</Link>
           <Link href="/login">Login</Link>

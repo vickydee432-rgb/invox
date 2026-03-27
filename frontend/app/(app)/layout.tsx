@@ -66,6 +66,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="footer-links">
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>
+            <a href="/cookies">Cookies</a>
             <a href="/acceptable-use">Acceptable Use</a>
             <a href="/billing-refund">Billing &amp; Refunds</a>
           </div>
