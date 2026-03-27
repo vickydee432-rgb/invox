@@ -3,83 +3,88 @@ export default function PrivacyPage() {
     <section className="panel" style={{ marginTop: 24 }}>
       <div className="panel-title">Privacy Policy</div>
       <div className="muted" style={{ marginTop: 10 }}>
-        Effective date: February 21, 2026
+        Effective date: March 27, 2026
       </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 14, lineHeight: 1.6 }}>
         <p>
           This Privacy Policy explains how Invox collects, uses, and protects your information
-          when you use our service.
+          when you use our Service.
         </p>
 
         <div>
           <strong>1. Information We Collect</strong>
           <p>
-            We collect account details (name, email), company information, billing data, and the
-            records you create in the app (invoices, quotes, expenses, projects).
+            We collect account details (name, email, business info), financial data (invoices,
+            expenses, payments), and device and usage data.
           </p>
         </div>
 
         <div>
           <strong>2. How We Use Information</strong>
           <p>
-            We use your information to provide and improve the service, process subscriptions,
-            enable integrations you request, and communicate important updates.
+            We use your data to provide services, generate reports, improve features, and
+            communicate updates.
           </p>
         </div>
 
         <div>
           <strong>3. Data Sharing</strong>
           <p>
-            We do not sell your data. We share information only with service providers required to
-            operate the platform (hosting, payments, email) and only as needed.
+            We do not sell your data. We may share data with payment processors, cloud hosting
+            providers, and legal authorities (if required).
           </p>
         </div>
 
         <div>
           <strong>4. Data Retention</strong>
           <p>
-            We retain your data while your account is active. You may request deletion of your
-            account and associated data, subject to legal requirements.
+            Your data is stored securely on cloud infrastructure. We retain data as long as your
+            account is active or as required by law.
           </p>
         </div>
 
         <div>
-          <strong>5. Security</strong>
+          <strong>5. Your Rights</strong>
           <p>
-            We use technical and organizational measures to protect your data, including access
-            controls, encryption in transit, and secure storage practices.
+            You may access your data, request corrections, and request deletion (subject to legal
+            obligations).
           </p>
         </div>
 
         <div>
-          <strong>6. Your Choices</strong>
+          <strong>6. Security</strong>
           <p>
-            You may update your account details in settings. You can also control which
-            integrations are enabled.
+            We implement safeguards including encryption, access controls, and secure
+            authentication.
           </p>
         </div>
 
         <div>
-          <strong>7. International Transfers</strong>
+          <strong>7. Cookies &amp; Tracking</strong>
           <p>
-            Your data may be processed in the regions where we or our providers operate. We apply
-            appropriate safeguards to protect your information.
+            We may use cookies to improve performance and analyze usage.
           </p>
         </div>
 
         <div>
-          <strong>8. Changes</strong>
+          <strong>8. International Data Transfers</strong>
           <p>
-            We may update this policy from time to time. Continued use of the service indicates
-            acceptance of the updated policy.
+            Your data may be processed outside your country depending on infrastructure.
+          </p>
+        </div>
+
+        <div>
+          <strong>9. Changes</strong>
+          <p>
+            We may update this policy periodically.
           </p>
         </div>
 
         <div>
           <strong>Contact</strong>
           <p>
-            For privacy questions, contact support via the email listed in your account settings.
+            For privacy questions, contact: invox@gmail.com
           </p>
         </div>
       </div>

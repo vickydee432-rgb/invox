@@ -1,98 +1,140 @@
 export default function TermsPage() {
   return (
     <section className="panel" style={{ marginTop: 24 }}>
-      <div className="panel-title">Terms and Conditions</div>
+      <div className="panel-title">Terms of Service</div>
       <div className="muted" style={{ marginTop: 10 }}>
-        Effective date: February 21, 2026
+        Effective date: March 27, 2026
       </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 14, lineHeight: 1.6 }}>
         <p>
-          These Terms and Conditions govern your access to and use of Invox. By creating an
-          account or using the service, you agree to these terms.
+          These Terms of Service (“Terms”) govern your use of the Invox platform (“Service”). By
+          accessing or using the Service, you agree to these Terms.
         </p>
 
         <div>
-          <strong>1. Accounts and Access</strong>
+          <strong>1. Agreement to Terms</strong>
           <p>
-            You are responsible for maintaining the confidentiality of your login credentials and
-            all activity under your account. You must provide accurate company and billing
-            information.
+            If you are using Invox on behalf of a business, you confirm you have authority to bind
+            that entity.
           </p>
         </div>
 
         <div>
-          <strong>2. Subscriptions and Billing</strong>
+          <strong>2. Description of Services</strong>
           <p>
-            Invox is offered as a subscription service. Fees are billed per company based on the
-            plan and billing cycle you select. If payment fails or a subscription expires, your
-            account may be placed in read-only mode.
+            Invox provides cloud-based financial tools including invoicing, expense tracking,
+            financial reporting, tax estimation (including VAT and turnover tax support), and
+            payment integrations. We may modify or discontinue features at any time.
           </p>
         </div>
 
         <div>
-          <strong>3. Use of the Service</strong>
+          <strong>3. Account Registration &amp; Security</strong>
           <p>
-            You agree to use the service in compliance with applicable laws and not to misuse,
-            interfere with, or attempt to gain unauthorized access to the platform.
+            You must provide accurate and complete information, maintain confidentiality of login
+            credentials, and notify us immediately of unauthorized access. You are responsible for
+            all activity under your account.
           </p>
         </div>
 
         <div>
-          <strong>4. Data and Content</strong>
+          <strong>4. User Obligations</strong>
           <p>
-            You retain ownership of the data you upload. You grant us permission to process and
-            store that data solely to provide the service. You are responsible for the accuracy of
-            your records.
+            You agree not to use the platform for illegal or fraudulent activity, misrepresent
+            financial data, or attempt to reverse engineer or exploit the system. You are fully
+            responsible for tax filings, financial accuracy, and legal compliance in your
+            jurisdiction.
           </p>
         </div>
 
         <div>
-          <strong>5. Integrations</strong>
+          <strong>5. Payments &amp; Subscriptions</strong>
           <p>
-            If you enable third-party integrations (including tax or payment services), you are
-            responsible for providing valid credentials and ensuring compliance with those
-            providers’ terms.
+            Some features require a paid subscription. Fees are billed in advance and are
+            non-refundable unless stated. Failure to pay may result in suspension. We may change
+            pricing with prior notice.
           </p>
         </div>
 
         <div>
-          <strong>6. Service Availability</strong>
+          <strong>6. Third-Party Services</strong>
           <p>
-            We aim for high availability but do not guarantee uninterrupted access. Maintenance,
-            updates, or third-party issues may result in temporary downtime.
+            Invox may integrate with third-party services (e.g., payment providers, banks). We
+            are not responsible for third-party outages, payment delays or failures, or external
+            data inaccuracies.
           </p>
         </div>
 
         <div>
-          <strong>7. Termination</strong>
+          <strong>7. Data Ownership &amp; License</strong>
           <p>
-            You may cancel your subscription at any time. We may suspend or terminate accounts for
-            violations of these terms or misuse of the service.
+            You retain ownership of all data you input. You grant Invox a license to store,
+            process, and analyze that data solely to provide and improve the Service.
           </p>
         </div>
 
         <div>
-          <strong>8. Limitation of Liability</strong>
+          <strong>8. Data Security</strong>
           <p>
-            The service is provided “as is.” To the extent permitted by law, Invox is not liable
-            for indirect or consequential damages, data loss, or business interruption.
+            We implement reasonable technical and organizational safeguards. However, no system is
+            100% secure, and we do not guarantee absolute security.
           </p>
         </div>
 
         <div>
-          <strong>9. Changes</strong>
+          <strong>9. Service Availability</strong>
           <p>
-            We may update these terms from time to time. Continued use of the service after changes
-            means you accept the updated terms.
+            We aim for high uptime but do not guarantee uninterrupted access. Maintenance, updates,
+            or outages may occur.
           </p>
+        </div>
+
+        <div>
+          <strong>10. Disclaimer of Warranties</strong>
+          <p>
+            The Service is provided “as is” and “as available.” We do not guarantee accuracy of
+            financial reports, compliance with tax laws, or error-free performance.
+          </p>
+        </div>
+
+        <div>
+          <strong>11. Limitation of Liability</strong>
+          <p>
+            To the maximum extent permitted by law, Invox shall not be liable for loss of profits,
+            data loss, tax penalties, or business interruption.
+          </p>
+        </div>
+
+        <div>
+          <strong>12. Indemnification</strong>
+          <p>
+            You agree to indemnify and hold harmless Invox from claims arising from your use of
+            the Service, your violation of these Terms, or your financial or tax reporting.
+          </p>
+        </div>
+
+        <div>
+          <strong>13. Termination</strong>
+          <p>
+            We may suspend or terminate your account if you violate these Terms. You may stop
+            using the Service at any time.
+          </p>
+        </div>
+
+        <div>
+          <strong>14. Governing Law</strong>
+          <p>These Terms are governed by the laws of Zambia.</p>
+        </div>
+
+        <div>
+          <strong>15. Changes to Terms</strong>
+          <p>We may update these Terms. Continued use means acceptance.</p>
         </div>
 
         <div>
           <strong>Contact</strong>
-          <p>
-            For questions, contact support via the email listed in your account settings.
-          </p>
+          <p>For questions, contact: invox@gmail.com</p>
         </div>
       </div>
     </section>
