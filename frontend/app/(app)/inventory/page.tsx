@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -516,6 +517,14 @@ export default function InventoryPage() {
       <section className="panel">
         <div className="panel-title">Inventory Overview</div>
         <div className="muted">Manage branches, products, and stock per branch.</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <Link className="button secondary" href="/inventory/phones">
+            Phones
+          </Link>
+          <Link className="button secondary" href="/inventory/accessories">
+            Accessories & Parts
+          </Link>
+        </div>
       </section>
 
       {error ? (

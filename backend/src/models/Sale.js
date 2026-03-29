@@ -22,9 +22,12 @@ const SaleSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     deviceId: { type: String, trim: true, index: true },
 
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", default: null, index: true },
     customerName: { type: String, trim: true, default: "Walk-in" },
     customerPhone: { type: String, trim: true },
     customerTpin: { type: String, trim: true },
+
+    salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
 
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", default: null, index: true },
     branchName: { type: String, trim: true },
@@ -57,5 +60,7 @@ const SaleSchema = new mongoose.Schema(
 
 SaleSchema.index({ companyId: 1, saleNo: 1 }, { unique: true });
 SaleSchema.index({ companyId: 1, issueDate: -1 });
+SaleSchema.index({ companyId: 1, customerId: 1, issueDate: -1 });
+SaleSchema.index({ companyId: 1, salespersonId: 1, issueDate: -1 });
 
 module.exports = mongoose.model("Sale", SaleSchema);

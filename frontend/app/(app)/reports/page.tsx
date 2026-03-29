@@ -54,6 +54,15 @@ type Period = {
   isClosed?: boolean;
 };
 
+type SalesLeaderboardRow = {
+  salespersonId: string | null;
+  salespersonName: string;
+  sales_count: number;
+  sales_total: number;
+  sales_paid_total: number;
+  sales_outstanding: number;
+};
+
 type FinancialReportType = "income" | "balance" | "cash" | "trial" | "ledger" | "tax-vat" | "tax-turnover";
 
 const formatMoney = (value: number) => value.toFixed(2);
@@ -62,6 +71,8 @@ export default function ReportsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [series, setSeries] = useState<SeriesRow[]>([]);
   const [retailSummary, setRetailSummary] = useState<RetailSummary | null>(null);
+  const [salesLeaderboard, setSalesLeaderboard] = useState<SalesLeaderboardRow[]>([]);
+  const [salesLeaderboardLoading, setSalesLeaderboardLoading] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -95,6 +106,16 @@ export default function ReportsPage() {
       setSummary(data.summary);
       setSeries(data.series || []);
       setRetailSummary(data.retail || null);
+
+      if (workspace?.enabledModules?.includes("sales")) {
+        setSalesLeaderboardLoading(true);
+        apiFetch<{ leaderboard: SalesLeaderboardRow[] }>(`/api/reports/sales-leaderboard${query ? `?${query}` : ""}`)
+          .then((lb) => setSalesLeaderboard(lb.leaderboard || []))
+          .catch(() => setSalesLeaderboard([]))
+          .finally(() => setSalesLeaderboardLoading(false));
+      } else {
+        setSalesLeaderboard([]);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load reports");
     } finally {
@@ -652,6 +673,45 @@ export default function ReportsPage() {
           <div className="muted">No summary available.</div>
         )}
       </section>
+
+      {workspace?.enabledModules?.includes("sales") ? (
+        <section className="panel">
+          <div className="panel-title">Employee Sales Leaderboard</div>
+          {salesLeaderboardLoading ? (
+            <div className="muted">Loading leaderboard...</div>
+          ) : salesLeaderboard.length === 0 ? (
+            <div className="muted">No sales found for this period.</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Salesperson</th>
+                    <th>Sales</th>
+                    <th>Total</th>
+                    <th>Paid</th>
+                    <th>Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesLeaderboard.map((row) => (
+                    <tr key={row.salespersonId || row.salespersonName}>
+                      <td>{row.salespersonName}</td>
+                      <td>{row.sales_count}</td>
+                      <td>{formatMoney(row.sales_total)}</td>
+                      <td>{formatMoney(row.sales_paid_total)}</td>
+                      <td>{formatMoney(row.sales_outstanding)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+            Tip: When creating a sale, pick a salesperson to improve leaderboard accuracy.
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel">
         <div className="panel-title">Monthly Trend</div>

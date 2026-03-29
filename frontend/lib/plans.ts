@@ -13,11 +13,15 @@ export const PLAN_SEATS: Record<PlanKey, number> = {
 };
 
 export const PLAN_ALLOWED_MODULES: Record<PlanKey, string[]> = {
-  starter: ["quotes", "invoices", "sales", "expenses", "inventory", "purchases", "documents"],
+  starter: ["quotes", "invoices", "sales", "customers", "expenses", "inventory", "purchases", "documents"],
   pro: [
     "quotes",
     "invoices",
     "sales",
+    "customers",
+    "repairs",
+    "tradeins",
+    "installments",
     "expenses",
     "inventory",
     "purchases",
@@ -31,6 +35,10 @@ export const PLAN_ALLOWED_MODULES: Record<PlanKey, string[]> = {
     "quotes",
     "invoices",
     "sales",
+    "customers",
+    "repairs",
+    "tradeins",
+    "installments",
     "expenses",
     "inventory",
     "purchases",
@@ -61,7 +69,6 @@ export function clampModulesByPlan(modules: string[], planValue: unknown) {
 
 export function minPlanForModule(moduleKey: string): PlanKey {
   if (["accounting", "payroll", "banking"].includes(moduleKey)) return "businessplus";
-  if (["projects", "reports", "tax", "notifications"].includes(moduleKey)) return "pro";
+  if (["projects", "reports", "tax", "notifications", "repairs", "tradeins", "installments"].includes(moduleKey)) return "pro";
   return "starter";
 }
-

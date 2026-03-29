@@ -3,6 +3,7 @@ const { z } = require("zod");
 const Sale = require("../models/Sale");
 const Product = require("../models/Product");
 const Branch = require("../models/Branch");
+const Customer = require("../models/Customer");
 const ChangeLog = require("../models/ChangeLog");
 const {
   ensureObjectId,
@@ -27,9 +28,11 @@ router.use(requireAuth, requireSubscription, requireModule("sales"));
 
 const SaleCreateSchema = z.object({
   saleNo: z.string().optional(),
+  customerId: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  salespersonId: z.string().optional(),
   branchId: z.string().optional(),
   issueDate: z.string().optional(),
   status: z.enum(["paid", "partial", "unpaid", "cancelled"]).optional(),
@@ -51,9 +54,11 @@ const SaleCreateSchema = z.object({
 });
 
 const SaleUpdateSchema = z.object({
+  customerId: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  salespersonId: z.string().optional(),
   branchId: z.string().optional(),
   issueDate: z.string().optional(),
   status: z.enum(["paid", "partial", "unpaid", "cancelled"]).optional(),
@@ -140,7 +145,14 @@ function buildSaleFilter(query) {
   const { status, from, to, q } = query;
   const filter = { deletedAt: null };
   if (status) filter.status = status;
-  if (q) filter.customerName = { $regex: String(q), $options: "i" };
+  if (q) {
+    const term = String(q).trim();
+    filter.$or = [
+      { customerName: { $regex: term, $options: "i" } },
+      { customerPhone: { $regex: term, $options: "i" } },
+      { saleNo: { $regex: term, $options: "i" } }
+    ];
+  }
   if (from || to) {
     filter.issueDate = {};
     const fromDate = parseOptionalDate(from, "from");
@@ -149,6 +161,12 @@ function buildSaleFilter(query) {
     if (toDate) filter.issueDate.$lte = toDate;
   }
   return filter;
+}
+
+async function resolveCustomer(companyId, workspaceId, customerId) {
+  if (!customerId) return null;
+  ensureObjectId(customerId, "customer id");
+  return Customer.findOne(withWorkspaceScope({ _id: customerId, companyId, deletedAt: null }, workspaceId)).lean();
 }
 
 router.get("/", async (req, res) => {
@@ -214,6 +232,7 @@ router.post("/", async (req, res) => {
       saleNo = await nextNumber("SAL", Sale, "saleNo", "^SAL-");
     }
 
+    const workspaceId = resolveWorkspaceId(req);
     const hydratedItems = await hydrateProductFields(req.user.companyId, parsed.items);
     const items = buildItems(hydratedItems);
     const vatRate = parsed.vatRate ?? 0;
@@ -229,6 +248,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Branch is required for inventory items" });
     }
 
+    const customer = await resolveCustomer(req.user.companyId, workspaceId, parsed.customerId);
+    const salespersonId = parsed.salespersonId ? String(parsed.salespersonId).trim() : "";
+    if (salespersonId) ensureObjectId(salespersonId, "salesperson id");
+
     const session = await Sale.startSession();
     session.startTransaction();
     let sale;
@@ -236,12 +259,14 @@ router.post("/", async (req, res) => {
       sale = new Sale({
         saleNo,
         companyId: req.user.companyId,
-        workspaceId: String(req.user.companyId),
+        workspaceId,
         userId: req.user._id,
         deviceId: String(req.headers["x-device-id"] || "server"),
-        customerName: parsed.customerName || "Walk-in",
-        customerPhone: parsed.customerPhone,
+        customerId: customer ? customer._id : parsed.customerId ? parsed.customerId : null,
+        customerName: parsed.customerName || customer?.name || "Walk-in",
+        customerPhone: parsed.customerPhone || customer?.phone,
         customerTpin: parsed.customerTpin,
+        salespersonId: salespersonId || req.user._id,
         branchId: branch ? branch._id : null,
         branchName: branch ? branch.name : undefined,
         issueDate,
@@ -303,6 +328,7 @@ router.put("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "sale id");
     const parsed = SaleUpdateSchema.parse(req.body);
+    const workspaceId = resolveWorkspaceId(req);
     const session = await Sale.startSession();
     session.startTransaction();
     let sale;
@@ -338,6 +364,17 @@ router.put("/:id", async (req, res) => {
       if (parsed.customerName !== undefined) sale.customerName = parsed.customerName || "Walk-in";
       if (parsed.customerPhone !== undefined) sale.customerPhone = parsed.customerPhone;
       if (parsed.customerTpin !== undefined) sale.customerTpin = parsed.customerTpin;
+      if (parsed.customerId !== undefined) {
+        const customer = await resolveCustomer(req.user.companyId, workspaceId, parsed.customerId);
+        sale.customerId = customer ? customer._id : parsed.customerId ? parsed.customerId : null;
+        if (customer && parsed.customerName === undefined) sale.customerName = customer.name;
+        if (customer && parsed.customerPhone === undefined) sale.customerPhone = customer.phone;
+      }
+      if (parsed.salespersonId !== undefined) {
+        const sp = parsed.salespersonId ? String(parsed.salespersonId).trim() : "";
+        if (sp) ensureObjectId(sp, "salesperson id");
+        sale.salespersonId = sp || null;
+      }
       if (parsed.issueDate !== undefined) sale.issueDate = parseDateOrThrow(parsed.issueDate, "issueDate");
       if (parsed.status !== undefined) sale.status = parsed.status;
       if (parsed.vatRate !== undefined) sale.vatRate = parsed.vatRate;
@@ -349,7 +386,7 @@ router.put("/:id", async (req, res) => {
       sale.total = total;
       sale.amountPaid = amountPaid;
       sale.balance = balance;
-      sale.workspaceId = sale.workspaceId || String(req.user.companyId);
+      sale.workspaceId = sale.workspaceId || workspaceId;
       sale.userId = req.user._id;
       sale.deviceId = String(req.headers["x-device-id"] || "server");
       sale.version = (sale.version || 1) + 1;

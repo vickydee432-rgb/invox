@@ -7,6 +7,7 @@ const ProductSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     deviceId: { type: String, trim: true, index: true },
     name: { type: String, required: true, trim: true },
+    itemType: { type: String, enum: ["general", "accessory", "part"], default: "general", index: true },
     sku: { type: String, trim: true },
     barcode: { type: String, trim: true },
     description: { type: String, trim: true },
@@ -25,5 +26,6 @@ const ProductSchema = new mongoose.Schema(
 ProductSchema.index({ companyId: 1, sku: 1 }, { unique: true, sparse: true });
 ProductSchema.index({ companyId: 1, barcode: 1 }, { unique: true, sparse: true });
 ProductSchema.index({ companyId: 1, name: 1 });
+ProductSchema.index({ companyId: 1, itemType: 1, name: 1 });
 
 module.exports = mongoose.model("Product", ProductSchema);

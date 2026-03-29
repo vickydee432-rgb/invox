@@ -23,6 +23,7 @@ const ExcelJS = require("exceljs");
 const ZraConnection = require("../models/ZraConnection");
 const Branch = require("../models/Branch");
 const Product = require("../models/Product");
+const Customer = require("../models/Customer");
 const { submitInvoice, submitCancel, submitCreditNote } = require("../services/zra/client");
 const {
   buildZraInvoicePayload,
@@ -49,7 +50,14 @@ function buildInvoiceFilter(query) {
     ensureObjectId(projectId, "project id");
     filter.projectId = projectId;
   }
-  if (q) filter.customerName = { $regex: String(q), $options: "i" };
+  if (q) {
+    const term = String(q).trim();
+    filter.$or = [
+      { customerName: { $regex: term, $options: "i" } },
+      { customerPhone: { $regex: term, $options: "i" } },
+      { invoiceNo: { $regex: term, $options: "i" } }
+    ];
+  }
   if (from || to) {
     filter.issueDate = {};
     const fromDate = parseOptionalDate(from, "from");
@@ -58,6 +66,12 @@ function buildInvoiceFilter(query) {
     if (toDate) filter.issueDate.$lte = toDate;
   }
   return filter;
+}
+
+async function resolveCustomer(companyId, workspaceId, customerId) {
+  if (!customerId) return null;
+  ensureObjectId(customerId, "customer id");
+  return Customer.findOne(withWorkspaceScope({ _id: customerId, companyId, deletedAt: null }, workspaceId)).lean();
 }
 
 async function resolveBranch(companyId, branchId) {
@@ -485,9 +499,11 @@ router.post("/import", async (req, res) => {
 });
 
 const InvoiceUpdateSchema = z.object({
+  customerId: z.string().optional(),
   customerName: z.string().min(1).optional(),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  salespersonId: z.string().optional(),
   billingAddress: z.string().optional(),
   shippingAddress: z.string().optional(),
   sameAsBilling: z.boolean().optional(),
@@ -530,9 +546,11 @@ const InvoiceUpdateSchema = z.object({
 
 const InvoiceCreateSchema = z.object({
   invoiceNo: z.string().min(1).optional(),
-  customerName: z.string().min(1),
+  customerId: z.string().optional(),
+  customerName: z.string().min(1).optional(),
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
+  salespersonId: z.string().optional(),
   billingAddress: z.string().optional(),
   shippingAddress: z.string().optional(),
   sameAsBilling: z.boolean().optional(),
@@ -566,6 +584,14 @@ router.post("/", async (req, res) => {
   try {
     const parsed = InvoiceCreateSchema.parse(req.body);
     if (parsed.projectId) ensureObjectId(parsed.projectId, "project id");
+    const workspaceId = resolveWorkspaceId(req);
+    const customer = await resolveCustomer(req.user.companyId, workspaceId, parsed.customerId);
+    const salespersonId = parsed.salespersonId ? String(parsed.salespersonId).trim() : "";
+    if (salespersonId) ensureObjectId(salespersonId, "salesperson id");
+
+    const customerName = parsed.customerName?.trim() || customer?.name;
+    if (!customerName) return res.status(400).json({ error: "customerName is required" });
+    const customerPhone = parsed.customerPhone?.trim() || customer?.phone;
 
     let invoiceNo = parsed.invoiceNo ? parsed.invoiceNo.trim() : "";
     if (invoiceNo) {
@@ -599,12 +625,14 @@ router.post("/", async (req, res) => {
       const invoice = new Invoice({
         invoiceNo,
         companyId: req.user.companyId,
-        workspaceId: String(req.user.companyId),
+        workspaceId,
         userId: req.user._id,
         deviceId: String(deviceId),
-        customerName: parsed.customerName,
-        customerPhone: parsed.customerPhone,
+        customerId: customer ? customer._id : parsed.customerId ? parsed.customerId : null,
+        customerName,
+        customerPhone,
         customerTpin: parsed.customerTpin,
+        salespersonId: salespersonId || req.user._id,
         billingAddress: parsed.billingAddress,
         shippingAddress: parsed.shippingAddress,
         sameAsBilling: parsed.sameAsBilling ?? false,
@@ -649,7 +677,7 @@ router.post("/", async (req, res) => {
           [
             {
               companyId: req.user.companyId,
-              workspaceId: String(req.user.companyId),
+              workspaceId,
               userId: req.user._id,
               deviceId: String(deviceId),
               invoiceId: invoice._id,
@@ -691,6 +719,7 @@ router.put("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "invoice id");
     const parsed = InvoiceUpdateSchema.parse(req.body);
+    const workspaceId = resolveWorkspaceId(req);
     const session = await Invoice.startSession();
     session.startTransaction();
     try {
@@ -714,7 +743,7 @@ router.put("/:id", async (req, res) => {
       }
 
       const previousInvoice = invoice.toObject();
-      invoice.workspaceId = invoice.workspaceId || String(req.user.companyId);
+      invoice.workspaceId = invoice.workspaceId || workspaceId;
       invoice.userId = invoice.userId || req.user._id;
       invoice.deviceId = invoice.deviceId || String(req.headers["x-device-id"] || "server");
       let paymentDelta = 0;
@@ -724,9 +753,20 @@ router.put("/:id", async (req, res) => {
         ensureObjectId(parsed.projectId, "project id");
       }
 
+      if (parsed.customerId !== undefined) {
+        const customer = await resolveCustomer(req.user.companyId, workspaceId, parsed.customerId);
+        invoice.customerId = customer ? customer._id : parsed.customerId ? parsed.customerId : null;
+        if (customer && parsed.customerName === undefined) invoice.customerName = customer.name;
+        if (customer && parsed.customerPhone === undefined) invoice.customerPhone = customer.phone;
+      }
       if (parsed.customerName !== undefined) invoice.customerName = parsed.customerName;
       if (parsed.customerPhone !== undefined) invoice.customerPhone = parsed.customerPhone;
       if (parsed.customerTpin !== undefined) invoice.customerTpin = parsed.customerTpin;
+      if (parsed.salespersonId !== undefined) {
+        const sp = parsed.salespersonId ? String(parsed.salespersonId).trim() : "";
+        if (sp) ensureObjectId(sp, "salesperson id");
+        invoice.salespersonId = sp || null;
+      }
       if (parsed.billingAddress !== undefined) invoice.billingAddress = parsed.billingAddress;
       if (parsed.shippingAddress !== undefined) invoice.shippingAddress = parsed.shippingAddress;
       if (parsed.sameAsBilling !== undefined) invoice.sameAsBilling = parsed.sameAsBilling;

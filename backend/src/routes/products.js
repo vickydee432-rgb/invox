@@ -13,6 +13,7 @@ router.use(requireAuth, requireSubscription, requireModule("inventory"));
 
 const ProductSchema = z.object({
   name: z.string().min(1),
+  itemType: z.enum(["general", "accessory", "part"]).optional(),
   sku: z.string().optional(),
   barcode: z.string().optional(),
   description: z.string().optional(),
@@ -106,9 +107,17 @@ router.get("/lookup", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const { q, search } = req.query;
+    const { q, search, itemType } = req.query;
     const term = String(search || q || "").trim();
     const filter = { companyId: req.user.companyId };
+    const typeValue = String(itemType || "").trim();
+    if (typeValue) {
+      const types = typeValue
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (types.length > 0) filter.itemType = { $in: types };
+    }
     if (term) {
       filter.$or = [
         { name: { $regex: term, $options: "i" } },
@@ -129,6 +138,7 @@ router.post("/", async (req, res) => {
     const product = await Product.create({
       companyId: req.user.companyId,
       name: parsed.name,
+      itemType: parsed.itemType || "general",
       sku: parsed.sku,
       barcode: parsed.barcode,
       description: parsed.description,
@@ -159,6 +169,7 @@ const updateProductHandler = async (req, res) => {
     const product = await Product.findOne({ _id: req.params.id, companyId: req.user.companyId });
     if (!product) return res.status(404).json({ error: "Product not found" });
     product.name = parsed.name ?? product.name;
+    if (parsed.itemType !== undefined) product.itemType = parsed.itemType || "general";
     product.sku = parsed.sku ?? product.sku;
     product.barcode = parsed.barcode ?? product.barcode;
     product.description = parsed.description ?? product.description;

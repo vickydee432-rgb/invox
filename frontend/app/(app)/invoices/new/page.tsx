@@ -38,6 +38,10 @@ type Product = {
   salePrice?: number;
 };
 
+type User = { _id: string; name: string };
+
+type Customer = { _id: string; name: string; phone?: string };
+
 function NewInvoicePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -56,6 +60,10 @@ function NewInvoicePageContent() {
   );
   const [importStatus, setImportStatus] = useState("");
   const [dueDatePreference, setDueDatePreference] = useState("date");
+  const [users, setUsers] = useState<User[]>([]);
+  const [salespersonId, setSalespersonId] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTpin, setCustomerTpin] = useState("");
@@ -167,6 +175,39 @@ function NewInvoicePageContent() {
       mounted = false;
     };
   }, [dueDate]);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([apiFetch<{ user: any }>("/api/auth/me"), apiFetch<{ users: User[] }>("/api/users")])
+      .then(([me, data]) => {
+        if (!mounted) return;
+        setUsers(data.users || []);
+        if (!salespersonId && me?.user?._id) setSalespersonId(me.user._id);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [salespersonId]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!workspace?.enabledModules?.includes("customers")) {
+      setCustomers([]);
+      return () => {
+        mounted = false;
+      };
+    }
+    apiFetch<{ customers: Customer[] }>("/api/customers?limit=500")
+      .then((data) => {
+        if (!mounted) return;
+        setCustomers(data.customers || []);
+      })
+      .catch(() => setCustomers([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
 
   useEffect(() => {
     if (typeParam === "sale" || typeParam === "purchase") {
@@ -499,9 +540,11 @@ function NewInvoicePageContent() {
         method: "POST",
         body: JSON.stringify({
           invoiceNo: invoiceNo || undefined,
-          customerName,
+          customerId: customerId || undefined,
+          customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           customerTpin: customerTpin || undefined,
+          salespersonId: salespersonId || undefined,
           billingAddress: billingAddress || undefined,
           shippingAddress: shippingAddress || undefined,
           sameAsBilling,
@@ -691,8 +734,44 @@ function NewInvoicePageContent() {
               {activeTab === "billing" || workspace?.businessType === "retail" ? (
                 <div className="invoice-form-grid">
                   <label className="field">
+                    Salesperson
+                    <select value={salespersonId} onChange={(e) => setSalespersonId(e.target.value)}>
+                      <option value="">Unassigned</option>
+                      {users.map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {workspace?.enabledModules?.includes("customers") ? (
+                    <label className="field">
+                      Customer list (optional)
+                      <select
+                        value={customerId}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setCustomerId(nextId);
+                          const selected = customers.find((c) => c._id === nextId);
+                          if (!selected) return;
+                          setCustomerName(selected.name || "");
+                          setCustomerPhone(selected.phone || "");
+                        }}
+                      >
+                        <option value="">Manual</option>
+                        {customers.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div />
+                  )}
+                  <label className="field">
                     Customer
-                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required={!customerId} />
                   </label>
                   <label className="field">
                     Customer phone

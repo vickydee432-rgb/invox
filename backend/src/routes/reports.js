@@ -14,6 +14,7 @@ const Company = require("../models/Company");
 const Account = require("../models/Account");
 const Journal = require("../models/Journal");
 const JournalLine = require("../models/JournalLine");
+const User = require("../models/User");
 const { buildReportsWorkbook } = require("../services/export");
 const { generateReportsPdf } = require("../services/reportPdf");
 const { generateVatReturn, generateTurnoverTax } = require("../services/tax");
@@ -21,6 +22,60 @@ const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("reports"));
+
+router.get("/sales-leaderboard", async (req, res) => {
+  try {
+    const fromDate = parseOptionalDate(req.query.from, "from");
+    const toDate = parseOptionalDate(req.query.to, "to");
+    const limitRaw = Number(req.query.limit || 20);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, Math.floor(limitRaw)) : 20;
+    const workspaceId = resolveWorkspaceId(req);
+
+    const match = withWorkspaceScope(
+      { companyId: req.user.companyId, deletedAt: null, status: { $ne: "cancelled" } },
+      workspaceId
+    );
+    if (fromDate || toDate) {
+      match.issueDate = {};
+      if (fromDate) match.issueDate.$gte = fromDate;
+      if (toDate) match.issueDate.$lte = toDate;
+    }
+
+    const rows = await Sale.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$salespersonId",
+          sales_count: { $sum: 1 },
+          sales_total: { $sum: "$total" },
+          sales_paid_total: { $sum: "$amountPaid" },
+          sales_outstanding: { $sum: "$balance" }
+        }
+      },
+      { $sort: { sales_total: -1 } },
+      { $limit: limit }
+    ]);
+
+    const ids = rows.map((r) => r._id).filter(Boolean);
+    const users = ids.length
+      ? await User.find({ _id: { $in: ids }, companyId: req.user.companyId }).select("_id name").lean()
+      : [];
+    const nameById = new Map(users.map((u) => [String(u._id), u.name]));
+
+    const leaderboard = rows.map((row) => ({
+      salespersonId: row._id ? String(row._id) : null,
+      salespersonName: row._id ? nameById.get(String(row._id)) || "Unknown" : "Unassigned",
+      sales_count: row.sales_count || 0,
+      sales_total: row.sales_total || 0,
+      sales_paid_total: row.sales_paid_total || 0,
+      sales_outstanding: row.sales_outstanding || 0
+    }));
+
+    res.json({ from: fromDate, to: toDate, leaderboard });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to load sales leaderboard");
+  }
+});
 
 async function buildReportData(req) {
   const company = await Company.findById(req.user.companyId).lean();

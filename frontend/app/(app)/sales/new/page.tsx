@@ -28,8 +28,16 @@ type Product = {
   salePrice?: number;
 };
 
+type User = { _id: string; name: string };
+
+type Customer = { _id: string; name: string; phone?: string };
+
 export default function NewSalePage() {
   const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
+  const [salespersonId, setSalespersonId] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
@@ -80,6 +88,39 @@ export default function NewSalePage() {
 
   useEffect(() => {
     let mounted = true;
+    Promise.all([apiFetch<{ user: any }>("/api/auth/me"), apiFetch<{ users: User[] }>("/api/users")])
+      .then(([me, data]) => {
+        if (!mounted) return;
+        setUsers(data.users || []);
+        if (!salespersonId && me?.user?._id) setSalespersonId(me.user._id);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [salespersonId]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!workspace?.enabledModules?.includes("customers")) {
+      setCustomers([]);
+      return () => {
+        mounted = false;
+      };
+    }
+    apiFetch<{ customers: Customer[] }>("/api/customers?limit=500")
+      .then((data) => {
+        if (!mounted) return;
+        setCustomers(data.customers || []);
+      })
+      .catch(() => setCustomers([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
+
+  useEffect(() => {
+    let mounted = true;
     if (workspace && !workspace.inventoryEnabled) {
       setBranches([]);
       setProducts([]);
@@ -126,8 +167,10 @@ export default function NewSalePage() {
       await apiFetch("/api/sales", {
         method: "POST",
         body: JSON.stringify({
+          customerId: customerId || undefined,
           customerName: customerName || "Walk-in",
           customerPhone: customerPhone || undefined,
+          salespersonId: salespersonId || undefined,
           status,
           amountPaid,
           issueDate,
@@ -168,6 +211,44 @@ export default function NewSalePage() {
     <section className="panel">
       <div className="panel-title">Add Sale</div>
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+        <div className="grid-2">
+          <label className="field">
+            Salesperson
+            <select value={salespersonId} onChange={(e) => setSalespersonId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {users.map((u) => (
+                <option key={u._id} value={u._id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {workspace?.enabledModules?.includes("customers") ? (
+            <label className="field">
+              Customer (optional)
+              <select
+                value={customerId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setCustomerId(nextId);
+                  const selected = customers.find((c) => c._id === nextId);
+                  if (!selected) return;
+                  setCustomerName(selected.name || "Walk-in");
+                  setCustomerPhone(selected.phone || "");
+                }}
+              >
+                <option value="">Manual / Walk-in</option>
+                {customers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div />
+          )}
+        </div>
         <div className="grid-2">
           <label className="field">
             Customer name

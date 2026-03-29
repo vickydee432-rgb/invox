@@ -21,9 +21,11 @@ const InvoiceSchema = new mongoose.Schema(
     workspaceId: { type: String, trim: true, index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     deviceId: { type: String, trim: true, index: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", default: null, index: true },
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
     customerTpin: { type: String, trim: true },
+    salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
     billingAddress: { type: String, trim: true },
     shippingAddress: { type: String, trim: true },
     sameAsBilling: { type: Boolean, default: false },
@@ -86,6 +88,8 @@ const InvoiceSchema = new mongoose.Schema(
 InvoiceSchema.index({ companyId: 1, invoiceNo: 1 }, { unique: true });
 InvoiceSchema.index({ companyId: 1, workspaceId: 1, issueDate: -1 });
 InvoiceSchema.index({ companyId: 1, workspaceId: 1, status: 1, issueDate: -1 });
+InvoiceSchema.index({ companyId: 1, customerId: 1, issueDate: -1 });
+InvoiceSchema.index({ companyId: 1, salespersonId: 1, issueDate: -1 });
 InvoiceSchema.index({ projectId: 1, issueDate: -1 });
 InvoiceSchema.index({ dueDate: 1 });
 

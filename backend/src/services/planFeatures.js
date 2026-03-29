@@ -5,6 +5,7 @@ const PLAN_ALLOWED_MODULES = {
     "quotes",
     "invoices",
     "sales",
+    "customers",
     "expenses",
     "inventory",
     "purchases",
@@ -14,6 +15,10 @@ const PLAN_ALLOWED_MODULES = {
     "quotes",
     "invoices",
     "sales",
+    "customers",
+    "repairs",
+    "tradeins",
+    "installments",
     "expenses",
     "inventory",
     "purchases",
@@ -27,6 +32,10 @@ const PLAN_ALLOWED_MODULES = {
     "quotes",
     "invoices",
     "sales",
+    "customers",
+    "repairs",
+    "tradeins",
+    "installments",
     "expenses",
     "inventory",
     "purchases",
@@ -68,4 +77,3 @@ module.exports = {
   clampModules,
   isBusinessPlus
 };
-
