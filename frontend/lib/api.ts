@@ -1,4 +1,4 @@
-import { getToken } from "./auth";
+import { clearToken, getToken } from "./auth";
 import { getDeviceId } from "./device";
 
 const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -30,6 +30,15 @@ export async function apiFetch<T = any>(path: string, init: RequestInit = {}): P
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken();
+      if (typeof window !== "undefined") {
+        const pathname = window.location?.pathname || "";
+        if (pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
+    }
     let message: any = data?.error ?? data?.message ?? "Request failed";
     if (typeof message === "object" && message) {
       message = message.message || JSON.stringify(message);
@@ -49,6 +58,15 @@ export async function apiDownload(path: string, filename: string) {
 
   const res = await fetch(`${API_URL}${path}`, { headers });
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken();
+      if (typeof window !== "undefined") {
+        const pathname = window.location?.pathname || "";
+        if (pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
+    }
     const text = await res.text();
     let message = "Download failed";
     try {
