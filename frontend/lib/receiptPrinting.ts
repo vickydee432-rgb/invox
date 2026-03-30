@@ -255,7 +255,7 @@ export function buildReceiptHtml({
           });
           setTimeout(function () { window.print(); }, 350);
           if (closeAfter) {
-            // Fallback for browsers that don't fire `afterprint` reliably.
+            // Fallback for browsers that don't fire afterprint reliably.
             setTimeout(function () { try { window.close(); } catch (e) {} }, 30000);
           }
         }
