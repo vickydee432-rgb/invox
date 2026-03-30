@@ -33,6 +33,7 @@ type Invoice = {
 type Company = {
   name: string;
   legalName?: string;
+  logoUrl?: string;
   address?: {
     line1?: string;
     line2?: string;
@@ -45,6 +46,7 @@ type Company = {
   email?: string;
   taxId?: string;
   currency?: string;
+  receiptSettings?: { showLogo?: boolean; footerMessage?: string };
 };
 
 const formatDate = (value?: string) => {
@@ -89,6 +91,27 @@ export default function ReceiptPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!invoice || !company) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoprint") !== "1") return;
+
+    const closeAfter = params.get("close") === "1";
+    const afterPrint = () => {
+      window.removeEventListener("afterprint", afterPrint);
+      if (closeAfter) window.close();
+    };
+    window.addEventListener("afterprint", afterPrint);
+    const t = window.setTimeout(() => {
+      window.print();
+    }, 400);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("afterprint", afterPrint);
+    };
+  }, [invoice, company]);
+
   if (loading) {
     return (
       <section className="panel">
@@ -112,6 +135,8 @@ export default function ReceiptPage() {
 
   const currency = company.currency || "USD";
   const label = workspace?.labels?.invoiceSingular || "Receipt";
+  const showLogo = company.receiptSettings?.showLogo !== false;
+  const footer = (company.receiptSettings?.footerMessage || "").trim();
 
   return (
     <section className="panel receipt-page">
@@ -127,6 +152,15 @@ export default function ReceiptPage() {
       <div className="receipt-sheet">
         <div className="receipt-header">
           <div>
+            {showLogo && company.logoUrl ? (
+              <div style={{ marginBottom: 10 }}>
+                <img
+                  src={company.logoUrl}
+                  alt="logo"
+                  style={{ maxWidth: 220, maxHeight: 70, objectFit: "contain" }}
+                />
+              </div>
+            ) : null}
             <div className="receipt-title">{company.name}</div>
             <div className="receipt-meta">{company.legalName || ""}</div>
             <div className="receipt-meta">
@@ -221,6 +255,15 @@ export default function ReceiptPage() {
             </strong>
           </div>
         </div>
+
+        {footer ? (
+          <>
+            <div className="receipt-divider" />
+            <div className="muted" style={{ textAlign: "center" }}>
+              {footer}
+            </div>
+          </>
+        ) : null}
       </div>
     </section>
   );

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { PLAN_ALLOWED_MODULES, PLAN_LABEL, minPlanForModule, normalizePlanKey } from "@/lib/plans";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { buildReceiptHtml, getReceiptPrintingDeviceSettings, openPrintWindow, setReceiptPrintingDeviceSettings, writeAndPrintHtml } from "@/lib/receiptPrinting";
+import { getDeviceId } from "@/lib/device";
 
 const MODULE_OPTIONS = [
   { key: "accounting", label: "Accounting" },
@@ -118,6 +120,7 @@ type Company = {
   website?: string;
   taxId?: string;
   currency?: string;
+  receiptSettings?: { showLogo?: boolean; footerMessage?: string };
   address?: {
     line1?: string;
     line2?: string;
@@ -280,6 +283,10 @@ export default function SettingsPage() {
   const [labels, setLabels] = useState<WorkspaceConfig["labels"]>({});
   const [taxMode, setTaxMode] = useState<"vat" | "turnover" | "none">("none");
   const [taxRate, setTaxRate] = useState(16);
+  const [receiptShowLogo, setReceiptShowLogo] = useState(true);
+  const [receiptFooterMessage, setReceiptFooterMessage] = useState("Thank you for shopping with us.");
+  const [autoPrintAfterSale, setAutoPrintAfterSale] = useState(false);
+  const [autoPrintMode, setAutoPrintMode] = useState<"paid" | "all">("paid");
 
   useEffect(() => {
     let active = true;
@@ -313,6 +320,8 @@ export default function SettingsPage() {
         setAccountingDefaults(company.accountingDefaults || {});
         setTaxMode(company.taxMode || "none");
         setTaxRate(company.taxRate || 16);
+        setReceiptShowLogo(company.receiptSettings?.showLogo !== false);
+        setReceiptFooterMessage(company.receiptSettings?.footerMessage || "Thank you for shopping with us.");
       })
       .catch((err: any) => {
         if (!active) return;
@@ -324,6 +333,12 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const device = getReceiptPrintingDeviceSettings();
+    setAutoPrintAfterSale(device.autoPrintAfterSale);
+    setAutoPrintMode(device.autoPrintMode);
   }, []);
 
   useEffect(() => {
@@ -569,6 +584,10 @@ export default function SettingsPage() {
           website: website || undefined,
           taxId: taxId || undefined,
           currency: currency || undefined,
+          receiptSettings: {
+            showLogo: Boolean(receiptShowLogo),
+            footerMessage: receiptFooterMessage || undefined
+          },
           address: {
             line1: addressLine1 || undefined,
             line2: addressLine2 || undefined,
@@ -598,6 +617,59 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveDeviceReceiptPrinting = (next: { autoPrintAfterSale: boolean; autoPrintMode: "paid" | "all" }) => {
+    setAutoPrintAfterSale(next.autoPrintAfterSale);
+    setAutoPrintMode(next.autoPrintMode);
+    setReceiptPrintingDeviceSettings({
+      autoPrintAfterSale: next.autoPrintAfterSale,
+      autoPrintMode: next.autoPrintMode
+    });
+  };
+
+  const handleTestReceiptPrint = () => {
+    const w = openPrintWindow();
+    if (!w) return;
+    const html = buildReceiptHtml({
+      company: {
+        name,
+        legalName,
+        logoUrl,
+        phone,
+        email: companyEmail,
+        currency,
+        address: {
+          line1: addressLine1,
+          line2: addressLine2,
+          city,
+          state,
+          postalCode,
+          country
+        },
+        receiptSettings: {
+          showLogo: receiptShowLogo,
+          footerMessage: receiptFooterMessage
+        }
+      },
+      receipt: {
+        receiptNo: "TEST-RECEIPT",
+        referenceNo: `Terminal ${getDeviceId().slice(0, 8)}`,
+        issueDate: new Date(),
+        customerName: "Walk-in",
+        items: [
+          { description: "Sample item A", qty: 2, unitPrice: 25, discount: 0 },
+          { description: "Sample item B", qty: 1, unitPrice: 10, discount: 0 }
+        ],
+        subtotal: 60,
+        vatRate: 0,
+        vatAmount: 0,
+        total: 60,
+        amountPaid: 60,
+        balance: 0
+      }
+    });
+    writeAndPrintHtml(w, html, { autoClose: true });
   };
 
   const handlePasswordChange = async (event: React.FormEvent) => {
@@ -1451,6 +1523,69 @@ export default function SettingsPage() {
               <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
             </label>
           </div>
+
+          {businessType === "retail" ? (
+            <>
+              <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
+                Receipt Printing (Retail)
+              </div>
+              <div className="muted">
+                Connect your receipt printer via USB or Bluetooth (plug and play), or set up a network printer in your
+                device OS. For fully silent printing, run this app in a kiosk/POS browser configured for auto‑printing.
+              </div>
+              <div className="grid-2">
+                <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={autoPrintAfterSale}
+                    onChange={(e) =>
+                      saveDeviceReceiptPrinting({ autoPrintAfterSale: e.target.checked, autoPrintMode })
+                    }
+                  />
+                  Auto‑print receipt after sale (this terminal)
+                </label>
+                <label className="field">
+                  Auto‑print when
+                  <select
+                    value={autoPrintMode}
+                    onChange={(e) =>
+                      saveDeviceReceiptPrinting({
+                        autoPrintAfterSale,
+                        autoPrintMode: e.target.value === "all" ? "all" : "paid"
+                      })
+                    }
+                  >
+                    <option value="paid">Paid sales only</option>
+                    <option value="all">All sales</option>
+                  </select>
+                </label>
+                <label className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={receiptShowLogo}
+                    onChange={(e) => setReceiptShowLogo(e.target.checked)}
+                    disabled={!logoUrl}
+                    title={!logoUrl ? "Set a Logo URL above to enable logo printing" : ""}
+                  />
+                  Show logo on receipt
+                </label>
+                <label className="field">
+                  Receipt footer message
+                  <textarea
+                    value={receiptFooterMessage}
+                    onChange={(e) => setReceiptFooterMessage(e.target.value)}
+                    rows={3}
+                  />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="button secondary" type="button" onClick={handleTestReceiptPrint}>
+                  Test print
+                </button>
+                <div className="muted">Terminal ID: {getDeviceId().slice(0, 8)}</div>
+              </div>
+            </>
+          ) : null}
 
           <div className="panel-title" style={{ fontSize: 16, marginTop: 6 }}>
             Address

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { buildReceiptHtml, getReceiptPrintingDeviceSettings, openPrintWindow, writeAndPrintHtml } from "@/lib/receiptPrinting";
 
 type SaleItem = {
   productId?: string;
@@ -57,6 +58,17 @@ type PhoneItem = {
   status: string;
 };
 
+type Company = {
+  name?: string;
+  legalName?: string;
+  logoUrl?: string;
+  phone?: string;
+  email?: string;
+  currency?: string;
+  address?: any;
+  receiptSettings?: { showLogo?: boolean; footerMessage?: string };
+};
+
 function NewSalePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,6 +90,7 @@ function NewSalePageContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [tradeInId, setTradeInId] = useState("");
   const [tradeInCredit, setTradeInCredit] = useState(0);
@@ -111,6 +124,7 @@ function NewSalePageContent() {
     apiFetch<{ company: any }>("/api/company/me")
       .then((data) => {
         if (!mounted) return;
+        setCompany(data.company);
         const config = buildWorkspace(data.company);
         setWorkspace(config);
         if (config.businessType === "retail") {
@@ -244,8 +258,12 @@ function NewSalePageContent() {
     event.preventDefault();
     setSaving(true);
     setError("");
+    const deviceSettings = getReceiptPrintingDeviceSettings();
+    const shouldAutoPrint =
+      deviceSettings.autoPrintAfterSale && (deviceSettings.autoPrintMode === "all" || status === "paid");
+    const printWindow = shouldAutoPrint ? openPrintWindow() : null;
     try {
-      await apiFetch("/api/sales", {
+      const created = await apiFetch<{ sale: any }>("/api/sales", {
         method: "POST",
         body: JSON.stringify({
           customerId: customerId || undefined,
@@ -270,9 +288,36 @@ function NewSalePageContent() {
           }))
         })
       });
+      if (shouldAutoPrint && printWindow && created?.sale) {
+        const sale = created.sale;
+        const html = buildReceiptHtml({
+          company: company || {},
+          receipt: {
+            receiptNo: sale.receiptInvoiceNo || sale.saleNo,
+            referenceNo: sale.saleNo,
+            issueDate: sale.issueDate,
+            customerName: sale.customerName,
+            items: sale.items || [],
+            subtotal: Number(sale.subtotal || 0),
+            vatRate: Number(sale.vatRate || 0),
+            vatAmount: Number(sale.vatAmount || 0),
+            total: Number(sale.total || 0),
+            amountPaid: Number(sale.amountPaid || 0),
+            balance: Number(sale.balance || 0)
+          }
+        });
+        writeAndPrintHtml(printWindow, html, { autoClose: true });
+      }
       router.push("/sales");
     } catch (err: any) {
       setError(err.message || "Failed to create sale");
+      if (printWindow && !printWindow.closed) {
+        try {
+          printWindow.close();
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setSaving(false);
     }

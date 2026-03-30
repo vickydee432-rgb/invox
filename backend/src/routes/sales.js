@@ -86,6 +86,10 @@ async function upsertReceiptInvoiceForSale({ req, sale, session }) {
       Object.assign(invoice, invoicePatch);
       invoice.version = (invoice.version || 1) + 1;
       await invoice.save({ session });
+      if (!sale.receiptInvoiceNo || sale.receiptInvoiceNo !== invoice.invoiceNo) {
+        sale.receiptInvoiceNo = invoice.invoiceNo;
+        await sale.save({ session });
+      }
       return invoice;
     }
   }
@@ -99,6 +103,7 @@ async function upsertReceiptInvoiceForSale({ req, sale, session }) {
   await invoice.save({ session });
 
   sale.receiptInvoiceId = invoice._id;
+  sale.receiptInvoiceNo = invoice.invoiceNo;
   await sale.save({ session });
   return invoice;
 }

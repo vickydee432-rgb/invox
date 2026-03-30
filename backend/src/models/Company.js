@@ -79,7 +79,11 @@ const CompanySchema = new mongoose.Schema(
     subscriptionCancelAtNextBillingDate: { type: Boolean, default: false },
     dodoSubscriptionId: { type: String, trim: true },
     dodoCustomerId: { type: String, trim: true },
-    lastPaymentAt: { type: Date }
+    lastPaymentAt: { type: Date },
+    receiptSettings: {
+      showLogo: { type: Boolean, default: true },
+      footerMessage: { type: String, trim: true, default: "Thank you for shopping with us." }
+    }
   },
   { timestamps: true }
 );

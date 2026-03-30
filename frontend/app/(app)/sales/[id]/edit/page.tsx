@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { buildReceiptHtml, openPrintWindow, writeAndPrintHtml } from "@/lib/receiptPrinting";
 
 type SaleItem = {
   productId?: string;
@@ -39,7 +40,9 @@ type PhoneItem = { _id: string; brand: string; model: string; storage?: string; 
 
 type Sale = {
   _id: string;
+  saleNo?: string;
   receiptInvoiceId?: string | null;
+  receiptInvoiceNo?: string | null;
   customerName?: string;
   customerPhone?: string;
   salespersonId?: string | null;
@@ -87,9 +90,12 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
   const [receiptInvoiceId, setReceiptInvoiceId] = useState("");
+  const [receiptInvoiceNo, setReceiptInvoiceNo] = useState("");
+  const [saleNo, setSaleNo] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<SaleItem[]>([{ description: "", qty: 1, unitPrice: 0, discount: 0 }]);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [company, setCompany] = useState<any>(null);
 
   const itemsSubtotal = items.reduce(
     (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
@@ -109,6 +115,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
     apiFetch<{ company: any }>("/api/company/me")
       .then((data) => {
         if (!mounted) return;
+        setCompany(data.company);
         const config = buildWorkspace(data.company);
         setWorkspace(config);
       })
@@ -190,6 +197,8 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
         if (!active) return;
         const sale = data.sale;
         setReceiptInvoiceId(sale.receiptInvoiceId || "");
+        setReceiptInvoiceNo(sale.receiptInvoiceNo || "");
+        setSaleNo(sale.saleNo || "");
         setCustomerName(sale.customerName || "Walk-in");
         setCustomerPhone(sale.customerPhone || "");
         setStatus(sale.status || "paid");
@@ -363,6 +372,38 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handlePrintReceipt = () => {
+    const w = openPrintWindow();
+    if (!w) return;
+    const subtotal = itemsSubtotal;
+    const vat = vatAmount;
+    const totalValue = total;
+    const paid = Math.max(0, Number(amountPaid || 0));
+    const balance = Math.max(0, totalValue - paid);
+    const html = buildReceiptHtml({
+      company: company || {},
+      receipt: {
+        receiptNo: receiptInvoiceNo || saleNo || id,
+        referenceNo: saleNo || undefined,
+        issueDate: issueDate || new Date(),
+        customerName,
+        items: items.map((item) => ({
+          description: item.description,
+          qty: item.qty,
+          unitPrice: item.unitPrice,
+          discount: item.discount || 0
+        })),
+        subtotal,
+        vatRate: Number(vatRate || 0),
+        vatAmount: vat,
+        total: totalValue,
+        amountPaid: paid,
+        balance
+      }
+    });
+    writeAndPrintHtml(w, html, { autoClose: true });
+  };
+
   if (loading) {
     return (
       <section className="panel">
@@ -388,15 +429,20 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
     <section className="panel">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div className="panel-title">Edit Sale</div>
-        {receiptInvoiceId && workspace?.enabledModules?.includes("invoices") ? (
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => router.push(`/invoices/${receiptInvoiceId}/receipt`)}
-          >
-            View {workspace?.labels?.invoiceSingular || "Receipt"}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="button secondary" type="button" onClick={handlePrintReceipt}>
+            Print {workspace?.labels?.invoiceSingular || "Receipt"}
           </button>
-        ) : null}
+          {receiptInvoiceId && workspace?.enabledModules?.includes("invoices") ? (
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => router.push(`/invoices/${receiptInvoiceId}/receipt`)}
+            >
+              View {workspace?.labels?.invoiceSingular || "Receipt"}
+            </button>
+          ) : null}
+        </div>
       </div>
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
         <div className="grid-2">
