@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { buildWorkspace } from "@/lib/workspace";
 
 type Notification = {
   _id: string;
@@ -17,27 +18,67 @@ type Notification = {
 export default function NotificationPopups() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
     try {
       const data = await apiFetch<{ notifications: Notification[] }>("/api/notifications?status=unread");
       setNotifications(data.notifications || []);
-    } catch {
+    } catch (err: any) {
       // notifications module may be disabled or user lacks access
       setEnabled(false);
       setNotifications([]);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
     }
   };
 
   useEffect(() => {
-    load();
-    pollingRef.current = setInterval(load, 60_000);
+    let active = true;
+    apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        if (!active) return;
+        const workspace = buildWorkspace(data.company);
+        setEnabled(workspace.enabledModules.includes("notifications"));
+      })
+      .catch(() => {
+        if (!active) return;
+        setEnabled(false);
+      });
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    let active = true;
+    const safeLoad = async () => {
+      if (!active) return;
+      await load();
+    };
+
+    safeLoad();
+    pollingRef.current = setInterval(safeLoad, 60_000);
+
+    return () => {
+      active = false;
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [enabled]);
 
   const visible = useMemo(() => notifications.slice(0, 4), [notifications]);
 
@@ -84,4 +125,3 @@ export default function NotificationPopups() {
     </div>
   );
 }
-

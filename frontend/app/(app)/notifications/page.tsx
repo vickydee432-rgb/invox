@@ -34,16 +34,17 @@ export default function NotificationsPage() {
     apiFetch<{ company: any }>("/api/company/me")
       .then((data) => {
         if (!active) return;
-        setWorkspace(buildWorkspace(data.company));
+        const ws = buildWorkspace(data.company);
+        setWorkspace(ws);
+        if (!ws.enabledModules.includes("notifications")) return;
+        loadNotifications();
       })
-      .catch(() => {});
+      .catch(() => {
+        // ignore
+      });
     return () => {
       active = false;
     };
-  }, []);
-
-  useEffect(() => {
-    loadNotifications();
   }, []);
 
   const handleCreate = async (event: React.FormEvent) => {
