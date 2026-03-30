@@ -48,6 +48,7 @@ function NewInvoicePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
+  const tradeInParam = searchParams.get("tradeInId");
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [pasteError, setPasteError] = useState("");
@@ -213,6 +214,31 @@ function NewInvoicePageContent() {
       mounted = false;
     };
   }, [workspace]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!tradeInParam) return () => {
+      mounted = false;
+    };
+    if (tradeInId) return () => {
+      mounted = false;
+    };
+    apiFetch<{ tradeIn: any }>(`/api/trade-ins/${encodeURIComponent(tradeInParam)}`)
+      .then((data) => {
+        if (!mounted) return;
+        const ti = data.tradeIn;
+        if (!ti?._id) return;
+        setTradeInId(ti._id);
+        const credit = Number(ti.creditAmount ?? ti.agreedAmount ?? 0);
+        setTradeInCredit(Math.max(0, credit));
+        if (ti.customerName && !customerName) setCustomerName(ti.customerName);
+        if (ti.customerPhone && !customerPhone) setCustomerPhone(ti.customerPhone);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [tradeInParam, tradeInId, customerName, customerPhone]);
 
   useEffect(() => {
     let mounted = true;

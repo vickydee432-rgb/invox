@@ -73,6 +73,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [phoneLookup, setPhoneLookup] = useState("");
   const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
   const [phoneLookupError, setPhoneLookupError] = useState("");
+  const [reservePhoneOnAdd, setReservePhoneOnAdd] = useState(true);
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
@@ -255,6 +256,12 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
       const data = await apiFetch<{ item: PhoneItem }>(`/api/phone-inventory/lookup?${query.toString()}`);
       const phone = data.item;
       if (!phone?._id) throw new Error("Phone not found");
+      if (reservePhoneOnAdd && phone.status === "in_stock") {
+        await apiFetch(`/api/phone-inventory/${phone._id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "reserved" })
+        });
+      }
       setItems((prev) => [
         ...prev,
         {
@@ -461,6 +468,14 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
               >
                 {phoneLookupLoading ? "Adding..." : "Add phone"}
               </button>
+              <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center", margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={reservePhoneOnAdd}
+                  onChange={(e) => setReservePhoneOnAdd(e.target.checked)}
+                />
+                Reserve on add
+              </label>
               {phoneLookupError ? <div className="muted">{phoneLookupError}</div> : null}
             </div>
           </div>

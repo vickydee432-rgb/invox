@@ -281,6 +281,7 @@ export default function PhoneInventoryPage() {
                 <th>Status</th>
                 <th>Cost</th>
                 <th>Sale</th>
+                <th>Actions</th>
                 <th />
               </tr>
             </thead>
@@ -305,6 +306,30 @@ export default function PhoneInventoryPage() {
                   </td>
                   <td>{formatMoney(i.costPrice || 0)}</td>
                   <td>{formatMoney(i.salePrice || 0)}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {i.status === "in_stock" ? (
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => patchItem(i, { status: "reserved" })}
+                          disabled={saving}
+                        >
+                          Reserve
+                        </button>
+                      ) : null}
+                      {i.status === "reserved" ? (
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => patchItem(i, { status: "in_stock" })}
+                          disabled={saving}
+                        >
+                          Unreserve
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
                   <td style={{ textAlign: "right" }}>
                     <button className="button danger" type="button" onClick={() => deleteItem(i)} disabled={saving}>
                       Delete
@@ -319,4 +344,3 @@ export default function PhoneInventoryPage() {
     </section>
   );
 }
-

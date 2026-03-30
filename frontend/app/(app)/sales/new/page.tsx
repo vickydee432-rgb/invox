@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
@@ -57,8 +57,10 @@ type PhoneItem = {
   status: string;
 };
 
-export default function NewSalePage() {
+function NewSalePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tradeInParam = searchParams.get("tradeInId");
   const [users, setUsers] = useState<User[]>([]);
   const [salespersonId, setSalespersonId] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -82,6 +84,7 @@ export default function NewSalePage() {
   const [phoneLookup, setPhoneLookup] = useState("");
   const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
   const [phoneLookupError, setPhoneLookupError] = useState("");
+  const [reservePhoneOnAdd, setReservePhoneOnAdd] = useState(true);
 
   const itemsSubtotal = items.reduce(
     (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
@@ -149,6 +152,31 @@ export default function NewSalePage() {
       mounted = false;
     };
   }, [workspace]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!tradeInParam) return () => {
+      mounted = false;
+    };
+    if (tradeInId) return () => {
+      mounted = false;
+    };
+    apiFetch<{ tradeIn: any }>(`/api/trade-ins/${encodeURIComponent(tradeInParam)}`)
+      .then((data) => {
+        if (!mounted) return;
+        const ti = data.tradeIn;
+        if (!ti?._id) return;
+        setTradeInId(ti._id);
+        const credit = Number(ti.creditAmount ?? ti.agreedAmount ?? 0);
+        setTradeInCredit(Math.max(0, credit));
+        if (ti.customerName && customerName === "Walk-in") setCustomerName(ti.customerName);
+        if (ti.customerPhone && !customerPhone) setCustomerPhone(ti.customerPhone);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [tradeInParam, tradeInId, customerName, customerPhone]);
 
   useEffect(() => {
     let mounted = true;
@@ -258,6 +286,12 @@ export default function NewSalePage() {
       const data = await apiFetch<{ item: PhoneItem }>(`/api/phone-inventory/lookup?${query.toString()}`);
       const phone = data.item;
       if (!phone?._id) throw new Error("Phone not found");
+      if (reservePhoneOnAdd && phone.status === "in_stock") {
+        await apiFetch(`/api/phone-inventory/${phone._id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "reserved" })
+        });
+      }
       setItems((prev) => [
         ...prev,
         {
@@ -437,6 +471,14 @@ export default function NewSalePage() {
               >
                 {phoneLookupLoading ? "Adding..." : "Add phone"}
               </button>
+              <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center", margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={reservePhoneOnAdd}
+                  onChange={(e) => setReservePhoneOnAdd(e.target.checked)}
+                />
+                Reserve on add
+              </label>
               {phoneLookupError ? <div className="muted">{phoneLookupError}</div> : null}
             </div>
           </div>
@@ -555,5 +597,20 @@ export default function NewSalePage() {
         </div>
       </form>
     </section>
+  );
+}
+
+export default function NewSalePage() {
+  return (
+    <Suspense
+      fallback={
+        <section className="panel">
+          <div className="panel-title">Add Sale</div>
+          <div className="muted">Loading...</div>
+        </section>
+      }
+    >
+      <NewSalePageContent />
+    </Suspense>
   );
 }

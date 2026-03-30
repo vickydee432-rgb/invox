@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
 
@@ -24,6 +25,7 @@ type TradeIn = {
 const formatMoney = (value: number) => Number(value || 0).toFixed(2);
 
 export default function TradeInsPage() {
+  const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,7 @@ export default function TradeInsPage() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedId, setSelectedId] = useState("");
 
   const [form, setForm] = useState({
     customerName: "",
@@ -168,6 +171,8 @@ export default function TradeInsPage() {
     }
   };
 
+  const selected = tradeIns.find((t) => t._id === selectedId) || null;
+
   if (workspace && !workspace.enabledModules.includes("tradeins")) {
     return (
       <section className="panel">
@@ -278,6 +283,48 @@ export default function TradeInsPage() {
         </button>
       </div>
 
+      {selected ? (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{selected.tradeInNo}</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {selected.customerName ? `${selected.customerName}` : "No customer"}{selected.customerPhone ? ` • ${selected.customerPhone}` : ""}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Credit: {formatMoney(selected.creditAmount || selected.agreedAmount || 0)} • Status: {selected.status}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={saving || selected.status !== "accepted"}
+                onClick={() => router.push(`/sales/new?tradeInId=${encodeURIComponent(selected._id)}`)}
+              >
+                Start sale with trade-in
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={saving || selected.status !== "accepted"}
+                onClick={() => router.push(`/invoices/new?tradeInId=${encodeURIComponent(selected._id)}`)}
+              >
+                Start invoice with trade-in
+              </button>
+              <button className="button secondary" type="button" onClick={() => setSelectedId("")} disabled={saving}>
+                Clear selection
+              </button>
+            </div>
+          </div>
+          {selected.status !== "accepted" ? (
+            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              Tip: set status to “Accepted” to apply this trade-in as credit.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="muted">Loading...</div>
       ) : filtered.length === 0 ? (
@@ -297,7 +344,12 @@ export default function TradeInsPage() {
             </thead>
             <tbody>
               {filtered.map((row) => (
-                <tr key={row._id}>
+                <tr
+                  key={row._id}
+                  className={selectedId === row._id ? "active" : ""}
+                  onClick={() => setSelectedId(row._id)}
+                  style={{ cursor: "pointer" }}
+                >
                   <td>
                     <div style={{ fontWeight: 700 }}>{row.tradeInNo}</div>
                     <div className="muted" style={{ fontSize: 12 }}>
@@ -340,4 +392,3 @@ export default function TradeInsPage() {
     </section>
   );
 }
-
