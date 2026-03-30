@@ -267,7 +267,14 @@ export function buildReceiptHtml({
 
 export function openPrintWindow() {
   if (typeof window === "undefined") return null;
-  const w = window.open("", "_blank", "noopener,noreferrer,width=420,height=640");
+  // Note: using `noopener,noreferrer` can cause some browsers to return a Window reference
+  // that we can't write to, resulting in a blank/black window. Keep a writable reference.
+  const w = window.open("", "_blank", "width=420,height=640");
+  try {
+    if (w) w.opener = null;
+  } catch {
+    // ignore
+  }
   return w;
 }
 
@@ -280,11 +287,20 @@ export function writeAndPrintHtml(
   try {
     printWindow.document.open();
     const urlSuffix = autoClose ? "?autoprint=1&close=1" : "?autoprint=1";
-    // Keep this window same-origin by writing content directly.
-    // The query string is just used by the inline script above (in case the HTML reads it).
-    printWindow.history.replaceState({}, "", urlSuffix);
+    try {
+      // Keep this window same-origin by writing content directly.
+      // The query string is just used by the inline script above.
+      printWindow.history.replaceState({}, "", urlSuffix);
+    } catch {
+      // ignore history errors (some browsers disallow this on about:blank)
+    }
     printWindow.document.write(html);
     printWindow.document.close();
+    try {
+      printWindow.focus();
+    } catch {
+      // ignore
+    }
     return true;
   } catch {
     return false;
