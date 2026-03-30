@@ -76,7 +76,10 @@ function buildItems(rawItems) {
       lineTotal,
       productId: it.productId || undefined,
       productSku: it.productSku || undefined,
-      productName: it.productName || undefined
+      productName: it.productName || undefined,
+      phoneItemId: it.phoneItemId || undefined,
+      phoneImei: it.phoneImei || undefined,
+      phoneSerial: it.phoneSerial || undefined
     };
   });
 }

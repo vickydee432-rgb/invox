@@ -5,6 +5,9 @@ const SaleItemSchema = new mongoose.Schema(
     productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
     productSku: { type: String, trim: true },
     productName: { type: String, trim: true },
+    phoneItemId: { type: mongoose.Schema.Types.ObjectId, ref: "PhoneInventoryItem" },
+    phoneImei: { type: String, trim: true },
+    phoneSerial: { type: String, trim: true },
     description: { type: String, required: true, trim: true },
     qty: { type: Number, required: true, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },
@@ -28,6 +31,8 @@ const SaleSchema = new mongoose.Schema(
     customerTpin: { type: String, trim: true },
 
     salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    tradeInId: { type: mongoose.Schema.Types.ObjectId, ref: "TradeIn", default: null, index: true },
+    tradeInCredit: { type: Number, default: 0, min: 0 },
 
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", default: null, index: true },
     branchName: { type: String, trim: true },
@@ -62,5 +67,6 @@ SaleSchema.index({ companyId: 1, saleNo: 1 }, { unique: true });
 SaleSchema.index({ companyId: 1, issueDate: -1 });
 SaleSchema.index({ companyId: 1, customerId: 1, issueDate: -1 });
 SaleSchema.index({ companyId: 1, salespersonId: 1, issueDate: -1 });
+SaleSchema.index({ companyId: 1, tradeInId: 1, issueDate: -1 });
 
 module.exports = mongoose.model("Sale", SaleSchema);

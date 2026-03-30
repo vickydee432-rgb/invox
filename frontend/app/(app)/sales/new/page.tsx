@@ -9,6 +9,9 @@ type SaleItem = {
   productId?: string;
   productSku?: string;
   productName?: string;
+  phoneItemId?: string;
+  phoneImei?: string;
+  phoneSerial?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -32,6 +35,28 @@ type User = { _id: string; name: string };
 
 type Customer = { _id: string; name: string; phone?: string };
 
+type TradeIn = {
+  _id: string;
+  tradeInNo: string;
+  customerName?: string;
+  creditAmount?: number;
+  agreedAmount?: number;
+  status: string;
+};
+
+type PhoneItem = {
+  _id: string;
+  brand: string;
+  model: string;
+  storage?: string;
+  color?: string;
+  condition?: string;
+  imei?: string;
+  serial?: string;
+  salePrice?: number;
+  status: string;
+};
+
 export default function NewSalePage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -51,6 +76,12 @@ export default function NewSalePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
+  const [tradeInId, setTradeInId] = useState("");
+  const [tradeInCredit, setTradeInCredit] = useState(0);
+  const [phoneLookup, setPhoneLookup] = useState("");
+  const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
+  const [phoneLookupError, setPhoneLookupError] = useState("");
 
   const itemsSubtotal = items.reduce(
     (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
@@ -65,9 +96,9 @@ export default function NewSalePage() {
 
   useEffect(() => {
     if (status === "paid") {
-      setAmountPaid(total);
+      setAmountPaid(Math.max(0, total - (Number(tradeInCredit) || 0)));
     }
-  }, [status, total]);
+  }, [status, total, tradeInCredit]);
 
   useEffect(() => {
     let mounted = true;
@@ -114,6 +145,25 @@ export default function NewSalePage() {
         setCustomers(data.customers || []);
       })
       .catch(() => setCustomers([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!workspace?.enabledModules?.includes("tradeins")) {
+      setTradeIns([]);
+      return () => {
+        mounted = false;
+      };
+    }
+    apiFetch<{ tradeIns: TradeIn[] }>("/api/trade-ins?unapplied=true&limit=300")
+      .then((data) => {
+        if (!mounted) return;
+        setTradeIns(data.tradeIns || []);
+      })
+      .catch(() => setTradeIns([]));
     return () => {
       mounted = false;
     };
@@ -171,6 +221,7 @@ export default function NewSalePage() {
           customerName: customerName || "Walk-in",
           customerPhone: customerPhone || undefined,
           salespersonId: salespersonId || undefined,
+          tradeInId: tradeInId || undefined,
           status,
           amountPaid,
           issueDate,
@@ -180,6 +231,7 @@ export default function NewSalePage() {
             productId: item.productId || undefined,
             productSku: item.productSku || undefined,
             productName: item.productName || undefined,
+            phoneItemId: item.phoneItemId || undefined,
             description: item.description,
             qty: item.qty,
             unitPrice: item.unitPrice,
@@ -192,6 +244,39 @@ export default function NewSalePage() {
       setError(err.message || "Failed to create sale");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addPhoneToItems = async () => {
+    const value = phoneLookup.trim();
+    if (!value) return;
+    setPhoneLookupLoading(true);
+    setPhoneLookupError("");
+    try {
+      const query = new URLSearchParams();
+      query.set("imei", value);
+      const data = await apiFetch<{ item: PhoneItem }>(`/api/phone-inventory/lookup?${query.toString()}`);
+      const phone = data.item;
+      if (!phone?._id) throw new Error("Phone not found");
+      setItems((prev) => [
+        ...prev,
+        {
+          phoneItemId: phone._id,
+          phoneImei: phone.imei,
+          phoneSerial: phone.serial,
+          description: [phone.brand, phone.model, phone.storage, phone.color, phone.condition]
+            .filter(Boolean)
+            .join(" "),
+          qty: 1,
+          unitPrice: Number(phone.salePrice || 0),
+          discount: 0
+        }
+      ]);
+      setPhoneLookup("");
+    } catch (err: any) {
+      setPhoneLookupError(err.message || "Failed to lookup phone");
+    } finally {
+      setPhoneLookupLoading(false);
     }
   };
 
@@ -249,6 +334,38 @@ export default function NewSalePage() {
             <div />
           )}
         </div>
+        {workspace?.enabledModules?.includes("tradeins") ? (
+          <div className="grid-2">
+            <label className="field">
+              Trade-in (optional)
+              <select
+                value={tradeInId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setTradeInId(next);
+                  const row = tradeIns.find((t) => t._id === next);
+                  const credit = Number(row?.creditAmount ?? row?.agreedAmount ?? 0);
+                  setTradeInCredit(Math.max(0, credit));
+                }}
+              >
+                <option value="">No trade-in</option>
+                {tradeIns.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.tradeInNo}
+                    {t.customerName ? ` • ${t.customerName}` : ""}
+                    {" • "}Credit {Number(t.creditAmount ?? t.agreedAmount ?? 0).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="field">
+              Credit applied
+              <div style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10 }}>
+                {Number(tradeInCredit || 0).toFixed(2)}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="grid-2">
           <label className="field">
             Customer name
@@ -268,7 +385,7 @@ export default function NewSalePage() {
             </select>
           </label>
           <label className="field">
-            Amount paid
+            Cash paid
             <input
               value={amountPaid}
               onChange={(e) => setAmountPaid(Number(e.target.value))}
@@ -301,6 +418,30 @@ export default function NewSalePage() {
           ) : null}
         </div>
 
+        {workspace?.inventoryEnabled ? (
+          <div className="grid-2">
+            <label className="field">
+              Add phone by IMEI
+              <input
+                value={phoneLookup}
+                onChange={(e) => setPhoneLookup(e.target.value)}
+                placeholder="Type IMEI and click Add"
+              />
+            </label>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={addPhoneToItems}
+                disabled={phoneLookupLoading || !phoneLookup.trim()}
+              >
+                {phoneLookupLoading ? "Adding..." : "Add phone"}
+              </button>
+              {phoneLookupError ? <div className="muted">{phoneLookupError}</div> : null}
+            </div>
+          </div>
+        ) : null}
+
         <div style={{ display: "grid", gap: 10 }}>
           {items.map((item, index) => (
             <div key={index} className="grid-2">
@@ -308,13 +449,17 @@ export default function NewSalePage() {
                 Product
                 <select
                   value={item.productId || ""}
+                  disabled={Boolean(item.phoneItemId)}
                   onChange={(e) => {
                     const nextId = e.target.value;
                     if (!nextId) {
                       updateItem(index, {
                         productId: undefined,
                         productSku: undefined,
-                        productName: undefined
+                        productName: undefined,
+                        phoneItemId: undefined,
+                        phoneImei: undefined,
+                        phoneSerial: undefined
                       });
                       return;
                     }
@@ -323,6 +468,9 @@ export default function NewSalePage() {
                       productId: nextId,
                       productSku: product?.sku,
                       productName: product?.name,
+                      phoneItemId: undefined,
+                      phoneImei: undefined,
+                      phoneSerial: undefined,
                       description: product?.name || item.description,
                       unitPrice: Number(product?.salePrice || 0)
                     });
@@ -336,6 +484,11 @@ export default function NewSalePage() {
                     </option>
                   ))}
                 </select>
+                {item.phoneItemId ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    Phone item: {item.phoneImei || item.phoneSerial || item.phoneItemId}
+                  </div>
+                ) : null}
               </label>
               <label className="field">
                 Description
@@ -348,11 +501,15 @@ export default function NewSalePage() {
               <label className="field">
                 Quantity
                 <input
-                  value={item.qty}
-                  onChange={(e) => updateItem(index, { qty: Number(e.target.value) })}
+                  value={item.phoneItemId ? 1 : item.qty}
+                  onChange={(e) => {
+                    if (item.phoneItemId) return;
+                    updateItem(index, { qty: Number(e.target.value) });
+                  }}
                   type="number"
                   min={0}
                   required
+                  disabled={Boolean(item.phoneItemId)}
                 />
               </label>
               <label className="field">

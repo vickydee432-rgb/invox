@@ -35,6 +35,11 @@ function buildTradeInFilter(query) {
   const { status, q } = query;
   const filter = { deletedAt: null };
   if (status) filter.status = status;
+  if (String(query.unapplied || "") === "true") {
+    filter.appliedSaleId = null;
+    filter.appliedInvoiceId = null;
+    if (!status) filter.status = "accepted";
+  }
   const term = String(q || "").trim();
   if (term) {
     filter.$or = [
@@ -195,4 +200,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
-

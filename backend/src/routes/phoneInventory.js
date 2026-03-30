@@ -41,6 +41,23 @@ function buildPhoneFilter(query) {
   return filter;
 }
 
+router.get("/lookup", async (req, res) => {
+  try {
+    const imei = String(req.query.imei || "").trim();
+    const serial = String(req.query.serial || "").trim();
+    if (!imei && !serial) return res.status(400).json({ error: "imei or serial is required" });
+    const workspaceId = resolveWorkspaceId(req);
+    const filter = withWorkspaceScope({ companyId: req.user.companyId, deletedAt: null }, workspaceId);
+    if (imei) filter.imei = imei;
+    else filter.serial = serial;
+    const item = await PhoneInventoryItem.findOne(filter).lean();
+    if (!item) return res.status(404).json({ error: "Phone inventory item not found" });
+    res.json({ item });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to lookup phone inventory item");
+  }
+});
+
 router.get("/", async (req, res) => {
   try {
     const { limit, page } = req.query;
@@ -179,4 +196,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
-

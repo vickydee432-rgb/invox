@@ -26,6 +26,8 @@ const InvoiceSchema = new mongoose.Schema(
     customerPhone: { type: String, trim: true },
     customerTpin: { type: String, trim: true },
     salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    tradeInId: { type: mongoose.Schema.Types.ObjectId, ref: "TradeIn", default: null, index: true },
+    tradeInCredit: { type: Number, default: 0, min: 0 },
     billingAddress: { type: String, trim: true },
     shippingAddress: { type: String, trim: true },
     sameAsBilling: { type: Boolean, default: false },
@@ -90,6 +92,7 @@ InvoiceSchema.index({ companyId: 1, workspaceId: 1, issueDate: -1 });
 InvoiceSchema.index({ companyId: 1, workspaceId: 1, status: 1, issueDate: -1 });
 InvoiceSchema.index({ companyId: 1, customerId: 1, issueDate: -1 });
 InvoiceSchema.index({ companyId: 1, salespersonId: 1, issueDate: -1 });
+InvoiceSchema.index({ companyId: 1, tradeInId: 1, issueDate: -1 });
 InvoiceSchema.index({ projectId: 1, issueDate: -1 });
 InvoiceSchema.index({ dueDate: 1 });
 

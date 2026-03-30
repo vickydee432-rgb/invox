@@ -4,6 +4,8 @@ const Sale = require("../models/Sale");
 const Product = require("../models/Product");
 const Branch = require("../models/Branch");
 const Customer = require("../models/Customer");
+const TradeIn = require("../models/TradeIn");
+const PhoneInventoryItem = require("../models/PhoneInventoryItem");
 const ChangeLog = require("../models/ChangeLog");
 const {
   ensureObjectId,
@@ -22,6 +24,7 @@ const { requireModule } = require("../middleware/workspace");
 const { applyInvoiceInventory, replaceInvoiceMovements } = require("../services/inventory");
 const { buildSalesWorkbook } = require("../services/export");
 const { resolveWorkspaceId, withWorkspaceScope } = require("../services/scope");
+const { syncPhoneInventoryForSale } = require("../services/phoneInventorySync");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("sales"));
@@ -33,6 +36,7 @@ const SaleCreateSchema = z.object({
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
   salespersonId: z.string().optional(),
+  tradeInId: z.string().optional(),
   branchId: z.string().optional(),
   issueDate: z.string().optional(),
   status: z.enum(["paid", "partial", "unpaid", "cancelled"]).optional(),
@@ -44,6 +48,7 @@ const SaleCreateSchema = z.object({
         productId: z.string().optional(),
         productSku: z.string().optional(),
         productName: z.string().optional(),
+        phoneItemId: z.string().optional(),
         description: z.string().min(1),
         qty: z.number().nonnegative(),
         unitPrice: z.number().nonnegative(),
@@ -59,6 +64,7 @@ const SaleUpdateSchema = z.object({
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
   salespersonId: z.string().optional(),
+  tradeInId: z.string().optional(),
   branchId: z.string().optional(),
   issueDate: z.string().optional(),
   status: z.enum(["paid", "partial", "unpaid", "cancelled"]).optional(),
@@ -70,6 +76,7 @@ const SaleUpdateSchema = z.object({
         productId: z.string().optional(),
         productSku: z.string().optional(),
         productName: z.string().optional(),
+        phoneItemId: z.string().optional(),
         description: z.string().min(1),
         qty: z.number().nonnegative(),
         unitPrice: z.number().nonnegative(),
@@ -169,6 +176,73 @@ async function resolveCustomer(companyId, workspaceId, customerId) {
   return Customer.findOne(withWorkspaceScope({ _id: customerId, companyId, deletedAt: null }, workspaceId)).lean();
 }
 
+async function resolveTradeIn(companyId, workspaceId, tradeInId) {
+  if (!tradeInId) return null;
+  ensureObjectId(tradeInId, "trade-in id");
+  const tradeIn = await TradeIn.findOne(withWorkspaceScope({ _id: tradeInId, companyId, deletedAt: null }, workspaceId));
+  if (!tradeIn) {
+    const err = new Error("Trade-in not found");
+    err.status = 400;
+    throw err;
+  }
+  if (tradeIn.status !== "accepted") {
+    const err = new Error("Trade-in must be accepted before applying");
+    err.status = 400;
+    throw err;
+  }
+  if (tradeIn.appliedSaleId || tradeIn.appliedInvoiceId || tradeIn.status === "applied") {
+    const err = new Error("Trade-in is already applied");
+    err.status = 409;
+    throw err;
+  }
+  return tradeIn;
+}
+
+function tradeInCreditAmount(tradeIn) {
+  if (!tradeIn) return 0;
+  const credit = tradeIn.creditAmount ?? tradeIn.agreedAmount ?? 0;
+  return Math.max(0, Number(credit || 0));
+}
+
+async function hydratePhoneFields(companyId, workspaceId, items) {
+  const phoneItemIds = items
+    .map((item) => item.phoneItemId)
+    .filter(Boolean)
+    .map((id) => {
+      ensureObjectId(id, "phone inventory id");
+      return id;
+    });
+  if (phoneItemIds.length === 0) return items;
+  const phones = await PhoneInventoryItem.find(
+    withWorkspaceScope({ _id: { $in: phoneItemIds }, companyId, deletedAt: null }, workspaceId)
+  ).lean();
+  const map = new Map(phones.map((p) => [String(p._id), p]));
+  return items.map((item) => {
+    if (!item.phoneItemId) return item;
+    const phone = map.get(String(item.phoneItemId));
+    if (!phone) {
+      const err = new Error("Phone inventory item not found");
+      err.status = 400;
+      throw err;
+    }
+    if (item.productId) {
+      const err = new Error("Sale item cannot include both productId and phoneItemId");
+      err.status = 400;
+      throw err;
+    }
+    if (Number(item.qty) !== 1) {
+      const err = new Error("Phone inventory sale items must have qty = 1");
+      err.status = 400;
+      throw err;
+    }
+    return {
+      ...item,
+      phoneImei: phone.imei || undefined,
+      phoneSerial: phone.serial || undefined
+    };
+  });
+}
+
 router.get("/", async (req, res) => {
   try {
     const { limit, page } = req.query;
@@ -224,6 +298,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const parsed = SaleCreateSchema.parse(req.body);
+    const workspaceId = resolveWorkspaceId(req);
     let saleNo = parsed.saleNo ? parsed.saleNo.trim() : "";
     if (saleNo) {
       const existing = await Sale.findOne({ companyId: req.user.companyId, saleNo }).lean();
@@ -232,19 +307,36 @@ router.post("/", async (req, res) => {
       saleNo = await nextNumber("SAL", Sale, "saleNo", "^SAL-");
     }
 
-    const workspaceId = resolveWorkspaceId(req);
-    const hydratedItems = await hydrateProductFields(req.user.companyId, parsed.items);
+    const hydratedProducts = await hydrateProductFields(req.user.companyId, parsed.items);
+    const hydratedItems = await hydratePhoneFields(req.user.companyId, workspaceId, hydratedProducts);
     const items = buildItems(hydratedItems);
     const vatRate = parsed.vatRate ?? 0;
     const { subtotal, vatAmount, total } = calcTotals(items, vatRate, 0, 0);
     const issueDate = parseOptionalDate(parsed.issueDate, "issueDate") || new Date();
-    const status = parsed.status || "paid";
-    const amountPaidRaw = parsed.amountPaid !== undefined ? parsed.amountPaid : status === "paid" ? total : 0;
-    const amountPaid = Math.min(total, Math.max(0, amountPaidRaw));
+    const requestedStatus = parsed.status || "paid";
+    if (requestedStatus === "cancelled" && parsed.tradeInId) {
+      return res.status(400).json({ error: "Cannot apply trade-in to a cancelled sale" });
+    }
+    const tradeIn = await resolveTradeIn(req.user.companyId, workspaceId, parsed.tradeInId).catch((err) => {
+      if (parsed.tradeInId) throw err;
+      return null;
+    });
+    const tradeInCredit = requestedStatus === "cancelled" ? 0 : tradeInCreditAmount(tradeIn);
+    const cashPaidRaw =
+      requestedStatus === "cancelled"
+        ? 0
+        : parsed.amountPaid !== undefined
+        ? parsed.amountPaid
+        : requestedStatus === "paid"
+        ? total
+        : 0;
+    const amountPaid =
+      requestedStatus === "cancelled" ? 0 : Math.min(total, Math.max(0, Number(cashPaidRaw || 0) + tradeInCredit));
     const balance = Math.max(0, total - amountPaid);
+    const status = requestedStatus === "cancelled" ? "cancelled" : balance === 0 ? "paid" : amountPaid > 0 ? "partial" : "unpaid";
 
     const branch = await resolveBranch(req.user.companyId, parsed.branchId);
-    if (!branch && requiresBranch(items)) {
+    if (status !== "cancelled" && !branch && requiresBranch(items)) {
       return res.status(400).json({ error: "Branch is required for inventory items" });
     }
 
@@ -267,6 +359,8 @@ router.post("/", async (req, res) => {
         customerPhone: parsed.customerPhone || customer?.phone,
         customerTpin: parsed.customerTpin,
         salespersonId: salespersonId || req.user._id,
+        tradeInId: tradeIn ? tradeIn._id : null,
+        tradeInCredit,
         branchId: branch ? branch._id : null,
         branchName: branch ? branch.name : undefined,
         issueDate,
@@ -282,7 +376,7 @@ router.post("/", async (req, res) => {
 
       const inventoryResult = await applyInvoiceInventory({
         companyId: req.user.companyId,
-        invoice: { ...sale.toObject(), invoiceType: "sale" },
+        invoice: { ...sale.toObject(), items: status === "cancelled" ? [] : sale.items, invoiceType: "sale" },
         previousInvoice: null,
         session
       });
@@ -297,10 +391,24 @@ router.post("/", async (req, res) => {
       await sale.save({ session });
       await replaceInvoiceMovements({
         companyId: req.user.companyId,
-        invoice: { ...sale.toObject(), invoiceType: "sale" },
+        invoice: { ...sale.toObject(), items: status === "cancelled" ? [] : sale.items, invoiceType: "sale" },
         session,
         sourceType: "sale",
         note: sale.saleNo
+      });
+
+      if (tradeIn) {
+        tradeIn.status = "applied";
+        tradeIn.appliedSaleId = sale._id;
+        tradeIn.appliedAt = new Date();
+        await tradeIn.save({ session });
+      }
+
+      await syncPhoneInventoryForSale({
+        companyId: req.user.companyId,
+        sale: sale.toObject(),
+        previousSale: null,
+        session
       });
       await session.commitTransaction();
     } catch (err) {
@@ -342,21 +450,69 @@ router.put("/:id", async (req, res) => {
       }
 
       const previous = sale.toObject();
-      const nextItemsRaw = parsed.items ? await hydrateProductFields(req.user.companyId, parsed.items) : sale.items;
+      const nextItemsProducts = parsed.items ? await hydrateProductFields(req.user.companyId, parsed.items) : sale.items;
+      const nextItemsRaw = parsed.items
+        ? await hydratePhoneFields(req.user.companyId, workspaceId, nextItemsProducts)
+        : sale.items;
       const items = buildItems(nextItemsRaw);
       const vatRate = parsed.vatRate ?? sale.vatRate ?? 0;
       const { subtotal, vatAmount, total } = calcTotals(items, vatRate, 0, 0);
-      const status = parsed.status || sale.status;
-      const amountPaidRaw =
-        parsed.amountPaid !== undefined ? parsed.amountPaid : status === "paid" ? total : sale.amountPaid;
-      const amountPaid = Math.min(total, Math.max(0, amountPaidRaw));
+      let status = parsed.status || sale.status;
+
+      if (status === "cancelled" && parsed.tradeInId) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: "Cannot apply trade-in to a cancelled sale" });
+      }
+
+      if (parsed.tradeInId !== undefined && parsed.tradeInId) {
+        if (sale.tradeInId && String(sale.tradeInId) !== String(parsed.tradeInId)) {
+          await session.abortTransaction();
+          return res.status(400).json({ error: "Trade-in cannot be changed once applied" });
+        }
+        if (!sale.tradeInId) {
+          const tradeIn = await resolveTradeIn(req.user.companyId, workspaceId, parsed.tradeInId);
+          sale.tradeInId = tradeIn._id;
+          sale.tradeInCredit = tradeInCreditAmount(tradeIn);
+          tradeIn.status = "applied";
+          tradeIn.appliedSaleId = sale._id;
+          tradeIn.appliedAt = new Date();
+          await tradeIn.save({ session });
+        }
+      }
+
+      // If sale is cancelled, free up any applied trade-in.
+      if (status === "cancelled" && sale.tradeInId) {
+        const tradeIn = await TradeIn.findOne(
+          withWorkspaceScope({ _id: sale.tradeInId, companyId: req.user.companyId, deletedAt: null }, workspaceId)
+        ).session(session);
+        if (tradeIn && String(tradeIn.appliedSaleId || "") === String(sale._id)) {
+          tradeIn.status = "accepted";
+          tradeIn.appliedSaleId = null;
+          tradeIn.appliedAt = undefined;
+          await tradeIn.save({ session });
+        }
+        sale.tradeInId = null;
+        sale.tradeInCredit = 0;
+      }
+
+      const tradeInCredit = Number(sale.tradeInCredit || 0);
+      const cashPaidRaw =
+        parsed.amountPaid !== undefined
+          ? parsed.amountPaid
+          : status === "paid"
+          ? Math.max(0, total - tradeInCredit)
+          : Math.max(0, Number(sale.amountPaid || 0) - tradeInCredit);
+      const amountPaid = Math.min(total, Math.max(0, Number(cashPaidRaw || 0) + tradeInCredit));
       const balance = Math.max(0, total - amountPaid);
+      if (status !== "cancelled") {
+        status = balance === 0 ? "paid" : amountPaid > 0 ? "partial" : "unpaid";
+      }
 
       if (parsed.branchId !== undefined && parsed.branchId) {
         ensureObjectId(parsed.branchId, "branch id");
       }
       const branch = await resolveBranch(req.user.companyId, parsed.branchId || sale.branchId);
-      if (!branch && requiresBranch(items)) {
+      if (status !== "cancelled" && !branch && requiresBranch(items)) {
         await session.abortTransaction();
         return res.status(400).json({ error: "Branch is required for inventory items" });
       }
@@ -376,7 +532,7 @@ router.put("/:id", async (req, res) => {
         sale.salespersonId = sp || null;
       }
       if (parsed.issueDate !== undefined) sale.issueDate = parseDateOrThrow(parsed.issueDate, "issueDate");
-      if (parsed.status !== undefined) sale.status = parsed.status;
+      sale.status = status;
       if (parsed.vatRate !== undefined) sale.vatRate = parsed.vatRate;
       if (parsed.items !== undefined) sale.items = items;
       sale.branchId = branch ? branch._id : null;
@@ -391,10 +547,17 @@ router.put("/:id", async (req, res) => {
       sale.deviceId = String(req.headers["x-device-id"] || "server");
       sale.version = (sale.version || 1) + 1;
 
+      const inventoryInvoice = { ...sale.toObject(), items: status === "cancelled" ? [] : sale.items, invoiceType: "sale" };
+      const previousInvoiceForInventory = {
+        ...previous,
+        items: String(previous.status) === "cancelled" || previous.deletedAt ? [] : previous.items,
+        invoiceType: "sale"
+      };
+
       const inventoryResult = await applyInvoiceInventory({
         companyId: req.user.companyId,
-        invoice: { ...sale.toObject(), invoiceType: "sale" },
-        previousInvoice: { ...previous, invoiceType: "sale" },
+        invoice: inventoryInvoice,
+        previousInvoice: previousInvoiceForInventory,
         session
       });
       if (inventoryResult.shortages.length > 0) {
@@ -408,10 +571,17 @@ router.put("/:id", async (req, res) => {
       await sale.save({ session });
       await replaceInvoiceMovements({
         companyId: req.user.companyId,
-        invoice: { ...sale.toObject(), invoiceType: "sale" },
+        invoice: inventoryInvoice,
         session,
         sourceType: "sale",
         note: sale.saleNo
+      });
+
+      await syncPhoneInventoryForSale({
+        companyId: req.user.companyId,
+        sale: sale.toObject(),
+        previousSale: previous,
+        session
       });
       await session.commitTransaction();
     } catch (err) {
@@ -438,6 +608,7 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     ensureObjectId(req.params.id, "sale id");
+    const workspaceId = resolveWorkspaceId(req);
     const session = await Sale.startSession();
     session.startTransaction();
     let sale;
@@ -450,6 +621,7 @@ router.delete("/:id", async (req, res) => {
         return res.status(404).json({ error: "Sale not found" });
       }
 
+      const previous = sale.toObject();
       const clearedSale = { ...sale.toObject(), items: [], invoiceType: "sale" };
       const inventoryResult = await applyInvoiceInventory({
         companyId: req.user.companyId,
@@ -472,12 +644,33 @@ router.delete("/:id", async (req, res) => {
         sourceType: "sale",
         note: sale.saleNo
       });
+      if (sale.tradeInId) {
+        const tradeIn = await TradeIn.findOne(
+          withWorkspaceScope({ _id: sale.tradeInId, companyId: req.user.companyId, deletedAt: null }, workspaceId)
+        ).session(session);
+        if (tradeIn && String(tradeIn.appliedSaleId || "") === String(sale._id)) {
+          tradeIn.status = "accepted";
+          tradeIn.appliedSaleId = null;
+          tradeIn.appliedAt = undefined;
+          await tradeIn.save({ session });
+        }
+        sale.tradeInId = null;
+        sale.tradeInCredit = 0;
+      }
       sale.deletedAt = new Date();
+      sale.status = "cancelled";
       sale.version = (sale.version || 1) + 1;
-      sale.workspaceId = sale.workspaceId || String(req.user.companyId);
+      sale.workspaceId = sale.workspaceId || workspaceId;
       sale.userId = req.user._id;
       sale.deviceId = String(req.headers["x-device-id"] || "server");
       await sale.save({ session });
+
+      await syncPhoneInventoryForSale({
+        companyId: req.user.companyId,
+        sale: sale.toObject(),
+        previousSale: previous,
+        session
+      });
       await session.commitTransaction();
     } catch (err) {
       if (session.inTransaction()) {

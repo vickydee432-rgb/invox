@@ -32,6 +32,7 @@ const TradeInSchema = new mongoose.Schema(
 
     appliedSaleId: { type: mongoose.Schema.Types.ObjectId, ref: "Sale", default: null, index: true },
     appliedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: "Invoice", default: null, index: true },
+    appliedAt: { type: Date },
 
     notes: { type: String, trim: true },
 
@@ -45,4 +46,3 @@ TradeInSchema.index({ companyId: 1, tradeInNo: 1 }, { unique: true });
 TradeInSchema.index({ companyId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("TradeIn", TradeInSchema);
-

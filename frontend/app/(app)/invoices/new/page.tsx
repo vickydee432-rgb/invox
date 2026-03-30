@@ -42,6 +42,8 @@ type User = { _id: string; name: string };
 
 type Customer = { _id: string; name: string; phone?: string };
 
+type TradeIn = { _id: string; tradeInNo: string; customerName?: string; creditAmount?: number; agreedAmount?: number; status: string };
+
 function NewInvoicePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,6 +66,9 @@ function NewInvoicePageContent() {
   const [salespersonId, setSalespersonId] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
+  const [tradeInId, setTradeInId] = useState("");
+  const [tradeInCredit, setTradeInCredit] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTpin, setCustomerTpin] = useState("");
@@ -204,6 +209,25 @@ function NewInvoicePageContent() {
         setCustomers(data.customers || []);
       })
       .catch(() => setCustomers([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!workspace?.enabledModules?.includes("tradeins")) {
+      setTradeIns([]);
+      return () => {
+        mounted = false;
+      };
+    }
+    apiFetch<{ tradeIns: TradeIn[] }>("/api/trade-ins?unapplied=true&limit=300")
+      .then((data) => {
+        if (!mounted) return;
+        setTradeIns(data.tradeIns || []);
+      })
+      .catch(() => setTradeIns([]));
     return () => {
       mounted = false;
     };
@@ -545,6 +569,7 @@ function NewInvoicePageContent() {
           customerPhone: customerPhone || undefined,
           customerTpin: customerTpin || undefined,
           salespersonId: salespersonId || undefined,
+          tradeInId: tradeInId || undefined,
           billingAddress: billingAddress || undefined,
           shippingAddress: shippingAddress || undefined,
           sameAsBilling,
@@ -766,6 +791,42 @@ function NewInvoicePageContent() {
                         ))}
                       </select>
                     </label>
+                  ) : (
+                    <div />
+                  )}
+                  {workspace?.enabledModules?.includes("tradeins") ? (
+                    <label className="field">
+                      Trade-in (optional)
+                      <select
+                        value={tradeInId}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setTradeInId(next);
+                          const row = tradeIns.find((t) => t._id === next);
+                          const credit = Number(row?.creditAmount ?? row?.agreedAmount ?? 0);
+                          setTradeInCredit(Math.max(0, credit));
+                        }}
+                      >
+                        <option value="">No trade-in</option>
+                        {tradeIns.map((t) => (
+                          <option key={t._id} value={t._id}>
+                            {t.tradeInNo}
+                            {t.customerName ? ` • ${t.customerName}` : ""}
+                            {" • "}Credit {Number(t.creditAmount ?? t.agreedAmount ?? 0).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div />
+                  )}
+                  {workspace?.enabledModules?.includes("tradeins") ? (
+                    <div className="field">
+                      Credit applied
+                      <div style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10 }}>
+                        {Number(tradeInCredit || 0).toFixed(2)}
+                      </div>
+                    </div>
                   ) : (
                     <div />
                   )}

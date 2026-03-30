@@ -9,6 +9,9 @@ type SaleItem = {
   productId?: string;
   productSku?: string;
   productName?: string;
+  phoneItemId?: string;
+  phoneImei?: string;
+  phoneSerial?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -28,10 +31,19 @@ type Product = {
   salePrice?: number;
 };
 
+type User = { _id: string; name: string };
+
+type TradeIn = { _id: string; tradeInNo: string; customerName?: string; creditAmount?: number; agreedAmount?: number; status: string };
+
+type PhoneItem = { _id: string; brand: string; model: string; storage?: string; color?: string; condition?: string; imei?: string; serial?: string; salePrice?: number; status: string };
+
 type Sale = {
   _id: string;
   customerName?: string;
   customerPhone?: string;
+  salespersonId?: string | null;
+  tradeInId?: string | null;
+  tradeInCredit?: number;
   status: string;
   amountPaid: number;
   issueDate: string;
@@ -53,6 +65,14 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [users, setUsers] = useState<User[]>([]);
+  const [salespersonId, setSalespersonId] = useState("");
+  const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
+  const [tradeInId, setTradeInId] = useState("");
+  const [tradeInCredit, setTradeInCredit] = useState(0);
+  const [phoneLookup, setPhoneLookup] = useState("");
+  const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
+  const [phoneLookupError, setPhoneLookupError] = useState("");
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
@@ -74,9 +94,9 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     if (status === "paid") {
-      setAmountPaid(total);
+      setAmountPaid(Math.max(0, total - (Number(tradeInCredit) || 0)));
     }
-  }, [status, total]);
+  }, [status, total, tradeInCredit]);
 
   useEffect(() => {
     let mounted = true;
@@ -91,6 +111,39 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([apiFetch<{ user: any }>("/api/auth/me"), apiFetch<{ users: User[] }>("/api/users")])
+      .then(([me, data]) => {
+        if (!mounted) return;
+        setUsers(data.users || []);
+        if (!salespersonId && me?.user?._id) setSalespersonId(me.user._id);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [salespersonId]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!workspace?.enabledModules?.includes("tradeins")) {
+      setTradeIns([]);
+      return () => {
+        mounted = false;
+      };
+    }
+    apiFetch<{ tradeIns: TradeIn[] }>("/api/trade-ins?unapplied=true&limit=300")
+      .then((data) => {
+        if (!mounted) return;
+        setTradeIns(data.tradeIns || []);
+      })
+      .catch(() => setTradeIns([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
 
   useEffect(() => {
     let mounted = true;
@@ -134,6 +187,21 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
         setCustomerPhone(sale.customerPhone || "");
         setStatus(sale.status || "paid");
         setAmountPaid(sale.amountPaid || 0);
+        setSalespersonId(sale.salespersonId || "");
+        setTradeInId(sale.tradeInId || "");
+        setTradeInCredit(Number(sale.tradeInCredit || 0));
+        if (sale.tradeInId) {
+          apiFetch<{ tradeIn: TradeIn }>(`/api/trade-ins/${sale.tradeInId}`)
+            .then((ti) => {
+              const row = ti.tradeIn;
+              if (!row?._id) return;
+              setTradeIns((prev) => {
+                const exists = prev.some((p) => p._id === row._id);
+                return exists ? prev : [row, ...prev];
+              });
+            })
+            .catch(() => {});
+        }
         setIssueDate(toDateInputValue(sale.issueDate));
         setVatRate(sale.vatRate ?? 0);
         setBranchId(sale.branchId || "");
@@ -142,6 +210,9 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
             productId: item.productId,
             productSku: item.productSku,
             productName: item.productName,
+            phoneItemId: item.phoneItemId,
+            phoneImei: item.phoneImei,
+            phoneSerial: item.phoneSerial,
             description: item.description,
             qty: item.qty,
             unitPrice: item.unitPrice,
@@ -173,6 +244,39 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
     setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== index)));
   };
 
+  const addPhoneToItems = async () => {
+    const value = phoneLookup.trim();
+    if (!value) return;
+    setPhoneLookupLoading(true);
+    setPhoneLookupError("");
+    try {
+      const query = new URLSearchParams();
+      query.set("imei", value);
+      const data = await apiFetch<{ item: PhoneItem }>(`/api/phone-inventory/lookup?${query.toString()}`);
+      const phone = data.item;
+      if (!phone?._id) throw new Error("Phone not found");
+      setItems((prev) => [
+        ...prev,
+        {
+          phoneItemId: phone._id,
+          phoneImei: phone.imei,
+          phoneSerial: phone.serial,
+          description: [phone.brand, phone.model, phone.storage, phone.color, phone.condition]
+            .filter(Boolean)
+            .join(" "),
+          qty: 1,
+          unitPrice: Number(phone.salePrice || 0),
+          discount: 0
+        }
+      ]);
+      setPhoneLookup("");
+    } catch (err: any) {
+      setPhoneLookupError(err.message || "Failed to lookup phone");
+    } finally {
+      setPhoneLookupLoading(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -184,6 +288,8 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
         body: JSON.stringify({
           customerName,
           customerPhone: customerPhone || undefined,
+          salespersonId: salespersonId || undefined,
+          tradeInId: tradeInId || undefined,
           status,
           amountPaid,
           issueDate,
@@ -193,6 +299,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
             productId: item.productId || undefined,
             productSku: item.productSku || undefined,
             productName: item.productName || undefined,
+            phoneItemId: item.phoneItemId || undefined,
             description: item.description,
             qty: item.qty,
             unitPrice: item.unitPrice,
@@ -246,6 +353,45 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
         <div className="grid-2">
           <label className="field">
+            Salesperson
+            <select value={salespersonId} onChange={(e) => setSalespersonId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {users.map((u) => (
+                <option key={u._id} value={u._id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {workspace?.enabledModules?.includes("tradeins") ? (
+            <label className="field">
+              Trade-in (optional)
+              <select
+                value={tradeInId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setTradeInId(next);
+                  const row = tradeIns.find((t) => t._id === next);
+                  const credit = Number(row?.creditAmount ?? row?.agreedAmount ?? 0);
+                  setTradeInCredit(Math.max(0, credit));
+                }}
+              >
+                <option value="">No trade-in</option>
+                {tradeIns.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.tradeInNo}
+                    {t.customerName ? ` • ${t.customerName}` : ""}
+                    {" • "}Credit {Number(t.creditAmount ?? t.agreedAmount ?? 0).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div />
+          )}
+        </div>
+        <div className="grid-2">
+          <label className="field">
             Customer name
             <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
           </label>
@@ -263,7 +409,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
             </select>
           </label>
           <label className="field">
-            Amount paid
+            Cash paid
             <input
               value={amountPaid}
               onChange={(e) => setAmountPaid(Number(e.target.value))}
@@ -296,6 +442,30 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
           ) : null}
         </div>
 
+        {workspace?.inventoryEnabled ? (
+          <div className="grid-2">
+            <label className="field">
+              Add phone by IMEI
+              <input
+                value={phoneLookup}
+                onChange={(e) => setPhoneLookup(e.target.value)}
+                placeholder="Type IMEI and click Add"
+              />
+            </label>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={addPhoneToItems}
+                disabled={phoneLookupLoading || !phoneLookup.trim()}
+              >
+                {phoneLookupLoading ? "Adding..." : "Add phone"}
+              </button>
+              {phoneLookupError ? <div className="muted">{phoneLookupError}</div> : null}
+            </div>
+          </div>
+        ) : null}
+
         <div style={{ display: "grid", gap: 10 }}>
           {items.map((item, index) => (
             <div key={index} className="grid-2">
@@ -303,13 +473,17 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
                 Product
                 <select
                   value={item.productId || ""}
+                  disabled={Boolean(item.phoneItemId)}
                   onChange={(e) => {
                     const nextId = e.target.value;
                     if (!nextId) {
                       updateItem(index, {
                         productId: undefined,
                         productSku: undefined,
-                        productName: undefined
+                        productName: undefined,
+                        phoneItemId: undefined,
+                        phoneImei: undefined,
+                        phoneSerial: undefined
                       });
                       return;
                     }
@@ -318,6 +492,9 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
                       productId: nextId,
                       productSku: product?.sku,
                       productName: product?.name,
+                      phoneItemId: undefined,
+                      phoneImei: undefined,
+                      phoneSerial: undefined,
                       description: product?.name || item.description,
                       unitPrice: Number(product?.salePrice || 0)
                     });
@@ -331,6 +508,11 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
                     </option>
                   ))}
                 </select>
+                {item.phoneItemId ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    Phone item: {item.phoneImei || item.phoneSerial || item.phoneItemId}
+                  </div>
+                ) : null}
               </label>
               <label className="field">
                 Description
@@ -343,11 +525,15 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
               <label className="field">
                 Quantity
                 <input
-                  value={item.qty}
-                  onChange={(e) => updateItem(index, { qty: Number(e.target.value) })}
+                  value={item.phoneItemId ? 1 : item.qty}
+                  onChange={(e) => {
+                    if (item.phoneItemId) return;
+                    updateItem(index, { qty: Number(e.target.value) });
+                  }}
                   type="number"
                   min={0}
                   required
+                  disabled={Boolean(item.phoneItemId)}
                 />
               </label>
               <label className="field">

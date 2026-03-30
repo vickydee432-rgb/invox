@@ -24,6 +24,7 @@ const ZraConnection = require("../models/ZraConnection");
 const Branch = require("../models/Branch");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
+const TradeIn = require("../models/TradeIn");
 const { submitInvoice, submitCancel, submitCreditNote } = require("../services/zra/client");
 const {
   buildZraInvoicePayload,
@@ -72,6 +73,36 @@ async function resolveCustomer(companyId, workspaceId, customerId) {
   if (!customerId) return null;
   ensureObjectId(customerId, "customer id");
   return Customer.findOne(withWorkspaceScope({ _id: customerId, companyId, deletedAt: null }, workspaceId)).lean();
+}
+
+async function resolveTradeIn(companyId, workspaceId, tradeInId) {
+  if (!tradeInId) return null;
+  ensureObjectId(tradeInId, "trade-in id");
+  const tradeIn = await TradeIn.findOne(
+    withWorkspaceScope({ _id: tradeInId, companyId, deletedAt: null }, workspaceId)
+  );
+  if (!tradeIn) {
+    const err = new Error("Trade-in not found");
+    err.status = 400;
+    throw err;
+  }
+  if (tradeIn.status !== "accepted") {
+    const err = new Error("Trade-in must be accepted before applying");
+    err.status = 400;
+    throw err;
+  }
+  if (tradeIn.appliedSaleId || tradeIn.appliedInvoiceId || tradeIn.status === "applied") {
+    const err = new Error("Trade-in is already applied");
+    err.status = 409;
+    throw err;
+  }
+  return tradeIn;
+}
+
+function tradeInCreditAmount(tradeIn) {
+  if (!tradeIn) return 0;
+  const credit = tradeIn.creditAmount ?? tradeIn.agreedAmount ?? 0;
+  return Math.max(0, Number(credit || 0));
 }
 
 async function resolveBranch(companyId, branchId) {
@@ -504,6 +535,7 @@ const InvoiceUpdateSchema = z.object({
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
   salespersonId: z.string().optional(),
+  tradeInId: z.string().optional(),
   billingAddress: z.string().optional(),
   shippingAddress: z.string().optional(),
   sameAsBilling: z.boolean().optional(),
@@ -551,6 +583,7 @@ const InvoiceCreateSchema = z.object({
   customerPhone: z.string().optional(),
   customerTpin: z.string().optional(),
   salespersonId: z.string().optional(),
+  tradeInId: z.string().optional(),
   billingAddress: z.string().optional(),
   shippingAddress: z.string().optional(),
   sameAsBilling: z.boolean().optional(),
@@ -586,6 +619,11 @@ router.post("/", async (req, res) => {
     if (parsed.projectId) ensureObjectId(parsed.projectId, "project id");
     const workspaceId = resolveWorkspaceId(req);
     const customer = await resolveCustomer(req.user.companyId, workspaceId, parsed.customerId);
+    const tradeIn = await resolveTradeIn(req.user.companyId, workspaceId, parsed.tradeInId).catch((err) => {
+      if (parsed.tradeInId) throw err;
+      return null;
+    });
+    const tradeInCredit = tradeInCreditAmount(tradeIn);
     const salespersonId = parsed.salespersonId ? String(parsed.salespersonId).trim() : "";
     if (salespersonId) ensureObjectId(salespersonId, "salesperson id");
 
@@ -609,9 +647,18 @@ router.post("/", async (req, res) => {
     const issueDate = parseOptionalDate(parsed.issueDate, "issueDate") || new Date();
     const dueDate = parseDateOrThrow(parsed.dueDate, "dueDate");
 
-    const status = parsed.status || "sent";
-    const amountPaid = status === "paid" ? total : 0;
+    const requestedStatus = parsed.status || "sent";
+    const cashPaid = requestedStatus === "paid" ? total : 0;
+    const amountPaid = Math.min(total, Math.max(0, cashPaid + tradeInCredit));
     const balance = Math.max(0, total - amountPaid);
+    const status =
+      requestedStatus === "draft"
+        ? "draft"
+        : balance === 0
+        ? "paid"
+        : amountPaid > 0
+        ? "partial"
+        : "sent";
     const invoiceType = parsed.invoiceType || "sale";
     const branch = await resolveBranch(req.user.companyId, parsed.branchId);
     if (!branch && requiresBranch(items)) {
@@ -633,6 +680,8 @@ router.post("/", async (req, res) => {
         customerPhone,
         customerTpin: parsed.customerTpin,
         salespersonId: salespersonId || req.user._id,
+        tradeInId: tradeIn ? tradeIn._id : null,
+        tradeInCredit,
         billingAddress: parsed.billingAddress,
         shippingAddress: parsed.shippingAddress,
         sameAsBilling: parsed.sameAsBilling ?? false,
@@ -672,7 +721,7 @@ router.post("/", async (req, res) => {
       }
 
       await invoice.save({ session });
-      if (amountPaid > 0) {
+      if (cashPaid > 0) {
         await Payment.create(
           [
             {
@@ -684,7 +733,7 @@ router.post("/", async (req, res) => {
               invoiceNo: invoice.invoiceNo,
               customerName: invoice.customerName,
               date: issueDate,
-              amount: amountPaid,
+              amount: cashPaid,
               note: "Auto payment from invoice created as paid",
               deletedAt: null,
               version: 1
@@ -693,6 +742,36 @@ router.post("/", async (req, res) => {
           { session }
         );
       }
+      if (tradeInCredit > 0) {
+        await Payment.create(
+          [
+            {
+              companyId: req.user.companyId,
+              workspaceId,
+              userId: req.user._id,
+              deviceId: String(deviceId),
+              invoiceId: invoice._id,
+              invoiceNo: invoice.invoiceNo,
+              customerName: invoice.customerName,
+              date: issueDate,
+              amount: tradeInCredit,
+              method: "TRADE_IN",
+              note: "Trade-in credit applied",
+              deletedAt: null,
+              version: 1
+            }
+          ],
+          { session }
+        );
+      }
+
+      if (tradeIn) {
+        tradeIn.status = "applied";
+        tradeIn.appliedInvoiceId = invoice._id;
+        tradeIn.appliedAt = new Date();
+        await tradeIn.save({ session });
+      }
+
       await replaceInvoiceMovements({ companyId: req.user.companyId, invoice, session });
       await session.commitTransaction();
       session.endSession();
@@ -767,6 +846,50 @@ router.put("/:id", async (req, res) => {
         if (sp) ensureObjectId(sp, "salesperson id");
         invoice.salespersonId = sp || null;
       }
+
+      if (parsed.tradeInId !== undefined && parsed.tradeInId) {
+        if (invoice.tradeInId && String(invoice.tradeInId) !== String(parsed.tradeInId)) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ error: "Trade-in cannot be changed once applied" });
+        }
+        if (!invoice.tradeInId) {
+          const tradeIn = await resolveTradeIn(req.user.companyId, workspaceId, parsed.tradeInId);
+          const credit = tradeInCreditAmount(tradeIn);
+          invoice.tradeInId = tradeIn._id;
+          invoice.tradeInCredit = credit;
+          invoice.amountPaid = Math.min(invoice.total || 0, Number(invoice.amountPaid || 0) + credit);
+          invoice.balance = Math.max(0, Number(invoice.total || 0) - Number(invoice.amountPaid || 0));
+          if (invoice.status !== "draft" && invoice.status !== "cancelled") {
+            if (invoice.balance === 0) invoice.status = "paid";
+            else if (invoice.amountPaid > 0) invoice.status = "partial";
+          }
+          await Payment.create(
+            [
+              {
+                companyId: req.user.companyId,
+                workspaceId: invoice.workspaceId || workspaceId,
+                userId: invoice.userId || req.user._id,
+                deviceId: invoice.deviceId || String(req.headers["x-device-id"] || "server"),
+                invoiceId: invoice._id,
+                invoiceNo: invoice.invoiceNo,
+                customerName: invoice.customerName,
+                date: paymentEventDate,
+                amount: credit,
+                method: "TRADE_IN",
+                note: "Trade-in credit applied",
+                deletedAt: null,
+                version: 1
+              }
+            ],
+            { session }
+          );
+          tradeIn.status = "applied";
+          tradeIn.appliedInvoiceId = invoice._id;
+          tradeIn.appliedAt = new Date();
+          await tradeIn.save({ session });
+        }
+      }
       if (parsed.billingAddress !== undefined) invoice.billingAddress = parsed.billingAddress;
       if (parsed.shippingAddress !== undefined) invoice.shippingAddress = parsed.shippingAddress;
       if (parsed.sameAsBilling !== undefined) invoice.sameAsBilling = parsed.sameAsBilling;
@@ -806,6 +929,7 @@ router.put("/:id", async (req, res) => {
         invoice.subtotal = subtotal;
         invoice.vatAmount = vatAmount;
         invoice.total = total;
+        invoice.amountPaid = Math.min(invoice.total, Math.max(0, Number(invoice.amountPaid || 0)));
         invoice.balance = Math.max(0, invoice.total - invoice.amountPaid);
       }
 
