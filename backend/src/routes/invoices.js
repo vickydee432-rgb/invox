@@ -221,6 +221,11 @@ router.delete("/:id", async (req, res) => {
         session.endSession();
         return res.status(404).json({ error: "Invoice not found" });
       }
+      if (invoice.sourceSaleId) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: "Receipt was generated from a sale. Edit or delete the sale instead." });
+      }
       const clearedInvoice = { ...invoice.toObject(), items: [] };
       const inventoryResult = await applyInvoiceInventory({
         companyId: req.user.companyId,
@@ -809,6 +814,11 @@ router.put("/:id", async (req, res) => {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (invoice.sourceSaleId) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: "Receipt was generated from a sale. Edit the sale to update it." });
       }
       if (invoice.lockedAt) {
         await session.abortTransaction();

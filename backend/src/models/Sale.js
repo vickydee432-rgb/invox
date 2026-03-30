@@ -25,6 +25,8 @@ const SaleSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     deviceId: { type: String, trim: true, index: true },
 
+    receiptInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: "Invoice", default: null, index: true },
+
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", default: null, index: true },
     customerName: { type: String, trim: true, default: "Walk-in" },
     customerPhone: { type: String, trim: true },

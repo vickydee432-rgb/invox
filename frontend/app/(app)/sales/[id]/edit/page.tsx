@@ -39,6 +39,7 @@ type PhoneItem = { _id: string; brand: string; model: string; storage?: string; 
 
 type Sale = {
   _id: string;
+  receiptInvoiceId?: string | null;
   customerName?: string;
   customerPhone?: string;
   salespersonId?: string | null;
@@ -85,6 +86,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [vatRate, setVatRate] = useState(0);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
+  const [receiptInvoiceId, setReceiptInvoiceId] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<SaleItem[]>([{ description: "", qty: 1, unitPrice: 0, discount: 0 }]);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
@@ -187,6 +189,7 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
       .then((data) => {
         if (!active) return;
         const sale = data.sale;
+        setReceiptInvoiceId(sale.receiptInvoiceId || "");
         setCustomerName(sale.customerName || "Walk-in");
         setCustomerPhone(sale.customerPhone || "");
         setStatus(sale.status || "paid");
@@ -383,7 +386,18 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
 
   return (
     <section className="panel">
-      <div className="panel-title">Edit Sale</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div className="panel-title">Edit Sale</div>
+        {receiptInvoiceId && workspace?.enabledModules?.includes("invoices") ? (
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => router.push(`/invoices/${receiptInvoiceId}/receipt`)}
+          >
+            View {workspace?.labels?.invoiceSingular || "Receipt"}
+          </button>
+        ) : null}
+      </div>
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
         <div className="grid-2">
           <label className="field">

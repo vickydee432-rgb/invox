@@ -1,6 +1,7 @@
 const express = require("express");
 const { z } = require("zod");
 const Sale = require("../models/Sale");
+const Invoice = require("../models/Invoice");
 const Product = require("../models/Product");
 const Branch = require("../models/Branch");
 const Customer = require("../models/Customer");
@@ -28,6 +29,79 @@ const { syncPhoneInventoryForSale } = require("../services/phoneInventorySync");
 
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("sales"));
+
+function mapSaleStatusToInvoiceStatus(status) {
+  if (status === "cancelled") return "cancelled";
+  if (status === "paid") return "paid";
+  if (status === "partial") return "partial";
+  return "sent";
+}
+
+async function upsertReceiptInvoiceForSale({ req, sale, session }) {
+  const workspace = req.workspace;
+  if (!workspace?.enabledModules?.includes("invoices")) return null;
+
+  const invoicePatch = {
+    companyId: sale.companyId,
+    workspaceId: sale.workspaceId,
+    userId: sale.userId,
+    deviceId: sale.deviceId,
+    customerId: sale.customerId || null,
+    customerName: sale.customerName || "Walk-in",
+    customerPhone: sale.customerPhone,
+    customerTpin: sale.customerTpin,
+    salespersonId: sale.salespersonId || null,
+    tradeInId: sale.tradeInId || null,
+    tradeInCredit: Number(sale.tradeInCredit || 0),
+    branchId: sale.branchId || null,
+    branchName: sale.branchName,
+    invoiceType: "sale",
+    issueDate: sale.issueDate || new Date(),
+    dueDate: sale.issueDate || new Date(),
+    status: mapSaleStatusToInvoiceStatus(sale.status),
+    vatRate: sale.vatRate ?? 0,
+    items: (sale.items || []).map((item) => ({
+      productId: item.productId,
+      productSku: item.productSku,
+      productName: item.productName,
+      description: item.description,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      discount: item.discount || 0,
+      lineTotal: item.lineTotal
+    })),
+    subtotal: sale.subtotal,
+    vatAmount: sale.vatAmount,
+    total: sale.total,
+    amountPaid: sale.amountPaid,
+    balance: sale.balance,
+    sourceSaleId: sale._id,
+    deletedAt: sale.deletedAt ? sale.deletedAt : null
+  };
+
+  let invoice = null;
+  if (sale.receiptInvoiceId) {
+    invoice = await Invoice.findOne({ _id: sale.receiptInvoiceId, companyId: req.user.companyId }).session(session);
+    if (invoice) {
+      Object.assign(invoice, invoicePatch);
+      invoice.version = (invoice.version || 1) + 1;
+      await invoice.save({ session });
+      return invoice;
+    }
+  }
+
+  const invoiceNo = await nextNumber("REC", Invoice, "invoiceNo", "^REC-");
+  invoice = new Invoice({
+    invoiceNo,
+    ...invoicePatch,
+    version: 1
+  });
+  await invoice.save({ session });
+
+  sale.receiptInvoiceId = invoice._id;
+  await sale.save({ session });
+  return invoice;
+}
 
 const SaleCreateSchema = z.object({
   saleNo: z.string().optional(),
@@ -410,6 +484,8 @@ router.post("/", async (req, res) => {
         previousSale: null,
         session
       });
+
+      await upsertReceiptInvoiceForSale({ req, sale, session });
       await session.commitTransaction();
     } catch (err) {
       if (session.inTransaction()) {
@@ -583,6 +659,8 @@ router.put("/:id", async (req, res) => {
         previousSale: previous,
         session
       });
+
+      await upsertReceiptInvoiceForSale({ req, sale, session });
       await session.commitTransaction();
     } catch (err) {
       if (session.inTransaction()) {
@@ -671,6 +749,19 @@ router.delete("/:id", async (req, res) => {
         previousSale: previous,
         session
       });
+
+      // Ensure any linked receipt is hidden once the sale is deleted.
+      if (sale.receiptInvoiceId) {
+        const receipt = await Invoice.findOne({ _id: sale.receiptInvoiceId, companyId: req.user.companyId }).session(
+          session
+        );
+        if (receipt) {
+          receipt.status = "cancelled";
+          receipt.deletedAt = receipt.deletedAt || new Date();
+          receipt.version = (receipt.version || 1) + 1;
+          await receipt.save({ session });
+        }
+      }
       await session.commitTransaction();
     } catch (err) {
       if (session.inTransaction()) {

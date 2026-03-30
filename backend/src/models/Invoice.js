@@ -21,6 +21,7 @@ const InvoiceSchema = new mongoose.Schema(
     workspaceId: { type: String, trim: true, index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     deviceId: { type: String, trim: true, index: true },
+    sourceSaleId: { type: mongoose.Schema.Types.ObjectId, ref: "Sale", default: null, index: true },
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", default: null, index: true },
     customerName: { type: String, required: true, trim: true },
     customerPhone: { type: String, trim: true },
