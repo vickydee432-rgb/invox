@@ -243,7 +243,7 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteLink, setInviteLink] = useState("");
-  const [currentUserRole, setCurrentUserRole] = useState<"owner" | "admin" | "member">("member");
+  const [currentUserRole, setCurrentUserRole] = useState<"owner" | "admin" | "member" | null>(null);
   const [zraConnections, setZraConnections] = useState<
     {
       id: string;
@@ -438,15 +438,18 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (currentUserRole !== "owner" && currentUserRole !== "admin") return;
     loadWorkspace();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserRole]);
 
   useEffect(() => {
+    if (currentUserRole !== "owner" && currentUserRole !== "admin") return;
     if (billingStatus?.plan) {
       loadWorkspace();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [billingStatus?.plan]);
+  }, [billingStatus?.plan, currentUserRole]);
 
   useEffect(() => {
     if (enabledModules.includes("accounting")) {
@@ -462,8 +465,12 @@ export default function SettingsPage() {
       .then((data) => {
         if (!active) return;
         if (data.user?.role) setCurrentUserRole(data.user.role);
+        else setCurrentUserRole("member");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!active) return;
+        setCurrentUserRole("member");
+      });
     return () => {
       active = false;
     };
@@ -494,8 +501,10 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (currentUserRole !== "owner" && currentUserRole !== "admin") return;
     loadTeam();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserRole]);
 
   const loadBillingStatus = async () => {
     setBillingLoading(true);
@@ -539,8 +548,10 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (currentUserRole !== "owner" && currentUserRole !== "admin") return;
     loadBillingStatus();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserRole]);
 
   const loadZraStatus = async () => {
     setZraLoading(true);
@@ -928,7 +939,7 @@ export default function SettingsPage() {
   const canManageTeam = currentUserRole === "owner" || currentUserRole === "admin";
   const canChangeRoles = currentUserRole === "owner";
 
-  const basePermissionsForMember = ["module:*:read", "module:*:write", "settings:read", "settings:write"];
+  const basePermissionsForMember = ["module:*:read", "module:*:write"];
 
   const hasPermission = (permissions: string[] | undefined, permission: string) => {
     const perms = Array.isArray(permissions) ? permissions : [];
@@ -1031,6 +1042,24 @@ export default function SettingsPage() {
   );
   const planKey = normalizePlanKey(billingStatus?.plan);
   const allowedSet = new Set(PLAN_ALLOWED_MODULES[planKey]);
+
+  if (currentUserRole === null) {
+    return (
+      <section className="panel">
+        <div className="panel-title">Settings</div>
+        <div className="muted">Loading…</div>
+      </section>
+    );
+  }
+
+  if (currentUserRole === "member") {
+    return (
+      <section className="panel">
+        <div className="panel-title">Settings</div>
+        <div className="muted">Only admins can view or change company settings.</div>
+      </section>
+    );
+  }
 
   if (loading) {
     return (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 export default function PlansPage() {
+  const [role, setRole] = useState<"owner" | "admin" | "member" | null>(null);
   const [billingStatus, setBillingStatus] = useState<{
     status: string;
     plan: string | null;
@@ -66,7 +67,23 @@ export default function PlansPage() {
   };
 
   useEffect(() => {
-    loadBillingStatus();
+    let active = true;
+    apiFetch<{ user: { role?: "owner" | "admin" | "member" } }>("/api/auth/me")
+      .then((data) => {
+        if (!active) return;
+        const nextRole = data.user?.role || "member";
+        setRole(nextRole);
+        if (nextRole === "owner" || nextRole === "admin") {
+          loadBillingStatus();
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setRole("member");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -96,6 +113,10 @@ export default function PlansPage() {
     setCancelError("");
     setSubscribingPlan(planKey);
     try {
+      if (role !== "owner" && role !== "admin") {
+        setCheckoutError("Only admins can manage subscription changes.");
+        return;
+      }
       const data = await apiFetch<{ checkoutUrl?: string }>("/api/billing/checkout", {
         method: "POST",
         body: JSON.stringify({ planKey })
@@ -125,6 +146,10 @@ export default function PlansPage() {
   const cancelSubscription = async () => {
     setCancelError("");
     setCheckoutError("");
+    if (role !== "owner" && role !== "admin") {
+      setCancelError("Only admins can manage subscription changes.");
+      return;
+    }
     const ok = window.confirm("Cancel your subscription at the end of the current billing period?");
     if (!ok) return;
     setCancelling(true);
@@ -142,6 +167,24 @@ export default function PlansPage() {
   const canCancel = Boolean(
     billingStatus?.plan && billingStatus?.status !== "pending" && !billingStatus?.cancelAtNextBillingDate
   );
+
+  if (role === null) {
+    return (
+      <section className="panel">
+        <div className="panel-title">Plans</div>
+        <div className="muted">Loading…</div>
+      </section>
+    );
+  }
+
+  if (role !== "owner" && role !== "admin") {
+    return (
+      <section className="panel">
+        <div className="panel-title">Plans & Billing</div>
+        <div className="muted">Only admins can view or change subscription settings.</div>
+      </section>
+    );
+  }
 
   return (
     <>

@@ -7,14 +7,8 @@ function normalizePermissions(list) {
 
 function defaultPermissionsForRole(role) {
   if (role === "owner" || role === "admin") return ["*"];
-  // Keep backwards compatibility: members can use core modules by default,
-  // but sensitive admin functions are restricted unless explicitly granted.
-  return [
-    "module:*:read",
-    "module:*:write",
-    "settings:read",
-    "settings:write"
-  ];
+  // Members can use workspace modules by default, but cannot access admin-only settings/billing.
+  return ["module:*:read", "module:*:write"];
 }
 
 function computeUserPermissions(user) {

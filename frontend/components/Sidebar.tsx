@@ -168,7 +168,8 @@ export default function Sidebar() {
   };
 
   const navModules = buildNavModules();
-  const showPlans = readOnly || isTrial;
+  const canManageBilling = user?.role === "owner" || user?.role === "admin";
+  const showPlans = canManageBilling && (readOnly || isTrial);
 
   const allNavItems = useMemo(() => {
     const items = navModules.map((module) => ({

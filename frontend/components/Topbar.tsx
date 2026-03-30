@@ -21,7 +21,9 @@ type SearchGroup = {
 
 export default function Topbar() {
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role?: "owner" | "admin" | "member" } | null>(
+    null
+  );
   const [readOnly, setReadOnly] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function Topbar() {
 
   useEffect(() => {
     let active = true;
-    apiFetch<{ user: { name: string; email: string } }>("/api/auth/me")
+    apiFetch<{ user: { name: string; email: string; role?: "owner" | "admin" | "member" } }>("/api/auth/me")
       .then((data) => {
         if (active) setUser(data.user);
       })
@@ -265,6 +267,8 @@ export default function Topbar() {
     }
   };
 
+  const canManageBilling = user?.role === "owner" || user?.role === "admin";
+
   return (
     <div className="topbar">
       <div>
@@ -273,18 +277,26 @@ export default function Topbar() {
         {readOnly ? (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <div className="badge">Read-only mode · Subscription required</div>
-            <Link className="button secondary" href="/plans" data-allow="true">
-              View plans
-            </Link>
+            {canManageBilling ? (
+              <Link className="button secondary" href="/plans" data-allow="true">
+                View plans
+              </Link>
+            ) : (
+              <div className="muted">Ask an admin to upgrade.</div>
+            )}
           </div>
         ) : isTrial ? (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <div className="badge">
               Trial ends {trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : "soon"}
             </div>
-            <Link className="button secondary" href="/plans" data-allow="true">
-              Upgrade
-            </Link>
+            {canManageBilling ? (
+              <Link className="button secondary" href="/plans" data-allow="true">
+                Upgrade
+              </Link>
+            ) : (
+              <div className="muted">Ask an admin to upgrade.</div>
+            )}
           </div>
         ) : null}
       </div>
@@ -339,21 +351,27 @@ export default function Topbar() {
           </button>
           {userMenuOpen ? (
             <div className="topbar-user-dropdown" role="menu">
-              <Link href="/settings" onClick={() => setUserMenuOpen(false)}>
-                Settings
-              </Link>
-              <Link href="/plans" onClick={() => setUserMenuOpen(false)}>
-                Plans & Billing
-              </Link>
-              {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
-                <button
-                  className="topbar-user-dropdown-item"
-                  type="button"
-                  onClick={handleCancelSubscription}
-                >
-                  Cancel Subscription
-                </button>
-              ) : null}
+              {canManageBilling ? (
+                <>
+                  <Link href="/settings" onClick={() => setUserMenuOpen(false)}>
+                    Settings
+                  </Link>
+                  <Link href="/plans" onClick={() => setUserMenuOpen(false)}>
+                    Plans & Billing
+                  </Link>
+                  {billingStatus?.dodoSubscriptionId && !billingStatus?.cancelAtNextBillingDate ? (
+                    <button
+                      className="topbar-user-dropdown-item"
+                      type="button"
+                      onClick={handleCancelSubscription}
+                    >
+                      Cancel Subscription
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <div className="topbar-user-dropdown-item muted">Settings restricted</div>
+              )}
             </div>
           ) : null}
         </div>

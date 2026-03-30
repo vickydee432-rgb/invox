@@ -3,6 +3,7 @@ const { z } = require("zod");
 const Company = require("../models/Company");
 const { requireAuth } = require("../middleware/auth");
 const { requireSubscription } = require("../middleware/subscription");
+const { requireRole } = require("../middleware/roles");
 const { handleRouteError } = require("./_helpers");
 const { applyWorkspace } = require("../services/workspace");
 const { clampModules, getAllowedModules, normalizePlanKey } = require("../services/planFeatures");
@@ -73,7 +74,7 @@ router.get("/me", async (req, res) => {
   }
 });
 
-router.put("/me", async (req, res) => {
+router.put("/me", requireRole(["owner", "admin"]), async (req, res) => {
   try {
     const parsed = CompanyUpdateSchema.parse(req.body);
     const company = await Company.findById(req.user.companyId);
@@ -111,6 +112,9 @@ router.put("/me", async (req, res) => {
 
 router.get("/workspace", async (req, res) => {
   try {
+    if (!["owner", "admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
     const company = await Company.findById(req.user.companyId).lean();
     if (!company) return res.status(404).json({ error: "Company not found" });
     const plan = normalizePlanKey(company.subscriptionPlan);
@@ -131,7 +135,7 @@ router.get("/workspace", async (req, res) => {
   }
 });
 
-router.put("/workspace", async (req, res) => {
+router.put("/workspace", requireRole(["owner", "admin"]), async (req, res) => {
   try {
     const parsed = WorkspaceUpdateSchema.parse(req.body);
     const company = await Company.findById(req.user.companyId);

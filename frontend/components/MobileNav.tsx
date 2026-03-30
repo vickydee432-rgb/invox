@@ -27,7 +27,8 @@ const MODULE_ROUTES: Record<string, string> = {
   reports: "/reports",
   documents: "/documents",
   notifications: "/notifications",
-  settings: "/settings"
+  settings: "/settings",
+  plans: "/plans"
 };
 
 const MODULE_ORDER = [
@@ -203,13 +204,15 @@ export default function MobileNav() {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [showPlans, setShowPlans] = useState(false);
+  const [user, setUser] = useState<{ role?: "owner" | "admin" | "member" } | null>(null);
 
   useEffect(() => {
     let active = true;
     const loadWorkspace = async () => {
-      const [companyData, billingData] = await Promise.allSettled([
+      const [companyData, billingData, userData] = await Promise.allSettled([
         apiFetch<{ company: any }>("/api/company/me"),
-        apiFetch<{ readOnly: boolean; isTrial?: boolean }>("/api/billing/status")
+        apiFetch<{ readOnly: boolean; isTrial?: boolean }>("/api/billing/status"),
+        apiFetch<{ user: any }>("/api/auth/me")
       ]);
       if (!active) return;
 
@@ -217,8 +220,13 @@ export default function MobileNav() {
         setWorkspace(buildWorkspace(companyData.value.company));
       }
 
+      if (userData.status === "fulfilled") {
+        setUser(userData.value.user || null);
+      }
+
       if (billingData.status === "fulfilled") {
-        setShowPlans(Boolean(billingData.value.readOnly || billingData.value.isTrial));
+        const canManageBilling = userData.status === "fulfilled" && ["owner", "admin"].includes(userData.value.user?.role);
+        setShowPlans(Boolean(canManageBilling && (billingData.value.readOnly || billingData.value.isTrial)));
       }
     };
     loadWorkspace().catch(() => {});
@@ -238,7 +246,8 @@ export default function MobileNav() {
   }, []);
 
   const enabledModules = workspace?.enabledModules || [];
-  const baseModules = new Set(["dashboard", ...enabledModules, "settings"]);
+  const canSeeSettings = user?.role === "owner" || user?.role === "admin";
+  const baseModules = new Set(["dashboard", ...enabledModules, ...(canSeeSettings ? ["settings"] : [])]);
   const ordered = MODULE_ORDER.filter((module) => baseModules.has(module));
   const extras = Array.from(baseModules).filter((module) => !MODULE_ORDER.includes(module));
   const modules = [...ordered, ...extras].filter((module) => {

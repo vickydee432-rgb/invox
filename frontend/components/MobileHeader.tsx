@@ -34,14 +34,20 @@ export default function MobileHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
+  const [role, setRole] = useState<"owner" | "admin" | "member" | null>(null);
 
   useEffect(() => {
     let active = true;
     const loadWorkspace = () => {
-      apiFetch<{ company: any }>("/api/company/me")
-        .then((data) => {
+      Promise.allSettled([apiFetch<{ company: any }>("/api/company/me"), apiFetch<{ user: any }>("/api/auth/me")])
+        .then(([companyData, userData]) => {
           if (!active) return;
-          setWorkspace(buildWorkspace(data.company));
+          if (companyData.status === "fulfilled") {
+            setWorkspace(buildWorkspace(companyData.value.company));
+          }
+          if (userData.status === "fulfilled") {
+            setRole(userData.value.user?.role || "member");
+          }
         })
         .catch(() => {});
     };
@@ -75,11 +81,14 @@ export default function MobileHeader() {
   }, [pathname, workspace]);
 
   const showBack = pathname !== "/dashboard" && pathname !== "/";
+  const canSeeSettings = role === "owner" || role === "admin";
   const rightHref = workspace?.enabledModules?.includes("notifications")
     ? "/notifications"
     : workspace?.enabledModules?.includes("reports") && workspace?.enabledModules?.length
     ? "/reports"
-    : "/settings";
+    : canSeeSettings
+    ? "/settings"
+    : "/dashboard";
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {

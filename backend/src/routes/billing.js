@@ -3,6 +3,7 @@ const { z } = require("zod");
 const Company = require("../models/Company");
 const User = require("../models/User");
 const { requireAuth } = require("../middleware/auth");
+const { requireRole } = require("../middleware/roles");
 const { createCheckoutSession, cancelSubscriptionAtNextBillingDate, verifyWebhookSignature } = require("../services/dodo");
 const { getSeatLimit, countSeatsUsed } = require("../services/planLimits");
 const { handleRouteError } = require("./_helpers");
@@ -59,9 +60,20 @@ billingRouter.get("/status", async (req, res) => {
   const company = await Company.findById(req.user.companyId).lean();
   if (!company) return res.status(404).json({ error: "Company not found" });
   const access = computeAccess(company);
+  if (!["owner", "admin"].includes(req.user.role)) {
+    // Members can see if the workspace is read-only, but not subscription details.
+    return res.json({
+      isActive: access.isActive,
+      isTrial: access.isTrial,
+      trialValid: access.isTrial,
+      readOnly: access.readOnly,
+      trialEndsAt: access.trialEndsAt,
+      currentPeriodEnd: access.currentPeriodEnd
+    });
+  }
   const seatLimit = getSeatLimit(company);
   const seatsUsed = await countSeatsUsed(company._id);
-  res.json({
+  return res.json({
     status: company.subscriptionStatus || "trialing",
     plan: company.subscriptionPlan || null,
     billingCycle: company.subscriptionCycle || null,
@@ -73,7 +85,7 @@ billingRouter.get("/status", async (req, res) => {
   });
 });
 
-billingRouter.post("/checkout", async (req, res) => {
+billingRouter.post("/checkout", requireRole(["owner", "admin"]), async (req, res) => {
   try {
     const parsed = SubscribeSchema.parse(req.body || {});
     const requestedProductId = parsed.product_id || parsed.productId;
@@ -117,7 +129,7 @@ billingRouter.post("/checkout", async (req, res) => {
   }
 });
 
-billingRouter.post("/cancel", async (req, res) => {
+billingRouter.post("/cancel", requireRole(["owner", "admin"]), async (req, res) => {
   try {
     const company = await Company.findById(req.user.companyId);
     if (!company) return res.status(404).json({ error: "Company not found" });
