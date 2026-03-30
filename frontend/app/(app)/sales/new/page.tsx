@@ -85,6 +85,9 @@ function NewSalePageContent() {
   const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
   const [phoneLookupError, setPhoneLookupError] = useState("");
   const [reservePhoneOnAdd, setReservePhoneOnAdd] = useState(true);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState("");
+  const [releaseSuccess, setReleaseSuccess] = useState("");
 
   const itemsSubtotal = items.reduce(
     (sum, item) => sum + Math.max(0, item.qty * item.unitPrice - (item.discount || 0)),
@@ -311,6 +314,30 @@ function NewSalePageContent() {
       setPhoneLookupError(err.message || "Failed to lookup phone");
     } finally {
       setPhoneLookupLoading(false);
+    }
+  };
+
+  const releasePhoneReservations = async () => {
+    setReleaseBusy(true);
+    setReleaseError("");
+    setReleaseSuccess("");
+    try {
+      const phoneIds = items.map((i) => i.phoneItemId).filter(Boolean) as string[];
+      if (phoneIds.length === 0) {
+        setReleaseSuccess("No phone reservations to release.");
+        return;
+      }
+      await Promise.all(
+        phoneIds.map((id) =>
+          apiFetch(`/api/phone-inventory/${id}`, { method: "PATCH", body: JSON.stringify({ status: "in_stock" }) })
+        )
+      );
+      setItems((prev) => prev.filter((row) => !row.phoneItemId));
+      setReleaseSuccess("Released phone reservation(s).");
+    } catch (err: any) {
+      setReleaseError(err.message || "Failed to release reservation(s)");
+    } finally {
+      setReleaseBusy(false);
     }
   };
 
@@ -590,10 +617,15 @@ function NewSalePageContent() {
           <button className="button" type="submit" disabled={saving}>
             {saving ? "Saving..." : "Save sale"}
           </button>
+          <button className="button secondary" type="button" onClick={releasePhoneReservations} disabled={releaseBusy || saving}>
+            {releaseBusy ? "Releasing..." : "Release phone reservations"}
+          </button>
           <button className="button secondary" type="button" onClick={() => router.push("/sales")}>
             Cancel
           </button>
           {error ? <div className="muted">{error}</div> : null}
+          {releaseError ? <div className="muted">{releaseError}</div> : null}
+          {releaseSuccess ? <div className="muted">{releaseSuccess}</div> : null}
         </div>
       </form>
     </section>

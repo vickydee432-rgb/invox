@@ -74,6 +74,9 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
   const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
   const [phoneLookupError, setPhoneLookupError] = useState("");
   const [reservePhoneOnAdd, setReservePhoneOnAdd] = useState(true);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState("");
+  const [releaseSuccess, setReleaseSuccess] = useState("");
   const [customerName, setCustomerName] = useState("Walk-in");
   const [customerPhone, setCustomerPhone] = useState("");
   const [status, setStatus] = useState("paid");
@@ -281,6 +284,30 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
       setPhoneLookupError(err.message || "Failed to lookup phone");
     } finally {
       setPhoneLookupLoading(false);
+    }
+  };
+
+  const releasePhoneReservations = async () => {
+    setReleaseBusy(true);
+    setReleaseError("");
+    setReleaseSuccess("");
+    try {
+      const phoneIds = items.map((i) => i.phoneItemId).filter(Boolean) as string[];
+      if (phoneIds.length === 0) {
+        setReleaseSuccess("No phone reservations to release.");
+        return;
+      }
+      await Promise.all(
+        phoneIds.map((pid) =>
+          apiFetch(`/api/phone-inventory/${pid}`, { method: "PATCH", body: JSON.stringify({ status: "in_stock" }) })
+        )
+      );
+      setItems((prev) => prev.filter((row) => !row.phoneItemId));
+      setReleaseSuccess("Released phone reservation(s).");
+    } catch (err: any) {
+      setReleaseError(err.message || "Failed to release reservation(s)");
+    } finally {
+      setReleaseBusy(false);
     }
   };
 
@@ -587,6 +614,9 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
           <button className="button" type="submit" disabled={saving}>
             {saving ? "Saving..." : "Update sale"}
           </button>
+          <button className="button secondary" type="button" onClick={releasePhoneReservations} disabled={releaseBusy || saving}>
+            {releaseBusy ? "Releasing..." : "Release phone reservations"}
+          </button>
           <button className="button secondary" type="button" onClick={() => router.push("/sales")}>
             Cancel
           </button>
@@ -594,6 +624,8 @@ export default function EditSalePage({ params }: { params: { id: string } }) {
             Delete
           </button>
           {error ? <div className="muted">{error}</div> : null}
+          {releaseError ? <div className="muted">{releaseError}</div> : null}
+          {releaseSuccess ? <div className="muted">{releaseSuccess}</div> : null}
         </div>
       </form>
     </section>

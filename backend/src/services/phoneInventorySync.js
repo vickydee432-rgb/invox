@@ -11,6 +11,28 @@ function extractPhoneItemIds(items) {
 }
 
 async function markPhonesSold({ companyId, saleId, issueDate, phoneItemIds, session }) {
+  return setPhonesForSale({
+    companyId,
+    saleId,
+    issueDate,
+    phoneItemIds,
+    session,
+    targetStatus: "sold"
+  });
+}
+
+async function markPhonesReserved({ companyId, saleId, phoneItemIds, session }) {
+  return setPhonesForSale({
+    companyId,
+    saleId,
+    issueDate: null,
+    phoneItemIds,
+    session,
+    targetStatus: "reserved"
+  });
+}
+
+async function setPhonesForSale({ companyId, saleId, issueDate, phoneItemIds, session, targetStatus }) {
   if (!phoneItemIds.length) return;
   const ids = phoneItemIds
     .filter((id) => mongoose.isValidObjectId(id))
@@ -24,20 +46,25 @@ async function markPhonesSold({ companyId, saleId, issueDate, phoneItemIds, sess
   }
 
   for (const item of items) {
-    if (item.status === "sold" && String(item.soldSaleId || "") === String(saleId)) continue;
-    if (item.status === "sold" && item.soldSaleId && String(item.soldSaleId) !== String(saleId)) {
-      const err = new Error("Phone inventory item is already sold on another sale");
+    if (item.soldSaleId && String(item.soldSaleId) !== String(saleId)) {
+      const err = new Error("Phone inventory item is reserved/sold on another sale");
       err.status = 409;
       throw err;
     }
-    if (!["in_stock", "reserved", "returned", "in_repair"].includes(String(item.status || ""))) {
-      const err = new Error("Phone inventory item cannot be sold in its current status");
+    if (!["in_stock", "reserved", "sold", "returned", "in_repair"].includes(String(item.status || ""))) {
+      const err = new Error("Phone inventory item cannot be updated in its current status");
       err.status = 400;
       throw err;
     }
-    item.status = "sold";
-    item.soldAt = issueDate || new Date();
+    if (targetStatus === "sold" && item.status === "in_repair") {
+      const err = new Error("Cannot sell a phone that is in repair");
+      err.status = 400;
+      throw err;
+    }
+
+    item.status = targetStatus;
     item.soldSaleId = saleId;
+    item.soldAt = targetStatus === "sold" ? issueDate || new Date() : undefined;
     item.version = (item.version || 1) + 1;
     await item.save({ session });
   }
@@ -81,30 +108,33 @@ async function syncPhoneInventoryForSale({ companyId, sale, previousSale, sessio
     return;
   }
 
-  if (wasCancelled && !isCancelled) {
-    await markPhonesSold({
-      companyId,
-      saleId: sale._id,
-      issueDate: sale.issueDate,
-      phoneItemIds: nextIds,
-      session
-    });
-    return;
-  }
+  const isPaid = String(sale?.status) === "paid";
+  const wasPaid = String(previousSale?.status) === "paid";
 
   if (removed.length) {
     await revertPhonesFromSale({ companyId, saleId: sale._id, phoneItemIds: removed, session });
   }
+
+  const nextTarget = isPaid ? "sold" : "reserved";
   if (added.length) {
-    await markPhonesSold({
-      companyId,
-      saleId: sale._id,
-      issueDate: sale.issueDate,
-      phoneItemIds: added,
-      session
-    });
+    if (nextTarget === "sold") {
+      await markPhonesSold({ companyId, saleId: sale._id, issueDate: sale.issueDate, phoneItemIds: added, session });
+    } else {
+      await markPhonesReserved({ companyId, saleId: sale._id, phoneItemIds: added, session });
+    }
+  }
+
+  // Handle status transitions for phones that remained on the sale.
+  if (nextIds.length > 0 && wasCancelled !== isCancelled) {
+    // already covered by cancel/un-cancel branches; keep for clarity.
+  }
+  if (nextIds.length > 0 && wasPaid !== isPaid) {
+    if (isPaid) {
+      await markPhonesSold({ companyId, saleId: sale._id, issueDate: sale.issueDate, phoneItemIds: nextIds, session });
+    } else {
+      await markPhonesReserved({ companyId, saleId: sale._id, phoneItemIds: nextIds, session });
+    }
   }
 }
 
 module.exports = { syncPhoneInventoryForSale, extractPhoneItemIds };
-
