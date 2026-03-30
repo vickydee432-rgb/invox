@@ -30,6 +30,56 @@ const { syncPhoneInventoryForSale } = require("../services/phoneInventorySync");
 const router = express.Router();
 router.use(requireAuth, requireSubscription, requireModule("sales"));
 
+async function upsertCustomerFromSaleInput({ req, session, workspaceId, customerName, customerPhone }) {
+  if (!req.workspace?.enabledModules?.includes("customers")) return null;
+  const name = String(customerName || "").trim();
+  const phone = String(customerPhone || "").trim();
+  if (!name || name.toLowerCase() === "walk-in") return null;
+
+  const base = withWorkspaceScope({ companyId: req.user.companyId, deletedAt: null }, workspaceId);
+
+  if (phone) {
+    const existingByPhone = await Customer.findOne({ ...base, phone }).session(session);
+    if (existingByPhone) {
+      if (existingByPhone.name !== name) {
+        existingByPhone.name = name;
+        existingByPhone.version = (existingByPhone.version || 1) + 1;
+        await existingByPhone.save({ session });
+      }
+      return existingByPhone;
+    }
+  }
+
+  const existingByName = await Customer.findOne({
+    ...base,
+    name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" }
+  }).session(session);
+  if (existingByName) {
+    if (phone && !existingByName.phone) {
+      existingByName.phone = phone;
+      existingByName.version = (existingByName.version || 1) + 1;
+      await existingByName.save({ session });
+    }
+    return existingByName;
+  }
+
+  const created = await Customer.create(
+    [
+      {
+        companyId: req.user.companyId,
+        workspaceId,
+        name,
+        phone: phone || undefined,
+        isActive: true,
+        deletedAt: null,
+        version: 1
+      }
+    ],
+    { session }
+  );
+  return created?.[0] || null;
+}
+
 function mapSaleStatusToInvoiceStatus(status) {
   if (status === "cancelled") return "cancelled";
   if (status === "paid") return "paid";
@@ -427,15 +477,25 @@ router.post("/", async (req, res) => {
     session.startTransaction();
     let sale;
     try {
+      let customerDoc = customer;
+      if (!customerDoc && !parsed.customerId) {
+        customerDoc = await upsertCustomerFromSaleInput({
+          req,
+          session,
+          workspaceId,
+          customerName: parsed.customerName,
+          customerPhone: parsed.customerPhone
+        });
+      }
       sale = new Sale({
         saleNo,
         companyId: req.user.companyId,
         workspaceId,
         userId: req.user._id,
         deviceId: String(req.headers["x-device-id"] || "server"),
-        customerId: customer ? customer._id : parsed.customerId ? parsed.customerId : null,
-        customerName: parsed.customerName || customer?.name || "Walk-in",
-        customerPhone: parsed.customerPhone || customer?.phone,
+        customerId: customerDoc ? customerDoc._id : parsed.customerId ? parsed.customerId : null,
+        customerName: parsed.customerName || customerDoc?.name || "Walk-in",
+        customerPhone: parsed.customerPhone || customerDoc?.phone,
         customerTpin: parsed.customerTpin,
         salespersonId: salespersonId || req.user._id,
         tradeInId: tradeIn ? tradeIn._id : null,
