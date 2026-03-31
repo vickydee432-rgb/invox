@@ -5,7 +5,9 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
+  const [channel, setChannel] = useState<"email" | "sms">("email");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -18,9 +20,13 @@ export default function ForgotPasswordPage() {
     try {
       await apiFetch("/api/auth/forgot", {
         method: "POST",
-        body: JSON.stringify({ email })
+        body: JSON.stringify({
+          channel,
+          email: channel === "email" ? email : undefined,
+          phone: channel === "sms" ? phone : undefined
+        })
       });
-      setSuccess("If the account exists, a reset link has been sent.");
+      setSuccess("If the account exists, a reset token has been sent.");
     } catch (err: any) {
       setError(err.message || "Failed to request reset");
     } finally {
@@ -31,12 +37,26 @@ export default function ForgotPasswordPage() {
   return (
     <div className="card">
       <h2 className="panel-title">Forgot password</h2>
-      <p className="muted">Enter your email to request a password reset.</p>
+      <p className="muted">Request a password reset token via email or text message.</p>
       <form onSubmit={handleSubmit} style={{ marginTop: 20, display: "grid", gap: 14 }}>
+        <label className="field">
+          Send via
+          <select value={channel} onChange={(e) => setChannel(e.target.value as any)}>
+            <option value="email">Email</option>
+            <option value="sms">Text message (SMS)</option>
+          </select>
+        </label>
+        {channel === "email" ? (
         <label className="field">
           Email
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
         </label>
+        ) : (
+          <label className="field">
+            Phone (E.164 format recommended)
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+          </label>
+        )}
         {error ? <div className="muted">{error}</div> : null}
         {success ? <div className="muted">{success}</div> : null}
         <button className="button" type="submit" disabled={loading}>

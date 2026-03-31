@@ -13,6 +13,7 @@ const { handleRouteError } = require("./_helpers");
 const { requireAuth } = require("../middleware/auth");
 const { authLimiter, authSlowDown } = require("../middleware/rateLimit");
 const { sendMail, buildResetEmail } = require("../services/email");
+const { sendSms } = require("../services/sms");
 const { computeUserPermissions } = require("../services/permissions");
 
 const router = express.Router();
@@ -20,6 +21,7 @@ const router = express.Router();
 const RegisterSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
+  phone: z.string().optional(),
   password: z.string().min(8),
   company: z.object({
     name: z.string().min(2),
@@ -68,13 +70,20 @@ const PasswordChangeSchema = z.object({
 });
 
 const PasswordResetRequestSchema = z.object({
-  email: z.string().email()
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  channel: z.enum(["email", "sms", "auto"]).optional()
+}).refine((data) => Boolean(data.email || data.phone), {
+  message: "email or phone is required"
 });
 
 const PasswordResetSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
   token: z.string().min(1),
   newPassword: z.string().min(8)
+}).refine((data) => Boolean(data.email || data.phone), {
+  message: "email or phone is required"
 });
 
 const MfaVerifySchema = z.object({
@@ -150,6 +159,7 @@ router.post("/register", authLimiter, authSlowDown, async (req, res) => {
     const user = await User.create({
       name: parsed.name.trim(),
       email: parsed.email.toLowerCase(),
+      phone: parsed.phone?.trim() || undefined,
       passwordHash,
       companyId: company._id,
       role: "owner",
@@ -259,7 +269,13 @@ router.put("/password", requireAuth, async (req, res) => {
 router.post("/forgot", authLimiter, authSlowDown, async (req, res) => {
   try {
     const parsed = PasswordResetRequestSchema.parse(req.body);
-    const user = await User.findOne({ email: parsed.email.toLowerCase() });
+    const channel = parsed.channel || "auto";
+    const email = parsed.email ? parsed.email.toLowerCase() : "";
+    const phone = parsed.phone ? String(parsed.phone).trim() : "";
+
+    let user = null;
+    if (email) user = await User.findOne({ email });
+    if (!user && phone) user = await User.findOne({ phone });
     if (!user) return res.json({ ok: true });
 
     const token = crypto.randomBytes(32).toString("hex");
@@ -273,16 +289,38 @@ router.post("/forgot", authLimiter, authSlowDown, async (req, res) => {
       process.env.PUBLIC_APP_URL ||
       process.env.FRONTEND_URL ||
       "http://localhost:3000";
-    const resetUrl = `${base.replace(/\/$/, "")}/reset?email=${encodeURIComponent(
-      user.email
+    const appBase = base.replace(/\/$/, "");
+    const resetUrlEmail = `${appBase}/reset?mode=email&email=${encodeURIComponent(user.email)}&token=${encodeURIComponent(
+      token
+    )}`;
+    const resetUrlSms = `${appBase}/reset?mode=sms&phone=${encodeURIComponent(
+      user.phone || phone
     )}&token=${encodeURIComponent(token)}`;
-    const message = buildResetEmail({ resetUrl, token, email: user.email });
-    await sendMail({
-      to: user.email,
-      subject: message.subject,
-      text: message.text,
-      html: message.html
-    });
+    const sendEmail = channel === "auto" || channel === "email";
+    const sendText = (channel === "auto" || channel === "sms") && Boolean(user.phone);
+
+    if (sendEmail) {
+      try {
+        const message = buildResetEmail({ resetUrl: resetUrlEmail, token, email: user.email });
+        await sendMail({
+          to: user.email,
+          subject: message.subject,
+          text: message.text,
+          html: message.html
+        });
+      } catch (e) {
+        console.warn("Password reset email failed:", e?.message || e);
+      }
+    }
+
+    if (sendText) {
+      try {
+        const smsBody = `INVOX password reset\n\nToken: ${token}\n\nReset link: ${resetUrlSms}`;
+        await sendSms({ to: user.phone, body: smsBody });
+      } catch (e) {
+        console.warn("Password reset SMS failed:", e?.message || e);
+      }
+    }
 
     res.json({ ok: true });
   } catch (err) {
@@ -294,11 +332,15 @@ router.post("/reset", authLimiter, authSlowDown, async (req, res) => {
   try {
     const parsed = PasswordResetSchema.parse(req.body);
     const tokenHash = crypto.createHash("sha256").update(parsed.token).digest("hex");
-    const user = await User.findOne({
-      email: parsed.email.toLowerCase(),
+    const email = parsed.email ? parsed.email.toLowerCase() : "";
+    const phone = parsed.phone ? String(parsed.phone).trim() : "";
+    const query = {
       resetTokenHash: tokenHash,
       resetTokenExpires: { $gt: new Date() }
-    });
+    };
+    if (email) query.email = email;
+    if (!email && phone) query.phone = phone;
+    const user = await User.findOne(query);
     if (!user) return res.status(400).json({ error: "Invalid or expired reset token" });
 
     user.passwordHash = await bcrypt.hash(parsed.newPassword, 12);

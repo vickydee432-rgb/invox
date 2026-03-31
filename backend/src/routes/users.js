@@ -25,6 +25,7 @@ const PermissionsSchema = z.object({
 const AcceptSchema = z.object({
   token: z.string().min(1),
   name: z.string().min(2),
+  phone: z.string().optional(),
   password: z.string().min(8)
 });
 
@@ -75,6 +76,7 @@ router.post("/invite/accept", async (req, res) => {
     const user = await User.create({
       name: parsed.name.trim(),
       email: invite.email,
+      phone: parsed.phone?.trim() || undefined,
       passwordHash,
       companyId: invite.companyId,
       role: invite.role || "member",

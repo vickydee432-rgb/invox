@@ -9,7 +9,9 @@ import { apiFetch } from "@/lib/api";
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"email" | "sms">("email");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,7 +42,12 @@ function ResetPasswordForm() {
     try {
       await apiFetch("/api/auth/reset", {
         method: "POST",
-        body: JSON.stringify({ email, token, newPassword })
+        body: JSON.stringify({
+          token,
+          newPassword,
+          email: mode === "email" ? email : undefined,
+          phone: mode === "sms" ? phone : undefined
+        })
       });
       setSuccess("Password reset successfully. You can now log in.");
       setTimeout(() => {
@@ -59,9 +66,23 @@ function ResetPasswordForm() {
       <p className="muted">Enter the reset token and your new password.</p>
       <form onSubmit={handleSubmit} style={{ marginTop: 20, display: "grid", gap: 14 }}>
         <label className="field">
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+          Reset using
+          <select value={mode} onChange={(e) => setMode(e.target.value as any)}>
+            <option value="email">Email</option>
+            <option value="sms">Phone (SMS)</option>
+          </select>
         </label>
+        {mode === "email" ? (
+          <label className="field">
+            Email
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+          </label>
+        ) : (
+          <label className="field">
+            Phone
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+          </label>
+        )}
         <label className="field">
           Reset token
           <input value={token} onChange={(e) => setToken(e.target.value)} required />
