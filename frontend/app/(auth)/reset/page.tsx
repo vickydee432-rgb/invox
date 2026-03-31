@@ -20,9 +20,19 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
+    const qMode = searchParams.get("mode");
     const qEmail = searchParams.get("email");
+    const qPhone = searchParams.get("phone");
     const qToken = searchParams.get("token");
-    if (qEmail) setEmail(qEmail);
+    
+    if (qMode === "sms") {
+      setMode("sms");
+      if (qPhone) setPhone(qPhone);
+    } else {
+      setMode("email");
+      if (qEmail) setEmail(qEmail);
+    }
+    
     if (qToken) setToken(qToken);
   }, [searchParams]);
 

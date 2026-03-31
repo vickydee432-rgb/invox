@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
-  const [channel, setChannel] = useState<"email" | "sms">("email");
+  const [channel, setChannel] = useState<"email" | "sms" | "auto">("auto");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,8 +22,8 @@ export default function ForgotPasswordPage() {
         method: "POST",
         body: JSON.stringify({
           channel,
-          email: channel === "email" ? email : undefined,
-          phone: channel === "sms" ? phone : undefined
+          email: channel === "email" || channel === "auto" ? email : undefined,
+          phone: channel === "sms" || channel === "auto" ? phone : undefined
         })
       });
       setSuccess("If the account exists, a reset token has been sent.");
@@ -42,16 +42,18 @@ export default function ForgotPasswordPage() {
         <label className="field">
           Send via
           <select value={channel} onChange={(e) => setChannel(e.target.value as any)}>
-            <option value="email">Email</option>
-            <option value="sms">Text message (SMS)</option>
+            <option value="auto">Auto (Email & SMS if available)</option>
+            <option value="email">Email only</option>
+            <option value="sms">Text message (SMS) only</option>
           </select>
         </label>
-        {channel === "email" ? (
-        <label className="field">
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
-        </label>
-        ) : (
+        {(channel === "email" || channel === "auto") && (
+          <label className="field">
+            Email
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+          </label>
+        )}
+        {(channel === "sms" || channel === "auto") && (
           <label className="field">
             Phone (E.164 format recommended)
             <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
