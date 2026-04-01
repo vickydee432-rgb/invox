@@ -52,6 +52,41 @@ router.get("/alerts", async (req, res) => {
   }
 });
 
+router.get("/reports/overview/export.csv", async (req, res) => {
+  try {
+    const fromDate = parseDateParam(req.query.from, "from");
+    const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
+    const groupBy = parseGroupBy(req.query.groupBy);
+    const companyId = req.query.companyId || null;
+    const data = await getSuperAdminOverview({ companyId, fromDate, toDate, groupBy });
+
+    const headings = [
+      ["Metric", "Value"],
+      ["Total Revenue", data.overview.totalRevenue],
+      ["Total Expenses", data.overview.totalExpenses],
+      ["Net Profit", data.overview.netProfit],
+      ["Invoices Count", data.overview.invoicesCount],
+      ["Active Branches", data.overview.activeBranchesCount]
+    ];
+
+    const rows = data.branchPerformance.map((branch) => [
+      `Branch: ${branch.branchName}`,
+      `${branch.totalRevenue} (${branch.growthRate !== null ? branch.growthRate + "%" : "N/A"})`
+    ]);
+
+    const csv = [...headings, [], ["Branch report"], ["Branch Name", "TotalRevenue", "GrowthRate"]]
+      .concat(data.branchPerformance.map((branch) => [branch.branchName, branch.totalRevenue, branch.growthRate]))
+      .map((line) => line.map((v) => (v === null || v === undefined ? "" : String(v).replace(/"/g, '""'))).map((v) => `"${v}"`).join(","))
+      .join("\n");
+
+    res.setHeader("Content-Disposition", "attachment; filename=super-admin-overview.csv");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.send(csv);
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to export super admin report");
+  }
+});
+
 router.get("/employee-leaderboard", async (req, res) => {
   try {
     const overview = await getSuperAdminOverview({ fromDate: parseDateParam(req.query.from, "from"), toDate: parseDateParam(req.query.to, "to", { endOfDay: true }), groupBy: parseGroupBy(req.query.groupBy) });

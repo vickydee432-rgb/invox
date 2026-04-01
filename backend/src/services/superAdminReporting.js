@@ -35,6 +35,14 @@ function toSeriesKeyExpression(groupBy, field) {
   return { $dateToString: { format: "%Y-%m", date: `$${field}` } };
 }
 
+function previousPeriodDates(fromDate, toDate) {
+  if (!fromDate || !toDate) return { from: null, to: null };
+  const duration = toDate.getTime() - fromDate.getTime();
+  const prevTo = new Date(fromDate.getTime() - 1);
+  const prevFrom = new Date(prevTo.getTime() - duration);
+  return { from: prevFrom, to: prevTo };
+}
+
 async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "month" } = {}) {
   const invoiceMatch = { status: { $nin: ["cancelled"] } };
   if (companyId) invoiceMatch.companyId = companyId;
@@ -52,7 +60,19 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
     if (toDate) expenseMatch.date.$lte = toDate;
   }
 
-  const [ revenueAgg, expenseAgg, invoiceCount, activeBranchesCount, branchRank, revenueSeries, expenseSeries, employeePerformance, bestProducts ] =
+  const prevRange = previousPeriodDates(fromDate, toDate);
+  const prevInvoiceMatch = { ...invoiceMatch };
+  const prevExpenseMatch = { ...expenseMatch };
+  if (prevRange.from || prevRange.to) {
+    prevInvoiceMatch.issueDate = {};
+    if (prevRange.from) prevInvoiceMatch.issueDate.$gte = prevRange.from;
+    if (prevRange.to) prevInvoiceMatch.issueDate.$lte = prevRange.to;
+    prevExpenseMatch.date = {};
+    if (prevRange.from) prevExpenseMatch.date.$gte = prevRange.from;
+    if (prevRange.to) prevExpenseMatch.date.$lte = prevRange.to;
+  }
+
+  const [ revenueAgg, expenseAgg, invoiceCount, activeBranchesCount, branchRank, prevBranchRank, revenueSeries, expenseSeries, employeePerformance, bestProducts ] =
     await Promise.all([
       Invoice.aggregate([{ $match: invoiceMatch }, { $group: { _id: null, total: { $sum: "$total" } } }]),
       Expense.aggregate([{ $match: expenseMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
@@ -64,6 +84,11 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
         { $group: { _id: "$branchId", name: { $first: "$branchName" }, totalRevenue: { $sum: "$total" }, invoiceCount: { $sum: 1 } } },
         { $sort: { totalRevenue: -1 } },
         { $limit: 20 }
+      ]),
+
+      Invoice.aggregate([
+        { $match: prevInvoiceMatch },
+        { $group: { _id: "$branchId", totalRevenue: { $sum: "$total" } } }
       ]),
 
       Invoice.aggregate([
@@ -122,14 +147,18 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
     avgInvoiceValue: row.avgInvoiceValue
   }));
 
+  const prevBranchMap = new Map(prevBranchRank.map((row) => [String(row._id || ""), row.totalRevenue || 0]));
+
   const branchRankExtended = await Promise.all(branchRank.map(async (row) => {
     const branch = row._id ? await Branch.findById(row._id).lean() : null;
+    const previous = prevBranchMap.get(String(row._id || "")) || 0;
+    const growthRate = previous > 0 ? ((row.totalRevenue - previous) / previous) * 100 : null;
     return {
       branchId: row._id,
       branchName: branch?.name || row.name || "Unassigned",
       totalRevenue: row.totalRevenue || 0,
       invoiceCount: row.invoiceCount || 0,
-      growthRate: null
+      growthRate: growthRate !== null ? Number(growthRate.toFixed(2)) : null
     };
   }));
 
