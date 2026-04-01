@@ -14,7 +14,7 @@ const Company = require("../models/Company");
 
 const router = express.Router();
 router.use(requireAuth);
-router.use(requireRole(["super_admin", "owner"]));
+router.use(requireRole(["super_admin", "owner", "admin"]));
 
 function parseGroupBy(value) {
   const v = String(value || "month").toLowerCase();
@@ -223,9 +223,9 @@ router.get("/console/users", async (req, res) => {
 
 router.get("/console/users/:userId", async (req, res) => {
   try {
-    // Only super_admin can access this
-    if (req.user.role !== "super_admin") {
-      const err = new Error("Only super admins can access user console");
+    // super_admin / owner / admin can access this console
+    if (!["super_admin", "owner", "admin"].includes(req.user.role)) {
+      const err = new Error("Only super admins or workspace admins can access user console");
       err.status = 403;
       throw err;
     }
@@ -249,9 +249,9 @@ router.get("/console/users/:userId", async (req, res) => {
 
 router.post("/console/login-as", async (req, res) => {
   try {
-    // Only super_admin can access this
-    if (req.user.role !== "super_admin") {
-      const err = new Error("Only super admins can access user console");
+    // super_admin / owner / admin can access this console
+    if (!["super_admin", "owner", "admin"].includes(req.user.role)) {
+      const err = new Error("Only super admins or workspace admins can access user console");
       err.status = 403;
       throw err;
     }
