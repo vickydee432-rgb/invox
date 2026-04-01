@@ -9,6 +9,8 @@ const {
 const {
   generateIncomeStatementPdf
 } = require("../services/financialReportPdf");
+const User = require("../models/User");
+const Company = require("../models/Company");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -182,6 +184,121 @@ router.get("/reports/income-statement/export.pdf", async (req, res) => {
     return generateIncomeStatementPdf(res, data);
   } catch (err) {
     return handleRouteError(res, err, "Failed to export income statement");
+  }
+});
+
+// Super Admin Console - User Management
+router.get("/console/users", async (req, res) => {
+  try {
+    // Only super_admin can access this
+    if (req.user.role !== "super_admin") {
+      const err = new Error("Only super admins can access user console");
+      err.status = 403;
+      throw err;
+    }
+
+    const q = String(req.query.q || "").trim().toLowerCase();
+    const limit = Math.min(50, Number(req.query.limit || 20));
+    const query = {};
+
+    if (q) {
+      query.$or = [
+        { email: { $regex: q, $options: "i" } },
+        { name: { $regex: q, $options: "i" } }
+      ];
+    }
+
+    const users = await User.find(query)
+      .select("_id name email role createdAt lastLoginAt company")
+      .populate("companyId", "name")
+      .sort({ lastLoginAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ users });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to search users");
+  }
+});
+
+router.get("/console/users/:userId", async (req, res) => {
+  try {
+    // Only super_admin can access this
+    if (req.user.role !== "super_admin") {
+      const err = new Error("Only super admins can access user console");
+      err.status = 403;
+      throw err;
+    }
+
+    const user = await User.findById(req.params.userId)
+      .select("_id name email phone role createdAt lastLoginAt mfaEnabled companyId")
+      .populate("companyId", "name")
+      .lean();
+
+    if (!user) {
+      const err = new Error("User not found");
+      err.status = 404;
+      throw err;
+    }
+
+    res.json({ user });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to load user details");
+  }
+});
+
+router.post("/console/login-as", async (req, res) => {
+  try {
+    // Only super_admin can access this
+    if (req.user.role !== "super_admin") {
+      const err = new Error("Only super admins can access user console");
+      err.status = 403;
+      throw err;
+    }
+
+    const { userId } = req.body;
+    if (!userId) {
+      const err = new Error("userId is required");
+      err.status = 400;
+      throw err;
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      const err = new Error("Target user not found");
+      err.status = 404;
+      throw err;
+    }
+
+    // Create an impersonation token with the target user's ID
+    const secret = process.env.AUTH_JWT_SECRET;
+    const ttl = process.env.AUTH_TOKEN_TTL || "7d";
+    const token = require("jsonwebtoken").sign(
+      { sub: targetUser._id.toString(), email: targetUser.email },
+      secret,
+      { expiresIn: ttl }
+    );
+
+    // Log this impersonation attempt in audit log (optional)
+    const AuditLog = require("../models/AuditLog");
+    if (AuditLog) {
+      await AuditLog.create({
+        companyId: req.user.companyId,
+        userId: req.user._id,
+        action: "super_admin_impersonate",
+        details: {
+          impersonatedUserId: targetUser._id,
+          impersonatedUserEmail: targetUser.email,
+          targetUserCompanyId: targetUser.companyId
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent")
+      });
+    }
+
+    res.json({ token, user: { _id: targetUser._id, name: targetUser.name, email: targetUser.email, role: targetUser.role } });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to create impersonation session");
   }
 });
 

@@ -243,7 +243,7 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteLink, setInviteLink] = useState("");
-  const [currentUserRole, setCurrentUserRole] = useState<"owner" | "admin" | "member" | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<"owner" | "admin" | "member" | "super_admin" | null>(null);
   const [zraConnections, setZraConnections] = useState<
     {
       id: string;
@@ -271,6 +271,12 @@ export default function SettingsPage() {
   const [zraPassword, setZraPassword] = useState("");
   const [zraAccessToken, setZraAccessToken] = useState("");
   const [zraApiKey, setZraApiKey] = useState("");
+  const [superAdminUsers, setSuperAdminUsers] = useState<Array<{ _id: string; name: string; email: string; role: string; lastLoginAt?: string }>>([]);
+  const [superAdminSearchQuery, setSuperAdminSearchQuery] = useState("");
+  const [superAdminLoading, setSuperAdminLoading] = useState(false);
+  const [superAdminError, setSuperAdminError] = useState("");
+  const [superAdminSuccess, setSuperAdminSuccess] = useState("");
+  const [superAdminImpersonating, setSuperAdminImpersonating] = useState(false);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -343,16 +349,55 @@ export default function SettingsPage() {
 
   useEffect(() => {
     let active = true;
-    apiFetch<{ user: { mfaEnabled?: boolean } }>("/api/auth/me")
+    apiFetch<{ user: { mfaEnabled?: boolean; role?: string } }>("/api/auth/me")
       .then((data) => {
         if (!active) return;
         setMfaEnabled(Boolean(data.user?.mfaEnabled));
+        if (data.user?.role) setCurrentUserRole(data.user.role as any);
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
+
+  const searchSuperAdminUsers = async (q: string) => {
+    setSuperAdminError("");
+    setSuperAdminSuccess("");
+    if (!q.trim()) {
+      setSuperAdminUsers([]);
+      return;
+    }
+    setSuperAdminLoading(true);
+    try {
+      const data = await apiFetch<{ users: typeof superAdminUsers }>(`/api/admin/console/users?q=${encodeURIComponent(q)}&limit=20`);
+      setSuperAdminUsers(data.users || []);
+    } catch (err: any) {
+      setSuperAdminError(err.message || "Failed to search users");
+    } finally {
+      setSuperAdminLoading(false);
+    }
+  };
+
+  const handleSuperAdminLoginAs = async (userId: string) => {
+    setSuperAdminError("");
+    setSuperAdminSuccess("");
+    setSuperAdminImpersonating(true);
+    try {
+      const data = await apiFetch<{ token: string; user: { name: string; email: string } }>("/api/admin/console/login-as", { method: "POST", body: JSON.stringify({ userId }) });
+      // Store the impersonation token in localStorage
+      localStorage.setItem("auth_token", data.token);
+      setSuperAdminSuccess(`Successfully logged in as ${data.user.name}. Redirecting...`);
+      // Redirect or refresh after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
+    } catch (err: any) {
+      setSuperAdminError(err.message || "Failed to impersonate user");
+    } finally {
+      setSuperAdminImpersonating(false);
+    }
+  };
 
   const loadWorkspace = async () => {
     setWorkspaceLoading(true);
@@ -1867,6 +1912,101 @@ export default function SettingsPage() {
         {mfaSuccess ? <div className="muted" style={{ marginTop: 12 }}>{mfaSuccess}</div> : null}
         {mfaError ? <div className="muted" style={{ marginTop: 12 }}>{mfaError}</div> : null}
       </section>
+
+      {currentUserRole === "super_admin" ? (
+        <section className="panel">
+          <div className="panel-title">Super Admin · User Console</div>
+          <div className="muted" style={{ marginBottom: 16 }}>
+            Search for and manage users across all companies.
+          </div>
+          
+          <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
+            <label className="field">
+              Search Users
+              <input
+                type="text"
+                placeholder="Search by email or name..."
+                value={superAdminSearchQuery}
+                onChange={(e) => {
+                  setSuperAdminSearchQuery(e.target.value);
+                  searchSuperAdminUsers(e.target.value);
+                }}
+              />
+            </label>
+          </div>
+
+          {superAdminLoading && <div className="muted">Searching...</div>}
+          {superAdminError && <div className="muted" style={{ color: "var(--error-color, red)" }}>{superAdminError}</div>}
+          {superAdminSuccess && <div className="muted" style={{ color: "var(--success-color, green)" }}>{superAdminSuccess}</div>}
+
+          {superAdminUsers.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div className="panel-title" style={{ fontSize: 14, marginBottom: 12 }}>
+                Search Results ({superAdminUsers.length})
+              </div>
+              <table className="table desktop-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Last Login</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {superAdminUsers.map((user) => (
+                    <tr key={user._id}>
+                      <td>{user.name}</td>
+                      <td>{user.email}</td>
+                      <td>{user.role}</td>
+                      <td>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}</td>
+                      <td>
+                        <button
+                          className="button secondary"
+                          onClick={() => handleSuperAdminLoginAs(user._id)}
+                          disabled={superAdminImpersonating}
+                        >
+                          {superAdminImpersonating ? "Logging in..." : "Login As"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mobile-record-list" style={{ marginTop: 16 }}>
+            {superAdminUsers.map((user) => (
+              <article key={user._id} className="mobile-record-card">
+                <div className="mobile-record-header">
+                  <div>
+                    <div className="mobile-record-title">{user.name}</div>
+                    <div className="mobile-record-subtitle">{user.email}</div>
+                  </div>
+                  <span className="badge">{user.role}</span>
+                </div>
+                <div className="mobile-record-grid">
+                  <div className="mobile-record-item">
+                    <span className="mobile-record-label">Last Login</span>
+                    <span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-actions">
+                  <button
+                    className="button secondary"
+                    onClick={() => handleSuperAdminLoginAs(user._id)}
+                    disabled={superAdminImpersonating}
+                  >
+                    {superAdminImpersonating ? "Logging in..." : "Login As"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {taxEnabled && planKey === "businessplus" ? (
         <section className="panel">
