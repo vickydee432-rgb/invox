@@ -37,6 +37,7 @@ const taxRoutes = require("./routes/tax");
 const bankingRoutes = require("./routes/banking");
 const documentsRoutes = require("./routes/documents");
 const notificationsRoutes = require("./routes/notifications");
+const superAdminRoutes = require("./routes/superAdmin");
 const auditRoutes = require("./routes/audit");
 const { shouldAuditRequest, logAuditFromRequest } = require("./services/audit");
 const { apiLimiter } = require("./middleware/rateLimit");
@@ -107,6 +108,7 @@ app.use("/api/banking", bankingRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/api/admin", superAdminRoutes);
 
 const port = process.env.PORT || 5000;
 const requiredEnv = ["MONGO_URI", "PUBLIC_QUOTE_TOKEN_SECRET", "AUTH_JWT_SECRET"];

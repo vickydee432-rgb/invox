@@ -1,0 +1,194 @@
+const Invoice = require("../models/Invoice");
+const Expense = require("../models/Expense");
+const Branch = require("../models/Branch");
+const User = require("../models/User");
+
+function buildDateRangeClause({ field, fromDate, toDate }) {
+  const clause = { deletedAt: null };
+  if (fromDate || toDate) {
+    clause[field] = {};
+    if (fromDate) clause[field].$gte = fromDate;
+    if (toDate) clause[field].$lte = toDate;
+  }
+  return clause;
+}
+
+function toSeriesKeyExpression(groupBy, field) {
+  if (groupBy === "day") return { $dateToString: { format: "%Y-%m-%d", date: `$${field}` } };
+  if (groupBy === "week") return {
+    $concat: [
+      { $toString: { $year: `$${field}` } },
+      "-W",
+      { $toString: { $week: `$${field}` } }
+    ]
+  };
+  if (groupBy === "month") return { $dateToString: { format: "%Y-%m", date: `$${field}` } };
+  if (groupBy === "quarter") {
+    return {
+      $concat: [
+        { $toString: { $year: `$${field}` } },
+        "-Q",
+        { $toString: { $ceil: { $divide: [{ $month: `$${field}` }, 3] } } }
+      ]
+    };
+  }
+  return { $dateToString: { format: "%Y-%m", date: `$${field}` } };
+}
+
+async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "month" } = {}) {
+  const invoiceMatch = { status: { $nin: ["cancelled"] } };
+  if (companyId) invoiceMatch.companyId = companyId;
+  if (fromDate || toDate) {
+    invoiceMatch.issueDate = {};
+    if (fromDate) invoiceMatch.issueDate.$gte = fromDate;
+    if (toDate) invoiceMatch.issueDate.$lte = toDate;
+  }
+
+  const expenseMatch = {};
+  if (companyId) expenseMatch.companyId = companyId;
+  if (fromDate || toDate) {
+    expenseMatch.date = {};
+    if (fromDate) expenseMatch.date.$gte = fromDate;
+    if (toDate) expenseMatch.date.$lte = toDate;
+  }
+
+  const [ revenueAgg, expenseAgg, invoiceCount, activeBranchesCount, branchRank, revenueSeries, expenseSeries, employeePerformance, bestProducts ] =
+    await Promise.all([
+      Invoice.aggregate([{ $match: invoiceMatch }, { $group: { _id: null, total: { $sum: "$total" } } }]),
+      Expense.aggregate([{ $match: expenseMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Invoice.countDocuments(invoiceMatch),
+      Branch.countDocuments({ ...(companyId ? { companyId } : {}), isActive: true }),
+
+      Invoice.aggregate([
+        { $match: invoiceMatch },
+        { $group: { _id: "$branchId", name: { $first: "$branchName" }, totalRevenue: { $sum: "$total" }, invoiceCount: { $sum: 1 } } },
+        { $sort: { totalRevenue: -1 } },
+        { $limit: 20 }
+      ]),
+
+      Invoice.aggregate([
+        { $match: invoiceMatch },
+        { $group: { _id: toSeriesKeyExpression(groupBy, "issueDate"), revenue: { $sum: "$total" } } },
+        { $sort: { _id: 1 } }
+      ]),
+
+      Expense.aggregate([
+        { $match: expenseMatch },
+        { $group: { _id: toSeriesKeyExpression(groupBy, "date"), expenses: { $sum: "$amount" } } },
+        { $sort: { _id: 1 } }
+      ]),
+
+      Invoice.aggregate([
+        { $match: invoiceMatch },
+        { $group: { _id: "$salespersonId", totalSales: { $sum: "$total" }, invoices: { $sum: 1 }, avgInvoiceValue: { $avg: "$total" } } },
+        { $sort: { totalSales: -1 } },
+        { $limit: 20 }
+      ]),
+
+      Invoice.aggregate([
+        { $match: invoiceMatch },
+        { $unwind: "$items" },
+        { $group: { _id: "$items.productId", productName: { $first: "$items.productName" }, quantity: { $sum: "$items.qty" }, revenue: { $sum: "$items.lineTotal" } } },
+        { $sort: { revenue: -1 } },
+        { $limit: 20 }
+      ])
+    ]);
+
+  const totalRevenue = (revenueAgg[0]?.total || 0) + 0;
+  const totalExpenses = (expenseAgg[0]?.total || 0) + 0;
+
+  const seriesMap = new Map();
+  revenueSeries.forEach((row) => seriesMap.set(String(row._id), { period: String(row._id), revenue: row.revenue || 0, expenses: 0 }));
+  expenseSeries.forEach((row) => {
+    const key = String(row._id);
+    const existing = seriesMap.get(key) || { period: key, revenue: 0, expenses: 0 };
+    existing.expenses = row.expenses || 0;
+    seriesMap.set(key, existing);
+  });
+
+  const timeseries = Array.from(seriesMap.values()).map((row) => ({ ...row, profit: row.revenue - row.expenses }));
+
+  const employeeUsers = await User.find({ _id: { $in: employeePerformance.map((r) => r._id).filter(Boolean) } })
+    .select("_id name email role")
+    .lean();
+
+  const employeesIndexed = new Map(employeeUsers.map((u) => [String(u._id), u]));
+  const employeeLeaderboard = employeePerformance.map((row) => ({
+    userId: row._id,
+    name: employeesIndexed.get(String(row._id))?.name || "Unknown",
+    role: employeesIndexed.get(String(row._id))?.role || "",
+    totalSales: row.totalSales,
+    invoices: row.invoices,
+    avgInvoiceValue: row.avgInvoiceValue
+  }));
+
+  const branchRankExtended = await Promise.all(branchRank.map(async (row) => {
+    const branch = row._id ? await Branch.findById(row._id).lean() : null;
+    return {
+      branchId: row._id,
+      branchName: branch?.name || row.name || "Unassigned",
+      totalRevenue: row.totalRevenue || 0,
+      invoiceCount: row.invoiceCount || 0,
+      growthRate: null
+    };
+  }));
+
+  const trendPeriod = { from: fromDate?.toISOString() || null, to: toDate?.toISOString() || null };
+
+  return {
+    overview: {
+      totalRevenue,
+      totalExpenses,
+      netProfit: totalRevenue - totalExpenses,
+      invoicesCount,
+      activeBranchesCount,
+      range: trendPeriod
+    },
+    branchPerformance: branchRankExtended,
+    employeePerformance: employeeLeaderboard,
+    productInsights: bestProducts.map((row) => ({ productId: row._id, name: row.productName || "Unknown", quantity: row.quantity, revenue: row.revenue })),
+    timeseries,
+    alerts: [],
+    raw: {
+      branchTrend: branchRank,
+      productTrend: bestProducts
+    }
+  };
+}
+
+async function getSuperAdminAlerts({ companyId, fromDate, toDate } = {}) {
+  const overview = await getSuperAdminOverview({ companyId, fromDate, toDate, groupBy: "month" });
+
+  const suddenDrop = (() => {
+    const len = overview.timeseries.length;
+    if (len < 2) return null;
+    const lastPeriod = overview.timeseries[len - 1];
+    const prevPeriod = overview.timeseries[len - 2];
+    if (prevPeriod.revenue <= 0) return null;
+    const drop = ((prevPeriod.revenue - lastPeriod.revenue) / prevPeriod.revenue) * 100;
+    if (drop >= 20) return { type: "sudden_drop_in_revenue", drop: Number(drop.toFixed(1)), previous: prevPeriod.revenue, current: lastPeriod.revenue };
+    return null;
+  })();
+
+  const highInvoice = await Invoice.find({ ...(companyId ? { companyId } : {}), status: { $ne: "cancelled" }, issueDate: { $gte: fromDate || new Date(0), $lte: toDate || new Date() } })
+    .sort({ total: -1 })
+    .limit(3)
+    .select("invoiceNo total issueDate branchId branchName salespersonId")
+    .lean();
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const activeBranchIds = await Invoice.distinct("branchId", { ...(companyId ? { companyId } : {}), issueDate: { $gte: thirtyDaysAgo } });
+  const inactiveBranches = await Branch.find({ ...(companyId ? { companyId } : {}), isActive: true, _id: { $nin: activeBranchIds } }).select("name code").lean();
+
+  const alerts = [];
+  if (suddenDrop) alerts.push(suddenDrop);
+  if (highInvoice?.length) alerts.push({ type: "high_invoice", invoices: highInvoice });
+  if (inactiveBranches.length) alerts.push({ type: "inactive_branches", branches: inactiveBranches });
+
+  return alerts;
+}
+
+module.exports = {
+  getSuperAdminOverview,
+  getSuperAdminAlerts
+};

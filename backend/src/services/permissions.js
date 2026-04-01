@@ -6,14 +6,14 @@ function normalizePermissions(list) {
 }
 
 function defaultPermissionsForRole(role) {
-  if (role === "owner" || role === "admin") return ["*"];
+  if (role === "super_admin" || role === "owner" || role === "admin") return ["*"];
   // Members can use workspace modules by default, but cannot access admin-only settings/billing.
   return ["module:*:read", "module:*:write"];
 }
 
 function computeUserPermissions(user) {
   if (!user) return [];
-  if (user.role === "owner" || user.role === "admin") return ["*"];
+  if (user.role === "super_admin" || user.role === "owner" || user.role === "admin") return ["*"];
   const explicit = normalizePermissions(user.permissions);
   if (explicit.length) return explicit;
   return defaultPermissionsForRole(user.role);

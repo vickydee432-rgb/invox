@@ -192,11 +192,11 @@ router.post("/invite/revoke", requireRole(["owner", "admin"]), async (req, res) 
   }
 });
 
-router.put("/role", requireRole(["owner"]), async (req, res) => {
+router.put("/role", requireRole(["super_admin", "owner"]), async (req, res) => {
   try {
     const { userId, role } = req.body || {};
     if (!userId || !role) return res.status(400).json({ error: "userId and role are required" });
-    if (!["admin", "member"].includes(role)) {
+    if (!["super_admin", "owner", "admin", "member"].includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
     const user = await User.findOne({ _id: userId, companyId: req.user.companyId });
