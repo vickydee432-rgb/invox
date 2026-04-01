@@ -217,7 +217,74 @@ async function getSuperAdminAlerts({ companyId, fromDate, toDate } = {}) {
   return alerts;
 }
 
+async function getSuperAdminIncomeStatement({ companyId, fromDate, toDate, groupBy = "month" } = {}) {
+  const invoiceMatch = { status: { $nin: ["cancelled"] } };
+  if (companyId) invoiceMatch.companyId = companyId;
+  if (fromDate || toDate) {
+    invoiceMatch.issueDate = {};
+    if (fromDate) invoiceMatch.issueDate.$gte = fromDate;
+    if (toDate) invoiceMatch.issueDate.$lte = toDate;
+  }
+
+  const expenseMatch = {};
+  if (companyId) expenseMatch.companyId = companyId;
+  if (fromDate || toDate) {
+    expenseMatch.date = {};
+    if (fromDate) expenseMatch.date.$gte = fromDate;
+    if (toDate) expenseMatch.date.$lte = toDate;
+  }
+
+  const [
+    revenueAgg,
+    expenseAgg,
+    revenueSeries,
+    expenseSeries
+  ] = await Promise.all([
+    Invoice.aggregate([{ $match: invoiceMatch }, { $group: { _id: null, total: { $sum: "$total" } } }]),
+    Expense.aggregate([{ $match: expenseMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+    Invoice.aggregate([
+      { $match: invoiceMatch },
+      { $group: { _id: toSeriesKeyExpression(groupBy, "issueDate"), revenue: { $sum: "$total" } } },
+      { $sort: { _id: 1 } }
+    ]),
+    Expense.aggregate([
+      { $match: expenseMatch },
+      { $group: { _id: toSeriesKeyExpression(groupBy, "date"), expenses: { $sum: "$amount" } } },
+      { $sort: { _id: 1 } }
+    ])
+  ]);
+
+  const totalRevenue = revenueAgg[0]?.total || 0;
+  const totalExpenses = expenseAgg[0]?.total || 0;
+  const netProfit = totalRevenue - totalExpenses;
+
+  const seriesMap = new Map();
+  revenueSeries.forEach((row) => {
+    seriesMap.set(String(row._id), { period: String(row._id), revenue: row.revenue || 0, expenses: 0, profit: 0 });
+  });
+  expenseSeries.forEach((row) => {
+    const key = String(row._id);
+    const existing = seriesMap.get(key) || { period: key, revenue: 0, expenses: 0, profit: 0 };
+    existing.expenses = row.expenses || 0;
+    seriesMap.set(key, existing);
+  });
+  const series = Array.from(seriesMap.values())
+    .map((row) => ({ ...row, profit: (row.revenue || 0) - (row.expenses || 0) }))
+    .sort((a, b) => a.period.localeCompare(b.period));
+
+  return {
+    range: { from: fromDate ? fromDate.toISOString() : null, to: toDate ? toDate.toISOString() : null },
+    totals: { totalRevenue, totalExpenses, netProfit },
+    breakdown: {
+      revenueByInvoice: [], // Too many for super admin
+      expensesByCategory: [] // Could add if needed
+    },
+    series
+  };
+}
+
 module.exports = {
   getSuperAdminOverview,
-  getSuperAdminAlerts
+  getSuperAdminAlerts,
+  getSuperAdminIncomeStatement
 };
