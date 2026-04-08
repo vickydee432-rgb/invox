@@ -2,6 +2,7 @@ const Invoice = require("../models/Invoice");
 const Expense = require("../models/Expense");
 const Branch = require("../models/Branch");
 const User = require("../models/User");
+const Company = require("../models/Company");
 
 function buildDateRangeClause({ field, fromDate, toDate }) {
   const clause = { deletedAt: null };
@@ -149,8 +150,14 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
 
   const prevBranchMap = new Map(prevBranchRank.map((row) => [String(row._id || ""), row.totalRevenue || 0]));
 
-  const branchRankExtended = await Promise.all(branchRank.map(async (row) => {
-    const branch = row._id ? await Branch.findById(row._id).lean() : null;
+  const branchIds = branchRank.map((row) => row._id).filter(Boolean);
+  const branches = branchIds.length
+    ? await Branch.find({ _id: { $in: branchIds } }).select("_id name").lean()
+    : [];
+  const branchById = new Map(branches.map((b) => [String(b._id), b]));
+
+  const branchRankExtended = branchRank.map((row) => {
+    const branch = row._id ? branchById.get(String(row._id)) : null;
     const previous = prevBranchMap.get(String(row._id || "")) || 0;
     const growthRate = previous > 0 ? ((row.totalRevenue - previous) / previous) * 100 : null;
     return {
@@ -160,9 +167,12 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
       invoiceCount: row.invoiceCount || 0,
       growthRate: growthRate !== null ? Number(growthRate.toFixed(2)) : null
     };
-  }));
+  });
 
   const trendPeriod = { from: fromDate?.toISOString() || null, to: toDate?.toISOString() || null };
+  const companyMeta = companyId ? await Company.findById(companyId).select("currency").lean() : null;
+  const companiesCount = companyId ? (companyMeta ? 1 : 0) : await Company.countDocuments({});
+  const currency = companyMeta?.currency || null;
 
   return {
     overview: {
@@ -171,6 +181,8 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
       netProfit: totalRevenue - totalExpenses,
       invoicesCount,
       activeBranchesCount,
+      companiesCount,
+      currency,
       range: trendPeriod
     },
     branchPerformance: branchRankExtended,

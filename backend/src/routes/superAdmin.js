@@ -14,7 +14,7 @@ const Company = require("../models/Company");
 
 const router = express.Router();
 router.use(requireAuth);
-router.use(requireRole(["super_admin", "owner", "admin"]));
+router.use(requireRole(["super_admin"]));
 
 function parseGroupBy(value) {
   const v = String(value || "month").toLowerCase();
@@ -108,7 +108,12 @@ router.get("/reports/overview/export.csv", async (req, res) => {
 
 router.get("/employee-leaderboard", async (req, res) => {
   try {
-    const overview = await getSuperAdminOverview({ fromDate: parseDateParam(req.query.from, "from"), toDate: parseDateParam(req.query.to, "to", { endOfDay: true }), groupBy: parseGroupBy(req.query.groupBy) });
+    const overview = await getSuperAdminOverview({
+      companyId: req.query.companyId || null,
+      fromDate: parseDateParam(req.query.from, "from"),
+      toDate: parseDateParam(req.query.to, "to", { endOfDay: true }),
+      groupBy: parseGroupBy(req.query.groupBy)
+    });
     const topEmployees = overview.employeePerformance.slice(0, Number(req.query.limit || 30));
     res.json({ employees: topEmployees });
   } catch (err) {
@@ -118,7 +123,12 @@ router.get("/employee-leaderboard", async (req, res) => {
 
 router.get("/branch-performance", async (req, res) => {
   try {
-    const overview = await getSuperAdminOverview({ fromDate: parseDateParam(req.query.from, "from"), toDate: parseDateParam(req.query.to, "to", { endOfDay: true }), groupBy: parseGroupBy(req.query.groupBy) });
+    const overview = await getSuperAdminOverview({
+      companyId: req.query.companyId || null,
+      fromDate: parseDateParam(req.query.from, "from"),
+      toDate: parseDateParam(req.query.to, "to", { endOfDay: true }),
+      groupBy: parseGroupBy(req.query.groupBy)
+    });
     const branches = overview.branchPerformance;
     res.json({ branches });
   } catch (err) {
@@ -190,13 +200,6 @@ router.get("/reports/income-statement/export.pdf", async (req, res) => {
 // Super Admin Console - User Management
 router.get("/console/users", async (req, res) => {
   try {
-    // Only super_admin can access this
-    if (req.user.role !== "super_admin") {
-      const err = new Error("Only super admins can access user console");
-      err.status = 403;
-      throw err;
-    }
-
     const q = String(req.query.q || "").trim().toLowerCase();
     const limit = Math.min(50, Number(req.query.limit || 20));
     const query = {};
@@ -209,7 +212,7 @@ router.get("/console/users", async (req, res) => {
     }
 
     const users = await User.find(query)
-      .select("_id name email role createdAt lastLoginAt company")
+      .select("_id name email role createdAt lastLoginAt companyId")
       .populate("companyId", "name")
       .sort({ lastLoginAt: -1 })
       .limit(limit)
@@ -223,13 +226,6 @@ router.get("/console/users", async (req, res) => {
 
 router.get("/console/users/:userId", async (req, res) => {
   try {
-    // super_admin / owner / admin can access this console
-    if (!["super_admin", "owner", "admin"].includes(req.user.role)) {
-      const err = new Error("Only super admins or workspace admins can access user console");
-      err.status = 403;
-      throw err;
-    }
-
     const user = await User.findById(req.params.userId)
       .select("_id name email phone role createdAt lastLoginAt mfaEnabled companyId")
       .populate("companyId", "name")
@@ -249,13 +245,6 @@ router.get("/console/users/:userId", async (req, res) => {
 
 router.post("/console/login-as", async (req, res) => {
   try {
-    // super_admin / owner / admin can access this console
-    if (!["super_admin", "owner", "admin"].includes(req.user.role)) {
-      const err = new Error("Only super admins or workspace admins can access user console");
-      err.status = 403;
-      throw err;
-    }
-
     const { userId } = req.body;
     if (!userId) {
       const err = new Error("userId is required");
@@ -299,6 +288,33 @@ router.post("/console/login-as", async (req, res) => {
     res.json({ token, user: { _id: targetUser._id, name: targetUser.name, email: targetUser.email, role: targetUser.role } });
   } catch (err) {
     return handleRouteError(res, err, "Failed to create impersonation session");
+  }
+});
+
+router.get("/console/companies", async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const limit = Math.min(100, Number(req.query.limit || 50));
+    const query = {};
+
+    if (q) {
+      query.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } }
+      ];
+    }
+
+    const companies = await Company.find(query)
+      .select(
+        "_id name email currency businessType subscriptionStatus subscriptionPlan subscriptionCycle trialEndsAt currentPeriodEnd createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ companies });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to search companies");
   }
 });
 

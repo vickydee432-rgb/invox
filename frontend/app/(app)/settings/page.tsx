@@ -1913,7 +1913,7 @@ export default function SettingsPage() {
         {mfaError ? <div className="muted" style={{ marginTop: 12 }}>{mfaError}</div> : null}
       </section>
 
-      {currentUserRole === "super_admin" || currentUserRole === "owner" || currentUserRole === "admin" ? (
+      {currentUserRole === "super_admin" ? (
         <section className="panel">
           <div className="panel-title">Super Admin · User Console</div>
           <div className="muted" style={{ marginBottom: 16 }}>
