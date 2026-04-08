@@ -179,7 +179,7 @@ async function getSuperAdminOverview({ companyId, fromDate, toDate, groupBy = "m
       totalRevenue,
       totalExpenses,
       netProfit: totalRevenue - totalExpenses,
-      invoicesCount,
+      invoicesCount: invoiceCount,
       activeBranchesCount,
       companiesCount,
       currency,
