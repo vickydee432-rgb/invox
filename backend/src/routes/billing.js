@@ -31,6 +31,21 @@ const PLAN_MAP = {
   businessplus_yearly: process.env.DODO_PRODUCT_BUSINESSPLUS_YEARLY
 };
 
+function addMonths(date, months) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function applyPlanKeyDetails(company, planKey) {
+  const key = String(planKey || "").toLowerCase().trim();
+  if (!key) return;
+  if (key.startsWith("starter")) company.subscriptionPlan = "starter";
+  if (key.startsWith("pro")) company.subscriptionPlan = "pro";
+  if (key.startsWith("businessplus")) company.subscriptionPlan = "businessplus";
+  company.subscriptionCycle = key.endsWith("yearly") ? "yearly" : "monthly";
+}
+
 function applyPlanDetails(company, productId) {
   const entries = Object.entries(PLAN_MAP).filter(([, value]) => value);
   const match = entries.find(([, value]) => value === productId);
@@ -50,6 +65,8 @@ function computeAccess(company) {
   return {
     isActive,
     isTrial: !!trialValid,
+    trialValid: !!trialValid,
+    periodValid: !!periodValid,
     readOnly: !isActive,
     trialEndsAt: company.trialEndsAt,
     currentPeriodEnd: company.currentPeriodEnd
@@ -65,7 +82,8 @@ billingRouter.get("/status", async (req, res) => {
     return res.json({
       isActive: access.isActive,
       isTrial: access.isTrial,
-      trialValid: access.isTrial,
+      trialValid: access.trialValid,
+      periodValid: access.periodValid,
       readOnly: access.readOnly,
       trialEndsAt: access.trialEndsAt,
       currentPeriodEnd: access.currentPeriodEnd
@@ -90,11 +108,43 @@ billingRouter.post("/checkout", requireRole(["owner", "admin"]), async (req, res
     const parsed = SubscribeSchema.parse(req.body || {});
     const requestedProductId = parsed.product_id || parsed.productId;
     const planKey = parsed.planKey || "";
-    const productId = requestedProductId || PLAN_MAP[planKey];
-    if (!productId) return res.status(400).json({ error: "Invalid plan or product" });
+    const productId = requestedProductId || (planKey ? PLAN_MAP[planKey] : null);
 
     const company = await Company.findById(req.user.companyId);
     if (!company) return res.status(404).json({ error: "Company not found" });
+
+    const now = new Date();
+    const trialValid = company.trialEndsAt && company.trialEndsAt > now;
+    const eligibleForTrial = !company.dodoSubscriptionId && !company.trialEndsAt;
+    if (eligibleForTrial) {
+      company.subscriptionStatus = "trialing";
+      company.subscriptionCancelAtNextBillingDate = false;
+      if (planKey) applyPlanKeyDetails(company, planKey);
+      else if (productId) applyPlanDetails(company, productId);
+      company.trialEndsAt = addMonths(now, 3);
+      await company.save();
+      return res.json({
+        trialStarted: true,
+        trialEndsAt: company.trialEndsAt,
+        plan: company.subscriptionPlan || null,
+        billingCycle: company.subscriptionCycle || null
+      });
+    }
+
+    const trialPlanSwitch = !company.dodoSubscriptionId && trialValid;
+    if (trialPlanSwitch) {
+      if (planKey) applyPlanKeyDetails(company, planKey);
+      else if (productId) applyPlanDetails(company, productId);
+      await company.save();
+      return res.json({
+        trialUpdated: true,
+        trialEndsAt: company.trialEndsAt,
+        plan: company.subscriptionPlan || null,
+        billingCycle: company.subscriptionCycle || null
+      });
+    }
+
+    if (!productId) return res.status(400).json({ error: "Invalid plan or product" });
 
     const returnUrl = parsed.returnUrl || process.env.DODO_RETURN_URL || "http://localhost:3000/plans";
     const customer = {

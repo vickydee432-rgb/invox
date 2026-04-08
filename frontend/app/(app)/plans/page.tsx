@@ -20,6 +20,7 @@ export default function PlansPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
+  const [billingNotice, setBillingNotice] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
   const [cancelError, setCancelError] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -45,6 +46,7 @@ export default function PlansPage() {
   const loadBillingStatus = async () => {
     setBillingLoading(true);
     setBillingError("");
+    setBillingNotice("");
     try {
       const data = await apiFetch<{
         status: string;
@@ -111,16 +113,33 @@ export default function PlansPage() {
   const startCheckout = async (planKey: string) => {
     setCheckoutError("");
     setCancelError("");
+    setBillingNotice("");
     setSubscribingPlan(planKey);
     try {
       if (role !== "owner" && role !== "admin") {
         setCheckoutError("Only admins can manage subscription changes.");
         return;
       }
-      const data = await apiFetch<{ checkoutUrl?: string }>("/api/billing/checkout", {
+      const data = await apiFetch<{
+        checkoutUrl?: string;
+        trialStarted?: boolean;
+        trialUpdated?: boolean;
+        trialEndsAt?: string;
+        plan?: string | null;
+        billingCycle?: string | null;
+      }>("/api/billing/checkout", {
         method: "POST",
         body: JSON.stringify({ planKey })
       });
+      if (data.trialStarted || data.trialUpdated) {
+        await loadBillingStatus();
+        setBillingNotice(
+          data.trialStarted
+            ? `3-month free trial started${data.trialEndsAt ? ` (ends ${new Date(data.trialEndsAt).toLocaleDateString()}).` : "."}`
+            : "Trial plan updated."
+        );
+        return;
+      }
       if (data.checkoutUrl && checkoutRef.current) {
         const container = document.getElementById("dodo-inline-checkout");
         if (container) container.innerHTML = "";
@@ -167,6 +186,8 @@ export default function PlansPage() {
   const canCancel = Boolean(
     billingStatus?.plan && billingStatus?.status !== "pending" && !billingStatus?.cancelAtNextBillingDate
   );
+  const isPaid = Boolean(billingStatus?.dodoSubscriptionId);
+  const isTrial = Boolean(billingStatus?.trialEndsAt && billingStatus?.isTrial) && !isPaid;
 
   if (role === null) {
     return (
@@ -198,7 +219,7 @@ export default function PlansPage() {
             Simple, secure billing for your team. Three flexible plans with monthly or yearly options.
           </p>
           <div className="plans-badges">
-            <span>14-day free trial</span>
+            <span>3-month free trial</span>
             <span>All core features included</span>
             <span>Cancel anytime</span>
           </div>
@@ -236,7 +257,13 @@ export default function PlansPage() {
               disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`starter_${billingCycle}`)}
             >
-              {subscribingPlan === `starter_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `starter_${billingCycle}`
+                ? "Working..."
+                : isPaid
+                  ? "Subscribe"
+                  : isTrial
+                    ? "Use this plan (trial)"
+                    : "Start 3-month trial"}
             </button>
             <ul className="plan-features">
               <li>Invoices, quotes, sales & inventory</li>
@@ -260,7 +287,13 @@ export default function PlansPage() {
               disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`pro_${billingCycle}`)}
             >
-              {subscribingPlan === `pro_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `pro_${billingCycle}`
+                ? "Working..."
+                : isPaid
+                  ? "Subscribe"
+                  : isTrial
+                    ? "Use this plan (trial)"
+                    : "Start 3-month trial"}
             </button>
             <ul className="plan-features">
               <li>Everything in Starter</li>
@@ -285,7 +318,13 @@ export default function PlansPage() {
               disabled={Boolean(subscribingPlan)}
               onClick={() => startCheckout(`businessplus_${billingCycle}`)}
             >
-              {subscribingPlan === `businessplus_${billingCycle}` ? "Starting checkout..." : "Subscribe"}
+              {subscribingPlan === `businessplus_${billingCycle}`
+                ? "Working..."
+                : isPaid
+                  ? "Subscribe"
+                  : isTrial
+                    ? "Use this plan (trial)"
+                    : "Start 3-month trial"}
             </button>
             <ul className="plan-features">
               <li>Everything in Pro</li>
@@ -360,12 +399,14 @@ export default function PlansPage() {
             {checkoutError ? <div className="muted">{checkoutError}</div> : null}
             {cancelError ? <div className="muted">{cancelError}</div> : null}
             {billingError ? <div className="muted">{billingError}</div> : null}
+            {billingNotice ? <div className="muted">{billingNotice}</div> : null}
           </section>
         ) : (
           <section className="plans-status">
             {checkoutError ? <div className="muted">{checkoutError}</div> : null}
             {cancelError ? <div className="muted">{cancelError}</div> : null}
             {billingError ? <div className="muted">{billingError}</div> : null}
+            {billingNotice ? <div className="muted">{billingNotice}</div> : null}
           </section>
         )}
 

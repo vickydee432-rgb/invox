@@ -136,6 +136,9 @@ router.post("/register", authLimiter, authSlowDown, async (req, res) => {
     const existing = await User.findOne({ email: parsed.email.toLowerCase() }).lean();
     if (existing) return res.status(409).json({ error: "Email already in use" });
 
+    const trialEndsAt = new Date();
+    trialEndsAt.setMonth(trialEndsAt.getMonth() + 3);
+
     const company = new Company({
       name: parsed.company.name.trim(),
       legalName: parsed.company.legalName,
@@ -145,11 +148,11 @@ router.post("/register", authLimiter, authSlowDown, async (req, res) => {
       website: parsed.company.website,
       currency: parsed.company.currency || "USD",
       address: parsed.company.address || {},
-      subscriptionStatus: "pending",
-      subscriptionPlan: null,
+      subscriptionStatus: "trialing",
+      subscriptionPlan: "starter",
       subscriptionCycle: null,
       currentPeriodEnd: null,
-      trialEndsAt: null
+      trialEndsAt
     });
     setCompanySensitive(company, { taxId: parsed.company.taxId, payment: parsed.company.payment });
     applyWorkspace(company, parsed.company.businessType);
