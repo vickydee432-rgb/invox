@@ -1915,13 +1915,13 @@ export default function SettingsPage() {
 
       {currentUserRole === "super_admin" ? (
         <section className="panel">
-          <div className="panel-title">Super Admin</div>
+          <div className="panel-title">Admin Console</div>
           <div className="muted" style={{ marginTop: 8 }}>
-            Open the standalone Super Admin analytics app (auto sign-in).
+            Open the standalone Admin Console (auto sign-in).
           </div>
           <div style={{ marginTop: 12 }}>
             <a className="button" href="/super-admin">
-              Open Super Admin Dashboard
+              Open Admin Console
             </a>
           </div>
         </section>

@@ -43,9 +43,9 @@ export default function LoginPage() {
         <div className="brand">
           <div className="brand-mark" />
           <div>
-            <div className="brand-title">INVOX Super Admin</div>
+            <div className="brand-title">INVOX Admin Console</div>
             <div className="muted" style={{ fontSize: 13 }}>
-              Centralized analytics across all companies
+              Usage, performance, and analytics across branches
             </div>
           </div>
         </div>
@@ -54,7 +54,7 @@ export default function LoginPage() {
       <section className="panel">
         <div className="panel-title">Sign in</div>
         <div className="muted" style={{ marginTop: 6 }}>
-          Super Admin access only.
+          Super Admin access only (company-scoped).
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 14 }}>
@@ -77,4 +77,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

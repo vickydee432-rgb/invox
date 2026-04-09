@@ -44,13 +44,28 @@ function asCsv(rows) {
   return rows.map((row) => row.map(escape).join(",")).join("\n") + "\n";
 }
 
+function resolveCompanyScope(req) {
+  // Company-scoped Super Admin: always restrict to the super admin user's company.
+  return req.user?.companyId || null;
+}
+
+function requireCompanyScope(req) {
+  const companyId = resolveCompanyScope(req);
+  if (!companyId) {
+    const err = new Error("Missing company scope");
+    err.status = 400;
+    throw err;
+  }
+  return companyId;
+}
+
 router.get("/overview", async (req, res) => {
   try {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
     const groupBy = parseGroupBy(req.query.groupBy);
 
-    const companyId = req.query.companyId || null; // optional company scoped
+    const companyId = requireCompanyScope(req);
 
     const data = await getSuperAdminOverview({ companyId, fromDate, toDate, groupBy });
     res.json(data);
@@ -63,7 +78,7 @@ router.get("/alerts", async (req, res) => {
   try {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
-    const companyId = req.query.companyId || null;
+    const companyId = requireCompanyScope(req);
     const data = await getSuperAdminAlerts({ companyId, fromDate, toDate });
     res.json({ alerts: data });
   } catch (err) {
@@ -76,7 +91,7 @@ router.get("/reports/overview/export.csv", async (req, res) => {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
     const groupBy = parseGroupBy(req.query.groupBy);
-    const companyId = req.query.companyId || null;
+    const companyId = requireCompanyScope(req);
     const data = await getSuperAdminOverview({ companyId, fromDate, toDate, groupBy });
 
     const headings = [
@@ -109,7 +124,7 @@ router.get("/reports/overview/export.csv", async (req, res) => {
 router.get("/employee-leaderboard", async (req, res) => {
   try {
     const overview = await getSuperAdminOverview({
-      companyId: req.query.companyId || null,
+      companyId: requireCompanyScope(req),
       fromDate: parseDateParam(req.query.from, "from"),
       toDate: parseDateParam(req.query.to, "to", { endOfDay: true }),
       groupBy: parseGroupBy(req.query.groupBy)
@@ -124,7 +139,7 @@ router.get("/employee-leaderboard", async (req, res) => {
 router.get("/branch-performance", async (req, res) => {
   try {
     const overview = await getSuperAdminOverview({
-      companyId: req.query.companyId || null,
+      companyId: requireCompanyScope(req),
       fromDate: parseDateParam(req.query.from, "from"),
       toDate: parseDateParam(req.query.to, "to", { endOfDay: true }),
       groupBy: parseGroupBy(req.query.groupBy)
@@ -141,7 +156,7 @@ router.get("/reports/income-statement/export.csv", async (req, res) => {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
     const groupBy = parseGroupBy(req.query.groupBy);
-    const companyId = req.query.companyId || null;
+    const companyId = requireCompanyScope(req);
     const data = await getSuperAdminIncomeStatement({ companyId, fromDate, toDate, groupBy });
 
     const header = [
@@ -171,7 +186,7 @@ router.get("/reports/income-statement/export.xlsx", async (req, res) => {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
     const groupBy = parseGroupBy(req.query.groupBy);
-    const companyId = req.query.companyId || null;
+    const companyId = requireCompanyScope(req);
     const data = await getSuperAdminIncomeStatement({ companyId, fromDate, toDate, groupBy });
 
     const workbook = buildFinancialIncomeStatementWorkbook(data);
@@ -189,7 +204,7 @@ router.get("/reports/income-statement/export.pdf", async (req, res) => {
     const fromDate = parseDateParam(req.query.from, "from");
     const toDate = parseDateParam(req.query.to, "to", { endOfDay: true });
     const groupBy = parseGroupBy(req.query.groupBy);
-    const companyId = req.query.companyId || null;
+    const companyId = requireCompanyScope(req);
     const data = await getSuperAdminIncomeStatement({ companyId, fromDate, toDate, groupBy });
     return generateIncomeStatementPdf(res, data);
   } catch (err) {
@@ -202,7 +217,8 @@ router.get("/console/users", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim().toLowerCase();
     const limit = Math.min(50, Number(req.query.limit || 20));
-    const query = {};
+    const companyId = requireCompanyScope(req);
+    const query = { companyId };
 
     if (q) {
       query.$or = [
@@ -226,12 +242,19 @@ router.get("/console/users", async (req, res) => {
 
 router.get("/console/users/:userId", async (req, res) => {
   try {
+    const companyId = requireCompanyScope(req);
     const user = await User.findById(req.params.userId)
       .select("_id name email phone role createdAt lastLoginAt mfaEnabled companyId")
       .populate("companyId", "name")
       .lean();
 
     if (!user) {
+      const err = new Error("User not found");
+      err.status = 404;
+      throw err;
+    }
+
+    if (String(user.companyId?._id || user.companyId) !== String(companyId)) {
       const err = new Error("User not found");
       err.status = 404;
       throw err;
@@ -254,6 +277,13 @@ router.post("/console/login-as", async (req, res) => {
 
     const targetUser = await User.findById(userId);
     if (!targetUser) {
+      const err = new Error("Target user not found");
+      err.status = 404;
+      throw err;
+    }
+
+    const companyId = requireCompanyScope(req);
+    if (String(targetUser.companyId) !== String(companyId)) {
       const err = new Error("Target user not found");
       err.status = 404;
       throw err;
@@ -293,26 +323,15 @@ router.post("/console/login-as", async (req, res) => {
 
 router.get("/console/companies", async (req, res) => {
   try {
-    const q = String(req.query.q || "").trim();
-    const limit = Math.min(100, Number(req.query.limit || 50));
-    const query = {};
+    const companyId = requireCompanyScope(req);
 
-    if (q) {
-      query.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { email: { $regex: q, $options: "i" } }
-      ];
-    }
-
-    const companies = await Company.find(query)
+    const company = await Company.findById(companyId)
       .select(
         "_id name email currency businessType subscriptionStatus subscriptionPlan subscriptionCycle trialEndsAt currentPeriodEnd createdAt"
       )
-      .sort({ createdAt: -1 })
-      .limit(limit)
       .lean();
 
-    res.json({ companies });
+    res.json({ companies: company ? [company] : [] });
   } catch (err) {
     return handleRouteError(res, err, "Failed to search companies");
   }

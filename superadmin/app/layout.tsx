@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "INVOX · Super Admin",
-  description: "Centralized analytics and monitoring across all companies"
+  title: "INVOX · Admin Console",
+  description: "Usage, performance, and analytics across a company's branches"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,4 +14,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-

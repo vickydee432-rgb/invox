@@ -1,34 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 
-type CurrencyBreakdownRow = {
-  currency: string;
-  companies: number;
-  revenue: number;
-  expenses: number;
-  profit: number;
-};
-
-type TopCompanyRow = {
-  companyId: string;
-  companyName: string;
-  currency?: string | null;
-  subscriptionStatus?: string;
-  subscriptionPlan?: string | null;
-  subscriptionCycle?: string | null;
-  totalRevenue: number;
-  invoicesCount: number;
-};
-
 type BranchPerf = { branchId: string; branchName: string; totalRevenue: number; invoiceCount: number; growthRate: number | null };
 type EmployeePerf = { userId?: string; name: string; role?: string; totalSales: number; invoices: number; avgInvoiceValue: number };
-
-type CompanyOption = { _id: string; name: string; currency?: string | null };
 
 type SuperAdminOverview = {
   overview: {
@@ -46,15 +25,12 @@ type SuperAdminOverview = {
     activeUsersCount?: number;
     usageWindowDays?: number;
     currency?: string | null;
-    mixedCurrencies?: boolean;
     companyName?: string | null;
     range: { from: string | null; to: string | null };
   };
   timeseries: { period: string; revenue: number; expenses: number; profit: number }[];
   branchPerformance: BranchPerf[];
   employeePerformance: EmployeePerf[];
-  topCompanies?: TopCompanyRow[];
-  currencyBreakdown?: CurrencyBreakdownRow[];
 };
 
 function formatMoney(value: number, currency?: string | null) {
@@ -89,24 +65,20 @@ type AlertHighInvoice = {
     total: number;
     issueDate: string;
     branchName?: string;
-    companyName?: string;
-    currency?: string | null;
   }>;
 };
 type AlertInactiveBranches = {
   type: "inactive_branches";
-  branches: Array<{ _id?: string; name: string; code?: string; companyName?: string }>;
+  branches: Array<{ _id?: string; name: string; code?: string }>;
 };
 type SuperAdminAlert = AlertSuddenDrop | AlertHighInvoice | AlertInactiveBranches | { type: string; [key: string]: any };
 
 function AlertCard({
   alert,
-  defaultCurrency,
-  mixedCurrencies
+  defaultCurrency
 }: {
   alert: SuperAdminAlert;
   defaultCurrency?: string | null;
-  mixedCurrencies: boolean;
 }) {
   if (alert?.type === "sudden_drop_in_revenue") {
     const a = alert as AlertSuddenDrop;
@@ -114,8 +86,7 @@ function AlertCard({
       <div className="callout warn">
         <div style={{ fontWeight: 800, marginBottom: 6 }}>Sudden drop in revenue</div>
         <div className="muted">
-          Revenue dropped {formatPct(a.drop)} vs previous period ({formatMoney(a.previous, mixedCurrencies ? null : defaultCurrency)} →{" "}
-          {formatMoney(a.current, mixedCurrencies ? null : defaultCurrency)}).
+          Revenue dropped {formatPct(a.drop)} vs previous period ({formatMoney(a.previous, defaultCurrency)} → {formatMoney(a.current, defaultCurrency)}).
         </div>
         <details style={{ marginTop: 10 }}>
           <summary className="muted" style={{ cursor: "pointer" }}>
@@ -139,7 +110,6 @@ function AlertCard({
           <thead>
             <tr>
               <th>Invoice</th>
-              <th>Company</th>
               <th>Branch</th>
               <th>Total</th>
               <th>Date</th>
@@ -149,9 +119,8 @@ function AlertCard({
             {(a.invoices || []).slice(0, 10).map((inv) => (
               <tr key={inv._id}>
                 <td>{inv.invoiceNo || "—"}</td>
-                <td>{inv.companyName || "—"}</td>
                 <td>{inv.branchName || "—"}</td>
-                <td>{formatMoney(inv.total || 0, mixedCurrencies ? inv.currency || null : inv.currency || defaultCurrency || null)}</td>
+                <td>{formatMoney(inv.total || 0, defaultCurrency || null)}</td>
                 <td>{formatDateTime(inv.issueDate)}</td>
               </tr>
             ))}
@@ -180,7 +149,6 @@ function AlertCard({
             <tr>
               <th>Branch</th>
               <th>Code</th>
-              <th>Company</th>
             </tr>
           </thead>
           <tbody>
@@ -188,7 +156,6 @@ function AlertCard({
               <tr key={b._id || `${b.name}-${idx}`}>
                 <td>{b.name || "—"}</td>
                 <td>{b.code || "—"}</td>
-                <td>{b.companyName || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -229,12 +196,8 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [period, setPeriod] = useState<"day" | "week" | "month" | "quarter">("month");
   const [range, setRange] = useState({ from: "", to: "" });
-  const [companyId, setCompanyId] = useState("");
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyQuery, setCompanyQuery] = useState("");
   const [downloading, setDownloading] = useState(false);
 
-  const mixedCurrencies = Boolean(data?.overview?.mixedCurrencies);
   const currency = data?.overview?.currency || null;
 
   const logout = () => {
@@ -251,18 +214,6 @@ export default function DashboardPage() {
     }
   };
 
-  const loadCompanies = async (q: string) => {
-    try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
-      params.set("limit", "50");
-      const res = await apiFetch<{ companies: CompanyOption[] }>(`/api/admin/console/companies?${params.toString()}`);
-      setCompanies(res.companies || []);
-    } catch {
-      setCompanies([]);
-    }
-  };
-
   const loadDashboard = async () => {
     setLoading(true);
     setError("");
@@ -271,7 +222,6 @@ export default function DashboardPage() {
       params.set("groupBy", period);
       if (range.from) params.set("from", range.from);
       if (range.to) params.set("to", range.to);
-      if (companyId) params.set("companyId", companyId);
 
       const [overview, alertsRes] = await Promise.all([
         apiFetch<SuperAdminOverview>(`/api/admin/overview?${params.toString()}`),
@@ -302,20 +252,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!me || me.role !== "super_admin") return;
-    loadCompanies("");
-  }, [me?.role]);
-
-  useEffect(() => {
-    if (!me || me.role !== "super_admin") return;
-    const h = window.setTimeout(() => loadCompanies(companyQuery), 300);
-    return () => window.clearTimeout(h);
-  }, [companyQuery, me?.role]);
-
-  useEffect(() => {
-    if (!me || me.role !== "super_admin") return;
     if (!range.from || !range.to) return;
     loadDashboard();
-  }, [me?.role, range.from, range.to, period, companyId]);
+  }, [me?.role, range.from, range.to, period]);
 
   const exportReport = async (kind: "overview_csv" | "is_csv" | "is_xlsx" | "is_pdf") => {
     if (downloading) return;
@@ -325,7 +264,6 @@ export default function DashboardPage() {
       params.set("groupBy", period);
       if (range.from) params.set("from", range.from);
       if (range.to) params.set("to", range.to);
-      if (companyId) params.set("companyId", companyId);
 
       if (kind === "overview_csv") {
         await apiDownload(`/api/admin/reports/overview/export.csv?${params.toString()}`, "super-admin-overview.csv");
@@ -341,18 +279,15 @@ export default function DashboardPage() {
     }
   };
 
-  const currencyBreakdown = useMemo(() => data?.currencyBreakdown || [], [data?.currencyBreakdown]);
-  const topCompanies = useMemo(() => data?.topCompanies || [], [data?.topCompanies]);
-
   return (
     <>
       <div className="topbar">
         <div className="brand">
           <div className="brand-mark" />
           <div>
-            <div className="brand-title">INVOX Super Admin</div>
+            <div className="brand-title">{data?.overview?.companyName ? `${data.overview.companyName} · Admin Console` : "Admin Console"}</div>
             <div className="muted" style={{ fontSize: 13 }}>
-              Centralized insights across all companies
+              Usage, performance, and analytics across branches
             </div>
           </div>
         </div>
@@ -367,9 +302,7 @@ export default function DashboardPage() {
       <section className="panel">
         <div className="panel-title">Filters</div>
         <div className="muted" style={{ marginTop: 6 }}>
-          {companyId
-            ? `Scoped to one company${data?.overview.companyName ? ` (${data.overview.companyName})` : ""}`
-            : "All companies (totals may include mixed currencies)"}
+          {data?.overview.companyName ? `Company: ${data.overview.companyName}` : "Company analytics"}
         </div>
         <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
           <div className="grid-2">
@@ -392,22 +325,8 @@ export default function DashboardPage() {
                 <option value="quarter">Quarter</option>
               </select>
             </label>
-            <label className="field">
-              Company
-              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-                <option value="">All companies</option>
-                {companies.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name} {c.currency ? `· ${c.currency}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div />
           </div>
-          <label className="field">
-            Search companies
-            <input value={companyQuery} onChange={(e) => setCompanyQuery(e.target.value)} placeholder="Type company name or email…" />
-          </label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="button secondary" type="button" onClick={loadDashboard} disabled={loading}>
               Refresh
@@ -429,11 +348,6 @@ export default function DashboardPage() {
       </section>
 
       {error ? <div className="callout error" style={{ marginTop: 12 }}>{error}</div> : null}
-      {mixedCurrencies ? (
-        <div className="callout warn" style={{ marginTop: 12 }}>
-          Mixed currencies: the headline totals are raw sums across currencies. Use the currency breakdown for decision-making.
-        </div>
-      ) : null}
 
       {loading ? (
         <div className="panel" style={{ marginTop: 12 }}>
@@ -473,50 +387,19 @@ export default function DashboardPage() {
                 {data?.overview.activeUsersCount ?? "—"} active users
               </div>
               <div className="muted" style={{ marginTop: 6 }}>
-                Total users: {data?.overview.usersCount ?? "—"} · Active companies: {data?.overview.activeCompaniesCount ?? "—"}
+                Total users: {data?.overview.usersCount ?? "—"}
               </div>
             </section>
             <section className="panel">
-              <div className="muted">Coverage</div>
+              <div className="muted">Branches</div>
               <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>
-                {data?.overview.companiesCount ?? "—"} companies
+                {data?.overview.activeBranchesCount ?? "—"} active branches
               </div>
               <div className="muted" style={{ marginTop: 6 }}>
-                Active branches: {data?.overview.activeBranchesCount ?? "—"}
+                Ranked by revenue below
               </div>
             </section>
           </div>
-
-          {currencyBreakdown.length ? (
-            <section className="panel" style={{ marginTop: 12 }}>
-              <div className="panel-title">Currency breakdown</div>
-              <div className="muted" style={{ marginTop: 6 }}>
-                Totals split by company currency.
-              </div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Currency</th>
-                    <th>Companies</th>
-                    <th>Revenue</th>
-                    <th>Expenses</th>
-                    <th>Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currencyBreakdown.map((row) => (
-                    <tr key={row.currency}>
-                      <td>{row.currency}</td>
-                      <td>{row.companies}</td>
-                      <td>{formatMoney(row.revenue, row.currency)}</td>
-                      <td>{formatMoney(row.expenses, row.currency)}</td>
-                      <td>{formatMoney(row.profit, row.currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ) : null}
 
           <div className="grid-2" style={{ marginTop: 12 }}>
             <section className="panel">
@@ -539,7 +422,6 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              {mixedCurrencies ? <div className="muted" style={{ marginTop: 6 }}>Mixed currencies</div> : null}
             </section>
 
             <section className="panel">
@@ -556,40 +438,8 @@ export default function DashboardPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {mixedCurrencies ? <div className="muted" style={{ marginTop: 6 }}>Mixed currencies</div> : null}
             </section>
           </div>
-
-          {topCompanies.length ? (
-            <section className="panel" style={{ marginTop: 12 }}>
-              <div className="panel-title">Top-performing companies</div>
-              <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue in the selected range.</div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Company</th>
-                    <th>Currency</th>
-                    <th>Revenue</th>
-                    <th>Invoices</th>
-                    <th>Plan</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topCompanies.map((row) => (
-                    <tr key={row.companyId}>
-                      <td>{row.companyName}</td>
-                      <td>{row.currency || "—"}</td>
-                      <td>{formatMoney(row.totalRevenue, row.currency || null)}</td>
-                      <td>{row.invoicesCount}</td>
-                      <td>{row.subscriptionPlan || "—"}</td>
-                      <td>{row.subscriptionStatus || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ) : null}
 
           <div className="grid-2" style={{ marginTop: 12 }}>
             <section className="panel">
@@ -648,7 +498,7 @@ export default function DashboardPage() {
             {alerts.length ? (
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                 {(alerts as SuperAdminAlert[]).map((a, idx) => (
-                  <AlertCard key={idx} alert={a} defaultCurrency={currency} mixedCurrencies={Boolean(mixedCurrencies)} />
+                  <AlertCard key={idx} alert={a} defaultCurrency={currency} />
                 ))}
               </div>
             ) : (

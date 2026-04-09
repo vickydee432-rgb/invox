@@ -43,7 +43,7 @@ function SuperAdminSsoClient() {
       <section className="panel">
         <div className="panel-title">Signing you in…</div>
         <div className="muted" style={{ marginTop: 8 }}>
-          {error ? <span style={{ color: "var(--error)" }}>{error}</span> : "Redirecting to the Super Admin dashboard."}
+          {error ? <span style={{ color: "var(--error)" }}>{error}</span> : "Redirecting to the Admin Console."}
         </div>
         {error ? (
           <div style={{ marginTop: 14 }}>

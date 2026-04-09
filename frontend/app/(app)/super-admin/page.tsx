@@ -45,9 +45,9 @@ export default function SuperAdminLauncherPage() {
 
   return (
     <section className="panel">
-      <div className="panel-title">Super Admin</div>
+      <div className="panel-title">Admin Console</div>
       <div className="muted" style={{ marginTop: 8 }}>
-        {redirecting ? "Redirecting and signing you in…" : "Open the standalone Super Admin dashboard."}
+        {redirecting ? "Redirecting and signing you in…" : "Open the standalone Admin Console."}
       </div>
       {error ? (
         <div className="muted" style={{ marginTop: 10, color: "var(--error-color, red)" }}>
