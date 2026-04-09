@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 export default function SuperAdminDashboardMovedPage() {
-  const url = process.env.NEXT_PUBLIC_SUPERADMIN_APP_URL || "";
+  const rawUrl = process.env.NEXT_PUBLIC_SUPERADMIN_APP_URL || "";
+  const url = rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://") ? `https://${rawUrl}` : rawUrl;
   return (
     <section className="panel">
       <div className="panel-title">Super Admin Dashboard</div>
@@ -14,7 +15,7 @@ export default function SuperAdminDashboardMovedPage() {
           <>
             Open the Super Admin app:{" "}
             <Link href={url} target="_blank" rel="noreferrer">
-              {url}
+              {rawUrl}
             </Link>
           </>
         ) : (
