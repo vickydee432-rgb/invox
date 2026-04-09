@@ -1915,95 +1915,14 @@ export default function SettingsPage() {
 
       {currentUserRole === "super_admin" ? (
         <section className="panel">
-          <div className="panel-title">Super Admin · User Console</div>
-          <div className="muted" style={{ marginBottom: 16 }}>
-            Search for and manage users across all companies.
+          <div className="panel-title">Super Admin</div>
+          <div className="muted" style={{ marginTop: 8 }}>
+            Open the standalone Super Admin analytics app (auto sign-in).
           </div>
-          
-          <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
-            <label className="field">
-              Search Users
-              <input
-                type="text"
-                placeholder="Search by email or name..."
-                value={superAdminSearchQuery}
-                onChange={(e) => {
-                  setSuperAdminSearchQuery(e.target.value);
-                  searchSuperAdminUsers(e.target.value);
-                }}
-              />
-            </label>
-          </div>
-
-          {superAdminLoading && <div className="muted">Searching...</div>}
-          {superAdminError && <div className="muted" style={{ color: "var(--error-color, red)" }}>{superAdminError}</div>}
-          {superAdminSuccess && <div className="muted" style={{ color: "var(--success-color, green)" }}>{superAdminSuccess}</div>}
-
-          {superAdminUsers.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <div className="panel-title" style={{ fontSize: 14, marginBottom: 12 }}>
-                Search Results ({superAdminUsers.length})
-              </div>
-              <table className="table desktop-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Last Login</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {superAdminUsers.map((user) => (
-                    <tr key={user._id}>
-                      <td>{user.name}</td>
-                      <td>{user.email}</td>
-                      <td>{user.role}</td>
-                      <td>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}</td>
-                      <td>
-                        <button
-                          className="button secondary"
-                          onClick={() => handleSuperAdminLoginAs(user._id)}
-                          disabled={superAdminImpersonating}
-                        >
-                          {superAdminImpersonating ? "Logging in..." : "Login As"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="mobile-record-list" style={{ marginTop: 16 }}>
-            {superAdminUsers.map((user) => (
-              <article key={user._id} className="mobile-record-card">
-                <div className="mobile-record-header">
-                  <div>
-                    <div className="mobile-record-title">{user.name}</div>
-                    <div className="mobile-record-subtitle">{user.email}</div>
-                  </div>
-                  <span className="badge">{user.role}</span>
-                </div>
-                <div className="mobile-record-grid">
-                  <div className="mobile-record-item">
-                    <span className="mobile-record-label">Last Login</span>
-                    <span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}</span>
-                  </div>
-                </div>
-                <div className="mobile-record-actions">
-                  <button
-                    className="button secondary"
-                    onClick={() => handleSuperAdminLoginAs(user._id)}
-                    disabled={superAdminImpersonating}
-                  >
-                    {superAdminImpersonating ? "Logging in..." : "Login As"}
-                  </button>
-                </div>
-              </article>
-            ))}
+          <div style={{ marginTop: 12 }}>
+            <a className="button" href="/super-admin">
+              Open Super Admin Dashboard
+            </a>
           </div>
         </section>
       ) : null}
