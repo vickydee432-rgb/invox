@@ -67,6 +67,159 @@ function formatMoney(value: number, currency?: string | null) {
   }
 }
 
+function formatDateTime(value: any) {
+  if (!value) return "—";
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
+function formatPct(value: any) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  return `${num.toFixed(0)}%`;
+}
+
+type AlertSuddenDrop = { type: "sudden_drop_in_revenue"; drop: number; previous: number; current: number };
+type AlertHighInvoice = {
+  type: "high_invoice";
+  invoices: Array<{
+    _id: string;
+    invoiceNo: string;
+    total: number;
+    issueDate: string;
+    branchName?: string;
+    companyName?: string;
+    currency?: string | null;
+  }>;
+};
+type AlertInactiveBranches = {
+  type: "inactive_branches";
+  branches: Array<{ _id?: string; name: string; code?: string; companyName?: string }>;
+};
+type SuperAdminAlert = AlertSuddenDrop | AlertHighInvoice | AlertInactiveBranches | { type: string; [key: string]: any };
+
+function AlertCard({
+  alert,
+  defaultCurrency,
+  mixedCurrencies
+}: {
+  alert: SuperAdminAlert;
+  defaultCurrency?: string | null;
+  mixedCurrencies: boolean;
+}) {
+  if (alert?.type === "sudden_drop_in_revenue") {
+    const a = alert as AlertSuddenDrop;
+    return (
+      <div className="callout warn">
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>Sudden drop in revenue</div>
+        <div className="muted">
+          Revenue dropped {formatPct(a.drop)} vs previous period ({formatMoney(a.previous, mixedCurrencies ? null : defaultCurrency)} →{" "}
+          {formatMoney(a.current, mixedCurrencies ? null : defaultCurrency)}).
+        </div>
+        <details style={{ marginTop: 10 }}>
+          <summary className="muted" style={{ cursor: "pointer" }}>
+            Details
+          </summary>
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
+            {JSON.stringify(alert, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  if (alert?.type === "high_invoice") {
+    const a = alert as AlertHighInvoice;
+    return (
+      <div className="callout">
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>High invoice(s)</div>
+        <div className="muted">Largest invoices in the selected period.</div>
+        <table className="table" style={{ marginTop: 10 }}>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Company</th>
+              <th>Branch</th>
+              <th>Total</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(a.invoices || []).slice(0, 10).map((inv) => (
+              <tr key={inv._id}>
+                <td>{inv.invoiceNo || "—"}</td>
+                <td>{inv.companyName || "—"}</td>
+                <td>{inv.branchName || "—"}</td>
+                <td>{formatMoney(inv.total || 0, mixedCurrencies ? inv.currency || null : inv.currency || defaultCurrency || null)}</td>
+                <td>{formatDateTime(inv.issueDate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <details style={{ marginTop: 10 }}>
+          <summary className="muted" style={{ cursor: "pointer" }}>
+            Details
+          </summary>
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
+            {JSON.stringify(alert, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  if (alert?.type === "inactive_branches") {
+    const a = alert as AlertInactiveBranches;
+    return (
+      <div className="callout warn">
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>Inactive branches</div>
+        <div className="muted">Branches with no invoices in the last 30 days.</div>
+        <table className="table" style={{ marginTop: 10 }}>
+          <thead>
+            <tr>
+              <th>Branch</th>
+              <th>Code</th>
+              <th>Company</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(a.branches || []).slice(0, 10).map((b, idx) => (
+              <tr key={b._id || `${b.name}-${idx}`}>
+                <td>{b.name || "—"}</td>
+                <td>{b.code || "—"}</td>
+                <td>{b.companyName || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <details style={{ marginTop: 10 }}>
+          <summary className="muted" style={{ cursor: "pointer" }}>
+            Details
+          </summary>
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
+            {JSON.stringify(alert, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  return (
+    <div className="callout">
+      <div style={{ fontWeight: 800, marginBottom: 6 }}>{String(alert?.type || "alert")}</div>
+      <details>
+        <summary className="muted" style={{ cursor: "pointer" }}>
+          Details
+        </summary>
+        <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
+          {JSON.stringify(alert, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [me, setMe] = useState<{ role?: string; name?: string; email?: string } | null>(null);
@@ -494,12 +647,8 @@ export default function DashboardPage() {
             <div className="panel-title">Alerts</div>
             {alerts.length ? (
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                {alerts.map((a, idx) => (
-                  <div key={idx} className="callout">
-                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
-                      {JSON.stringify(a, null, 2)}
-                    </pre>
-                  </div>
+                {(alerts as SuperAdminAlert[]).map((a, idx) => (
+                  <AlertCard key={idx} alert={a} defaultCurrency={currency} mixedCurrencies={Boolean(mixedCurrencies)} />
                 ))}
               </div>
             ) : (
