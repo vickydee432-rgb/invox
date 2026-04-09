@@ -1,0 +1,515 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { apiDownload, apiFetch } from "@/lib/api";
+import { clearToken } from "@/lib/auth";
+
+type CurrencyBreakdownRow = {
+  currency: string;
+  companies: number;
+  revenue: number;
+  expenses: number;
+  profit: number;
+};
+
+type TopCompanyRow = {
+  companyId: string;
+  companyName: string;
+  currency?: string | null;
+  subscriptionStatus?: string;
+  subscriptionPlan?: string | null;
+  subscriptionCycle?: string | null;
+  totalRevenue: number;
+  invoicesCount: number;
+};
+
+type BranchPerf = { branchId: string; branchName: string; totalRevenue: number; invoiceCount: number; growthRate: number | null };
+type EmployeePerf = { userId?: string; name: string; role?: string; totalSales: number; invoices: number; avgInvoiceValue: number };
+
+type CompanyOption = { _id: string; name: string; currency?: string | null };
+
+type SuperAdminOverview = {
+  overview: {
+    totalRevenue: number;
+    totalExpenses: number;
+    netProfit: number;
+    salesRevenue?: number;
+    invoicesCount: number;
+    salesCount?: number;
+    transactionsCount?: number;
+    activeBranchesCount?: number;
+    companiesCount?: number;
+    activeCompaniesCount?: number;
+    usersCount?: number;
+    activeUsersCount?: number;
+    usageWindowDays?: number;
+    currency?: string | null;
+    mixedCurrencies?: boolean;
+    companyName?: string | null;
+    range: { from: string | null; to: string | null };
+  };
+  timeseries: { period: string; revenue: number; expenses: number; profit: number }[];
+  branchPerformance: BranchPerf[];
+  employeePerformance: EmployeePerf[];
+  topCompanies?: TopCompanyRow[];
+  currencyBreakdown?: CurrencyBreakdownRow[];
+};
+
+function formatMoney(value: number, currency?: string | null) {
+  const num = Number(value || 0);
+  if (!currency) return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(num);
+  } catch {
+    return `${currency} ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [me, setMe] = useState<{ role?: string; name?: string; email?: string } | null>(null);
+  const [data, setData] = useState<SuperAdminOverview | null>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [period, setPeriod] = useState<"day" | "week" | "month" | "quarter">("month");
+  const [range, setRange] = useState({ from: "", to: "" });
+  const [companyId, setCompanyId] = useState("");
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  const mixedCurrencies = Boolean(data?.overview?.mixedCurrencies);
+  const currency = data?.overview?.currency || null;
+
+  const logout = () => {
+    clearToken();
+    router.push("/login");
+  };
+
+  const loadMe = async () => {
+    const res = await apiFetch<{ user: { role?: string; name?: string; email?: string } }>("/api/auth/me");
+    setMe(res.user);
+    if (res.user?.role !== "super_admin") {
+      clearToken();
+      router.push("/login");
+    }
+  };
+
+  const loadCompanies = async (q: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("q", q.trim());
+      params.set("limit", "50");
+      const res = await apiFetch<{ companies: CompanyOption[] }>(`/api/admin/console/companies?${params.toString()}`);
+      setCompanies(res.companies || []);
+    } catch {
+      setCompanies([]);
+    }
+  };
+
+  const loadDashboard = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      params.set("groupBy", period);
+      if (range.from) params.set("from", range.from);
+      if (range.to) params.set("to", range.to);
+      if (companyId) params.set("companyId", companyId);
+
+      const [overview, alertsRes] = await Promise.all([
+        apiFetch<SuperAdminOverview>(`/api/admin/overview?${params.toString()}`),
+        apiFetch<{ alerts: any[] }>(`/api/admin/alerts?${params.toString()}`)
+      ]);
+      setData(overview);
+      setAlerts(alertsRes.alerts || []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load overview");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMe().catch(() => {
+      clearToken();
+      router.push("/login");
+    });
+  }, [router]);
+
+  useEffect(() => {
+    const now = new Date();
+    const lastMonth = new Date();
+    lastMonth.setMonth(now.getMonth() - 1);
+    setRange({ from: lastMonth.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) });
+  }, []);
+
+  useEffect(() => {
+    if (!me || me.role !== "super_admin") return;
+    loadCompanies("");
+  }, [me?.role]);
+
+  useEffect(() => {
+    if (!me || me.role !== "super_admin") return;
+    const h = window.setTimeout(() => loadCompanies(companyQuery), 300);
+    return () => window.clearTimeout(h);
+  }, [companyQuery, me?.role]);
+
+  useEffect(() => {
+    if (!me || me.role !== "super_admin") return;
+    if (!range.from || !range.to) return;
+    loadDashboard();
+  }, [me?.role, range.from, range.to, period, companyId]);
+
+  const exportReport = async (kind: "overview_csv" | "is_csv" | "is_xlsx" | "is_pdf") => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("groupBy", period);
+      if (range.from) params.set("from", range.from);
+      if (range.to) params.set("to", range.to);
+      if (companyId) params.set("companyId", companyId);
+
+      if (kind === "overview_csv") {
+        await apiDownload(`/api/admin/reports/overview/export.csv?${params.toString()}`, "super-admin-overview.csv");
+      } else if (kind === "is_csv") {
+        await apiDownload(`/api/admin/reports/income-statement/export.csv?${params.toString()}`, "income-statement.csv");
+      } else if (kind === "is_xlsx") {
+        await apiDownload(`/api/admin/reports/income-statement/export.xlsx?${params.toString()}`, "income-statement.xlsx");
+      } else {
+        await apiDownload(`/api/admin/reports/income-statement/export.pdf?${params.toString()}`, "income-statement.pdf");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const currencyBreakdown = useMemo(() => data?.currencyBreakdown || [], [data?.currencyBreakdown]);
+  const topCompanies = useMemo(() => data?.topCompanies || [], [data?.topCompanies]);
+
+  return (
+    <>
+      <div className="topbar">
+        <div className="brand">
+          <div className="brand-mark" />
+          <div>
+            <div className="brand-title">INVOX Super Admin</div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              Centralized insights across all companies
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span className="badge">{me?.email || "—"}</span>
+          <button className="button danger" type="button" onClick={logout}>
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <section className="panel">
+        <div className="panel-title">Filters</div>
+        <div className="muted" style={{ marginTop: 6 }}>
+          {companyId
+            ? `Scoped to one company${data?.overview.companyName ? ` (${data.overview.companyName})` : ""}`
+            : "All companies (totals may include mixed currencies)"}
+        </div>
+        <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          <div className="grid-2">
+            <label className="field">
+              From
+              <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+            </label>
+            <label className="field">
+              To
+              <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+            </label>
+          </div>
+          <div className="grid-2">
+            <label className="field">
+              Group by
+              <select value={period} onChange={(e) => setPeriod(e.target.value as any)}>
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+              </select>
+            </label>
+            <label className="field">
+              Company
+              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+                <option value="">All companies</option>
+                {companies.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name} {c.currency ? `· ${c.currency}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="field">
+            Search companies
+            <input value={companyQuery} onChange={(e) => setCompanyQuery(e.target.value)} placeholder="Type company name or email…" />
+          </label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="button secondary" type="button" onClick={loadDashboard} disabled={loading}>
+              Refresh
+            </button>
+            <button className="button secondary" type="button" onClick={() => exportReport("overview_csv")} disabled={downloading}>
+              Export overview CSV
+            </button>
+            <button className="button secondary" type="button" onClick={() => exportReport("is_csv")} disabled={downloading}>
+              Export income CSV
+            </button>
+            <button className="button secondary" type="button" onClick={() => exportReport("is_xlsx")} disabled={downloading}>
+              Export income XLSX
+            </button>
+            <button className="button secondary" type="button" onClick={() => exportReport("is_pdf")} disabled={downloading}>
+              Export income PDF
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {error ? <div className="callout error" style={{ marginTop: 12 }}>{error}</div> : null}
+      {mixedCurrencies ? (
+        <div className="callout warn" style={{ marginTop: 12 }}>
+          Mixed currencies: the headline totals are raw sums across currencies. Use the currency breakdown for decision-making.
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <div className="muted">Loading…</div>
+        </div>
+      ) : (
+        <>
+          <div className="grid-3" style={{ marginTop: 12 }}>
+            <section className="panel">
+              <div className="muted">Total revenue</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>{formatMoney(data?.overview.totalRevenue || 0, currency)}</div>
+              <div className="muted" style={{ marginTop: 6 }}>Invoices only</div>
+            </section>
+            <section className="panel">
+              <div className="muted">Total expenses</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>{formatMoney(data?.overview.totalExpenses || 0, currency)}</div>
+              <div className="muted" style={{ marginTop: 6 }}>Expenses module</div>
+            </section>
+            <section className="panel">
+              <div className="muted">Net profit</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>{formatMoney(data?.overview.netProfit || 0, currency)}</div>
+              <div className="muted" style={{ marginTop: 6 }}>Revenue − expenses</div>
+            </section>
+          </div>
+
+          <div className="grid-3" style={{ marginTop: 12 }}>
+            <section className="panel">
+              <div className="muted">Transactions</div>
+              <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>{data?.overview.transactionsCount ?? "—"}</div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                Invoices: {data?.overview.invoicesCount ?? 0} · Sales: {data?.overview.salesCount ?? 0}
+              </div>
+            </section>
+            <section className="panel">
+              <div className="muted">System usage (last {data?.overview.usageWindowDays ?? 30} days)</div>
+              <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>
+                {data?.overview.activeUsersCount ?? "—"} active users
+              </div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                Total users: {data?.overview.usersCount ?? "—"} · Active companies: {data?.overview.activeCompaniesCount ?? "—"}
+              </div>
+            </section>
+            <section className="panel">
+              <div className="muted">Coverage</div>
+              <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>
+                {data?.overview.companiesCount ?? "—"} companies
+              </div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                Active branches: {data?.overview.activeBranchesCount ?? "—"}
+              </div>
+            </section>
+          </div>
+
+          {currencyBreakdown.length ? (
+            <section className="panel" style={{ marginTop: 12 }}>
+              <div className="panel-title">Currency breakdown</div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                Totals split by company currency.
+              </div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Currency</th>
+                    <th>Companies</th>
+                    <th>Revenue</th>
+                    <th>Expenses</th>
+                    <th>Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currencyBreakdown.map((row) => (
+                    <tr key={row.currency}>
+                      <td>{row.currency}</td>
+                      <td>{row.companies}</td>
+                      <td>{formatMoney(row.revenue, row.currency)}</td>
+                      <td>{formatMoney(row.expenses, row.currency)}</td>
+                      <td>{formatMoney(row.profit, row.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
+
+          <div className="grid-2" style={{ marginTop: 12 }}>
+            <section className="panel">
+              <div className="panel-title">Revenue & expenses trend</div>
+              <div style={{ width: "100%", height: 280, marginTop: 10 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={data?.timeseries || []}>
+                    <defs>
+                      <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6ea8ff" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#6ea8ff" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="period" stroke="rgba(255,255,255,0.6)" />
+                    <YAxis stroke="rgba(255,255,255,0.6)" />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="revenue" stroke="#6ea8ff" fill="url(#rev)" />
+                    <Area type="monotone" dataKey="expenses" stroke="#fb7185" fillOpacity={0.12} fill="#fb7185" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              {mixedCurrencies ? <div className="muted" style={{ marginTop: 6 }}>Mixed currencies</div> : null}
+            </section>
+
+            <section className="panel">
+              <div className="panel-title">Profit trend</div>
+              <div style={{ width: "100%", height: 280, marginTop: 10 }}>
+                <ResponsiveContainer>
+                  <BarChart data={data?.timeseries || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="period" stroke="rgba(255,255,255,0.6)" />
+                    <YAxis stroke="rgba(255,255,255,0.6)" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="profit" fill="#34d399" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {mixedCurrencies ? <div className="muted" style={{ marginTop: 6 }}>Mixed currencies</div> : null}
+            </section>
+          </div>
+
+          {topCompanies.length ? (
+            <section className="panel" style={{ marginTop: 12 }}>
+              <div className="panel-title">Top-performing companies</div>
+              <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue in the selected range.</div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Currency</th>
+                    <th>Revenue</th>
+                    <th>Invoices</th>
+                    <th>Plan</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topCompanies.map((row) => (
+                    <tr key={row.companyId}>
+                      <td>{row.companyName}</td>
+                      <td>{row.currency || "—"}</td>
+                      <td>{formatMoney(row.totalRevenue, row.currency || null)}</td>
+                      <td>{row.invoicesCount}</td>
+                      <td>{row.subscriptionPlan || "—"}</td>
+                      <td>{row.subscriptionStatus || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
+
+          <div className="grid-2" style={{ marginTop: 12 }}>
+            <section className="panel">
+              <div className="panel-title">Branch performance</div>
+              <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue.</div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Branch</th>
+                    <th>Revenue</th>
+                    <th>Invoices</th>
+                    <th>Growth</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.branchPerformance || []).slice(0, 15).map((b) => (
+                    <tr key={String(b.branchId)}>
+                      <td>{b.branchName}</td>
+                      <td>{formatMoney(b.totalRevenue, currency)}</td>
+                      <td>{b.invoiceCount}</td>
+                      <td>{b.growthRate === null ? "—" : `${b.growthRate}%`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+            <section className="panel">
+              <div className="panel-title">Employee productivity</div>
+              <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue per salesperson.</div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Revenue</th>
+                    <th>Invoices</th>
+                    <th>Avg invoice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.employeePerformance || []).slice(0, 15).map((e, idx) => (
+                    <tr key={e.userId || `${e.name}-${idx}`}>
+                      <td>{e.name}</td>
+                      <td>{formatMoney(e.totalSales, currency)}</td>
+                      <td>{e.invoices}</td>
+                      <td>{formatMoney(e.avgInvoiceValue || 0, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+          <section className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-title">Alerts</div>
+            {alerts.length ? (
+              <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                {alerts.map((a, idx) => (
+                  <div key={idx} className="callout">
+                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
+                      {JSON.stringify(a, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="muted" style={{ marginTop: 10 }}>
+                No alerts.
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </>
+  );
+}

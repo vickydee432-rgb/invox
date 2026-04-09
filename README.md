@@ -54,6 +54,11 @@ Public quote links: `http://localhost:3000/quote/:token`
 
 Tip: set `NEXT_PUBLIC_API_URL` in `frontend/.env` if the API is not on `http://localhost:5000`.
 
+### Super Admin (standalone)
+There is a separate standalone Super Admin analytics app in `superadmin/` (Super Admin users only).
+
+Docs: `docs/superadmin-standalone.md`
+
 ## Key endpoints
 
 ### Auth

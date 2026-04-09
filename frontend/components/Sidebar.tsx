@@ -36,13 +36,11 @@ const MODULE_ROUTES: Record<string, string> = {
   documents: "/documents",
   notifications: "/notifications",
   audit: "/audit",
-  settings: "/settings",
-  "super-admin": "/super-admin"
+  settings: "/settings"
 };
 
 const MODULE_ORDER = [
   "dashboard",
-  "super-admin",
   "accounting",
   "quotes",
   "sales",
@@ -149,7 +147,6 @@ export default function Sidebar() {
   const buildNavModules = () => {
     const enabledModules = workspace?.enabledModules || [];
     const baseModules = new Set(["dashboard", ...enabledModules, "settings"]);
-    if (user?.role === "super_admin") baseModules.add("super-admin");
     if (hasPermission(user?.permissions, "audit:read")) baseModules.add("audit");
     const ordered = MODULE_ORDER.filter((module) => baseModules.has(module));
     const extras = Array.from(baseModules).filter((module) => !MODULE_ORDER.includes(module));
