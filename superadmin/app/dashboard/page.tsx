@@ -88,14 +88,6 @@ function AlertCard({
         <div className="muted">
           Revenue dropped {formatPct(a.drop)} vs previous period ({formatMoney(a.previous, defaultCurrency)} → {formatMoney(a.current, defaultCurrency)}).
         </div>
-        <details style={{ marginTop: 10 }}>
-          <summary className="muted" style={{ cursor: "pointer" }}>
-            Details
-          </summary>
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
-            {JSON.stringify(alert, null, 2)}
-          </pre>
-        </details>
       </div>
     );
   }
@@ -126,14 +118,6 @@ function AlertCard({
             ))}
           </tbody>
         </table>
-        <details style={{ marginTop: 10 }}>
-          <summary className="muted" style={{ cursor: "pointer" }}>
-            Details
-          </summary>
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
-            {JSON.stringify(alert, null, 2)}
-          </pre>
-        </details>
       </div>
     );
   }
@@ -160,14 +144,6 @@ function AlertCard({
             ))}
           </tbody>
         </table>
-        <details style={{ marginTop: 10 }}>
-          <summary className="muted" style={{ cursor: "pointer" }}>
-            Details
-          </summary>
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12, color: "var(--muted)" }}>
-            {JSON.stringify(alert, null, 2)}
-          </pre>
-        </details>
       </div>
     );
   }
