@@ -218,7 +218,8 @@ router.post("/login", authLimiter, authSlowDown, async (req, res) => {
         user.lockUntil = new Date(Date.now() + lockMs);
         user.failedLoginAttempts = 0;
       }
-      await user.save();
+      // Avoid 500s from validation errors on legacy/misconfigured user docs.
+      await user.save({ validateBeforeSave: false });
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -245,7 +246,8 @@ router.post("/login", authLimiter, authSlowDown, async (req, res) => {
     user.failedLoginAttempts = 0;
     user.lockUntil = undefined;
     user.lastLoginAt = new Date();
-    await user.save();
+    // Avoid 500s from validation errors on legacy/misconfigured user docs.
+    await user.save({ validateBeforeSave: false });
 
     const token = signToken(user);
     res.json({
