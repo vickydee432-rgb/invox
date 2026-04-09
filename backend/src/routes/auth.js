@@ -198,7 +198,18 @@ router.post("/login", authLimiter, authSlowDown, async (req, res) => {
       });
     }
 
-    const ok = await bcrypt.compare(parsed.password, user.passwordHash);
+    // Some older/seeded accounts may have missing/invalid hashes; never crash login.
+    if (typeof user.passwordHash !== "string" || !user.passwordHash.trim()) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    let ok = false;
+    try {
+      ok = await bcrypt.compare(parsed.password, user.passwordHash);
+    } catch {
+      // Invalid hash format or bcrypt error: treat as invalid credentials.
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
     if (!ok) {
       user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
       const maxAttempts = Number(process.env.AUTH_MAX_LOGIN_ATTEMPTS || 5);
@@ -242,6 +253,12 @@ router.post("/login", authLimiter, authSlowDown, async (req, res) => {
       user: { _id: user._id, name: user.name, email: user.email, role: user.role, mfaEnabled: user.mfaEnabled }
     });
   } catch (err) {
+    try {
+      const email = req?.body?.email ? String(req.body.email).toLowerCase() : undefined;
+      console.error("[auth/login] error", { email, message: err?.message, name: err?.name });
+    } catch {
+      // ignore logging errors
+    }
     return handleRouteError(res, err, "Failed to login");
   }
 });
@@ -256,6 +273,9 @@ router.put("/password", requireAuth, async (req, res) => {
     const parsed = PasswordChangeSchema.parse(req.body);
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: "User not found" });
+    if (typeof user.passwordHash !== "string" || !user.passwordHash.trim()) {
+      return res.status(400).json({ error: "Password is not set for this account" });
+    }
 
     const ok = await bcrypt.compare(parsed.currentPassword, user.passwordHash);
     if (!ok) return res.status(401).json({ error: "Current password is incorrect" });
