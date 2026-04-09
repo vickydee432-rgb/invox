@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 export default function SuperAdminDashboardMovedPage() {
-  const rawUrl = process.env.NEXT_PUBLIC_SUPERADMIN_APP_URL || "";
+  const defaultUrl = "https://airy-hope-production.up.railway.app";
+  const rawUrl = process.env.NEXT_PUBLIC_SUPERADMIN_APP_URL || defaultUrl;
   const url = rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://") ? `https://${rawUrl}` : rawUrl;
   return (
     <section className="panel">
