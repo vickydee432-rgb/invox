@@ -16,6 +16,7 @@ const zraRoutes = require("./routes/integrations/zra");
 const { billingRouter, dodoWebhookHandler } = require("./routes/billing");
 const { startZraSyncWorker } = require("./workers/zraWorker");
 const { startTaxDeadlineWorker } = require("./workers/taxDeadlineWorker");
+const { startOpsAlertWorker } = require("./workers/opsAlertWorker");
 const branchesRoutes = require("./routes/branches");
 const productsRoutes = require("./routes/products");
 const stockRoutes = require("./routes/stock");
@@ -37,6 +38,7 @@ const taxRoutes = require("./routes/tax");
 const bankingRoutes = require("./routes/banking");
 const documentsRoutes = require("./routes/documents");
 const notificationsRoutes = require("./routes/notifications");
+const pushRoutes = require("./routes/push");
 const superAdminRoutes = require("./routes/superAdmin");
 const superAdminSsoRoutes = require("./routes/superAdminSso");
 const auditRoutes = require("./routes/audit");
@@ -108,6 +110,7 @@ app.use("/api/tax", taxRoutes);
 app.use("/api/banking", bankingRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/push", pushRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/admin", superAdminRoutes);
 app.use("/api/superadmin-sso", superAdminSsoRoutes);
@@ -129,6 +132,7 @@ connectDB(process.env.MONGO_URI)
     app.listen(port, () => console.log(`🚀 Running on http://localhost:${port}`));
     startZraSyncWorker();
     startTaxDeadlineWorker();
+    startOpsAlertWorker();
   })
   .catch((err) => {
     console.error("❌ DB connect error:", err);

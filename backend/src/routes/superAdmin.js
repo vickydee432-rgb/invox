@@ -11,6 +11,9 @@ const {
 } = require("../services/financialReportPdf");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const Notification = require("../models/Notification");
+const { sendPushToUsers, isPushEnabled } = require("../services/push");
+const { z } = require("zod");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -334,6 +337,76 @@ router.get("/console/companies", async (req, res) => {
     res.json({ companies: company ? [company] : [] });
   } catch (err) {
     return handleRouteError(res, err, "Failed to search companies");
+  }
+});
+
+router.post("/push/send", async (req, res) => {
+  try {
+    const companyId = requireCompanyScope(req);
+    const parsed = z
+      .object({
+        userIds: z.array(z.string().min(1)).optional(),
+        roles: z.array(z.enum(["owner", "admin", "member", "super_admin"])).optional(),
+        type: z.string().min(1).optional(),
+        message: z.string().min(1),
+        title: z.string().min(1).optional(),
+        url: z.string().optional(),
+        severity: z.enum(["info", "warning", "danger"]).optional(),
+        createInApp: z.boolean().optional()
+      })
+      .parse(req.body || {});
+
+    const type = parsed.type || "admin_alert";
+    const severity = parsed.severity || "info";
+    const createInApp = parsed.createInApp !== false;
+
+    let userIds = Array.isArray(parsed.userIds) ? parsed.userIds : [];
+    if (!userIds.length) {
+      const roles = Array.isArray(parsed.roles) && parsed.roles.length ? parsed.roles : ["owner", "admin"];
+      const users = await User.find({ companyId, role: { $in: roles } })
+        .select("_id")
+        .limit(200)
+        .lean();
+      userIds = users.map((u) => String(u._id));
+    }
+
+    userIds = Array.from(new Set(userIds.filter(Boolean)));
+    if (!userIds.length) return res.status(400).json({ error: "No recipients found" });
+
+    if (createInApp) {
+      const rows = userIds.map((id) => ({
+        companyId,
+        userId: id,
+        type,
+        message: parsed.message,
+        severity,
+        status: "unread",
+        triggeredAt: new Date(),
+        data: parsed.url ? { url: parsed.url } : undefined
+      }));
+      await Notification.insertMany(rows, { ordered: false }).catch(() => {});
+    }
+
+    const pushResult = await sendPushToUsers({
+      companyId,
+      userIds,
+      payload: {
+        title: parsed.title || "Invox",
+        body: parsed.message,
+        url: parsed.url || "/notifications",
+        tag: type,
+        severity
+      }
+    }).catch(() => ({ sent: 0, failed: userIds.length }));
+
+    res.json({
+      ok: true,
+      recipients: userIds.length,
+      pushEnabled: isPushEnabled(),
+      push: pushResult
+    });
+  } catch (err) {
+    return handleRouteError(res, err, "Failed to send push notification");
   }
 });
 

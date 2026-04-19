@@ -5,6 +5,11 @@ export const metadata = {
   description: "Usage, performance, and analytics across a company's branches"
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

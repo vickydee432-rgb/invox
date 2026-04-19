@@ -70,3 +70,49 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
+self.addEventListener("push", (event) => {
+  const data = (() => {
+    try {
+      return event.data ? event.data.json() : {};
+    } catch {
+      return { body: event.data ? String(event.data.text()) : "" };
+    }
+  })();
+
+  const title = data.title || "Invox";
+  const options = {
+    body: data.body || "",
+    tag: data.tag || "invox",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url || "/notifications" }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification?.data?.url || "/notifications";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      for (const client of clientsArr) {
+        if (client?.url && "focus" in client) {
+          const sameOrigin = (() => {
+            try {
+              return new URL(client.url).origin === self.location.origin;
+            } catch {
+              return false;
+            }
+          })();
+          if (sameOrigin) {
+            client.navigate(url).catch(() => {});
+            return client.focus();
+          }
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
+});

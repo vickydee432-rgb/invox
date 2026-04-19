@@ -98,26 +98,28 @@ function AlertCard({
       <div className="callout">
         <div style={{ fontWeight: 800, marginBottom: 6 }}>High invoice(s)</div>
         <div className="muted">Largest invoices in the selected period.</div>
-        <table className="table" style={{ marginTop: 10 }}>
-          <thead>
-            <tr>
-              <th>Invoice</th>
-              <th>Branch</th>
-              <th>Total</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(a.invoices || []).slice(0, 10).map((inv) => (
-              <tr key={inv._id}>
-                <td>{inv.invoiceNo || "—"}</td>
-                <td>{inv.branchName || "—"}</td>
-                <td>{formatMoney(inv.total || 0, defaultCurrency || null)}</td>
-                <td>{formatDateTime(inv.issueDate)}</td>
+        <div className="table-wrap">
+          <table className="table" style={{ marginTop: 10 }}>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Branch</th>
+                <th>Total</th>
+                <th>Date</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(a.invoices || []).slice(0, 10).map((inv) => (
+                <tr key={inv._id}>
+                  <td>{inv.invoiceNo || "—"}</td>
+                  <td>{inv.branchName || "—"}</td>
+                  <td>{formatMoney(inv.total || 0, defaultCurrency || null)}</td>
+                  <td>{formatDateTime(inv.issueDate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -128,22 +130,24 @@ function AlertCard({
       <div className="callout warn">
         <div style={{ fontWeight: 800, marginBottom: 6 }}>Inactive branches</div>
         <div className="muted">Branches with no invoices in the last 30 days.</div>
-        <table className="table" style={{ marginTop: 10 }}>
-          <thead>
-            <tr>
-              <th>Branch</th>
-              <th>Code</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(a.branches || []).slice(0, 10).map((b, idx) => (
-              <tr key={b._id || `${b.name}-${idx}`}>
-                <td>{b.name || "—"}</td>
-                <td>{b.code || "—"}</td>
+        <div className="table-wrap">
+          <table className="table" style={{ marginTop: 10 }}>
+            <thead>
+              <tr>
+                <th>Branch</th>
+                <th>Code</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(a.branches || []).slice(0, 10).map((b, idx) => (
+                <tr key={b._id || `${b.name}-${idx}`}>
+                  <td>{b.name || "—"}</td>
+                  <td>{b.code || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -173,6 +177,12 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<"day" | "week" | "month" | "quarter">("month");
   const [range, setRange] = useState({ from: "", to: "" });
   const [downloading, setDownloading] = useState(false);
+  const [pushTarget, setPushTarget] = useState<"owners_admins" | "all">("owners_admins");
+  const [pushSeverity, setPushSeverity] = useState<"info" | "warning" | "danger">("info");
+  const [pushMessage, setPushMessage] = useState("");
+  const [pushUrl, setPushUrl] = useState("/notifications");
+  const [pushSending, setPushSending] = useState(false);
+  const [pushResult, setPushResult] = useState<string>("");
 
   const currency = data?.overview?.currency || null;
 
@@ -255,6 +265,41 @@ export default function DashboardPage() {
     }
   };
 
+  const sendPush = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (pushSending) return;
+    setPushSending(true);
+    setPushResult("");
+    try {
+      const roles = pushTarget === "all" ? ["owner", "admin", "member"] : ["owner", "admin"];
+      const res = await apiFetch<{ recipients: number; pushEnabled: boolean; push: { sent: number; failed: number } }>(
+        "/api/admin/push/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            roles,
+            severity: pushSeverity,
+            type: "admin_alert",
+            message: pushMessage,
+            url: pushUrl || "/notifications",
+            title: "Admin Alert",
+            createInApp: true
+          })
+        }
+      );
+      setPushMessage("");
+      setPushResult(
+        res.pushEnabled
+          ? `Sent to ${res.recipients} user(s) (push: ${res.push.sent} sent, ${res.push.failed} failed).`
+          : `Sent in-app to ${res.recipients} user(s). Push is not configured on the server.`
+      );
+    } catch (err: any) {
+      setPushResult(err?.message || "Failed to send alert");
+    } finally {
+      setPushSending(false);
+    }
+  };
+
   return (
     <>
       <div className="topbar">
@@ -267,7 +312,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="topbar-actions">
           <span className="badge">{me?.email || "—"}</span>
           <button className="button danger" type="button" onClick={logout}>
             Logout
@@ -303,7 +348,7 @@ export default function DashboardPage() {
             </label>
             <div />
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="actions-row">
             <button className="button secondary" type="button" onClick={loadDashboard} disabled={loading}>
               Refresh
             </button>
@@ -331,6 +376,44 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          <section className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-title">Send Alert</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Sends an in-app notification, plus push (if configured) to users' devices.
+            </div>
+            <form onSubmit={sendPush} style={{ display: "grid", gap: 12, marginTop: 12 }}>
+              <div className="grid-2">
+                <label className="field">
+                  Recipients
+                  <select value={pushTarget} onChange={(e) => setPushTarget(e.target.value as any)}>
+                    <option value="owners_admins">Owners & Admins</option>
+                    <option value="all">All users</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Severity
+                  <select value={pushSeverity} onChange={(e) => setPushSeverity(e.target.value as any)}>
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="danger">Danger</option>
+                  </select>
+                </label>
+              </div>
+              <label className="field">
+                Link (optional)
+                <input value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/notifications" />
+              </label>
+              <label className="field">
+                Message
+                <input value={pushMessage} onChange={(e) => setPushMessage(e.target.value)} required />
+              </label>
+              {pushResult ? <div className="callout">{pushResult}</div> : null}
+              <button className="button" type="submit" disabled={pushSending}>
+                {pushSending ? "Sending…" : "Send alert"}
+              </button>
+            </form>
+          </section>
+
           <div className="grid-3" style={{ marginTop: 12 }}>
             <section className="panel">
               <div className="muted">Total revenue</div>
@@ -421,51 +504,55 @@ export default function DashboardPage() {
             <section className="panel">
               <div className="panel-title">Branch performance</div>
               <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue.</div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Branch</th>
-                    <th>Revenue</th>
-                    <th>Invoices</th>
-                    <th>Growth</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.branchPerformance || []).slice(0, 15).map((b) => (
-                    <tr key={String(b.branchId)}>
-                      <td>{b.branchName}</td>
-                      <td>{formatMoney(b.totalRevenue, currency)}</td>
-                      <td>{b.invoiceCount}</td>
-                      <td>{b.growthRate === null ? "—" : `${b.growthRate}%`}</td>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th>Revenue</th>
+                      <th>Invoices</th>
+                      <th>Growth</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(data?.branchPerformance || []).slice(0, 15).map((b) => (
+                      <tr key={String(b.branchId)}>
+                        <td>{b.branchName}</td>
+                        <td>{formatMoney(b.totalRevenue, currency)}</td>
+                        <td>{b.invoiceCount}</td>
+                        <td>{b.growthRate === null ? "—" : `${b.growthRate}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
 
             <section className="panel">
               <div className="panel-title">Employee productivity</div>
               <div className="muted" style={{ marginTop: 6 }}>Ranked by invoice revenue per salesperson.</div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Revenue</th>
-                    <th>Invoices</th>
-                    <th>Avg invoice</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.employeePerformance || []).slice(0, 15).map((e, idx) => (
-                    <tr key={e.userId || `${e.name}-${idx}`}>
-                      <td>{e.name}</td>
-                      <td>{formatMoney(e.totalSales, currency)}</td>
-                      <td>{e.invoices}</td>
-                      <td>{formatMoney(e.avgInvoiceValue || 0, currency)}</td>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Revenue</th>
+                      <th>Invoices</th>
+                      <th>Avg invoice</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(data?.employeePerformance || []).slice(0, 15).map((e, idx) => (
+                      <tr key={e.userId || `${e.name}-${idx}`}>
+                        <td>{e.name}</td>
+                        <td>{formatMoney(e.totalSales, currency)}</td>
+                        <td>{e.invoices}</td>
+                        <td>{formatMoney(e.avgInvoiceValue || 0, currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           </div>
 
