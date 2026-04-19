@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { startViewTransition } from "@/lib/viewTransition";
 
 type Summary = {
   quotes_count: number;
@@ -78,6 +79,11 @@ function startOfWeekMonday(date: Date) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const pullStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const pullingRef = useRef(false);
+  const [pullY, setPullY] = useState(0);
+  const [ptrDragging, setPtrDragging] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [series, setSeries] = useState<SeriesRow[]>([]);
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
@@ -129,6 +135,97 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  const refreshAll = async () => {
+    const ws = await apiFetch<{ company: any }>("/api/company/me")
+      .then((data) => {
+        setCompany(data.company);
+        const nextWs = buildWorkspace(data.company);
+        setWorkspace(nextWs);
+        return nextWs;
+      })
+      .catch(() => workspace);
+
+    const tasks: Promise<any>[] = [];
+    tasks.push(loadDashboard(fromDate, toDate));
+
+    if (ws?.enabledModules.includes("invoices")) {
+      tasks.push(
+        apiFetch<{ invoices: { _id: string; customerName: string; total: number; issueDate: string }[] }>(
+          "/api/invoices?limit=4&page=1"
+        )
+          .then((data) => setRecentInvoices(data.invoices || []))
+          .catch(() => setRecentInvoices([]))
+      );
+    } else {
+      setRecentInvoices([]);
+    }
+
+    if (ws?.enabledModules.includes("expenses")) {
+      tasks.push(
+        apiFetch<{ expenses: { _id: string; title: string; amount: number; date: string }[] }>(
+          "/expenses?limit=4&page=1&sortBy=date&sortDir=desc"
+        )
+          .then((data) => setRecentExpenses(data.expenses || []))
+          .catch(() => setRecentExpenses([]))
+      );
+    } else {
+      setRecentExpenses([]);
+    }
+
+    if (ws?.enabledModules.includes("sales")) {
+      tasks.push(
+        apiFetch<{ sales: { _id: string; customerName: string; total: number; issueDate: string }[] }>(
+          "/api/sales?limit=4&page=1"
+        )
+          .then((data) => setRecentSales(data.sales || []))
+          .catch(() => setRecentSales([]))
+      );
+    } else {
+      setRecentSales([]);
+    }
+
+    if (ws?.inventoryEnabled) {
+      tasks.push(
+        apiFetch<{ movements: any[] }>("/api/stock/movements?limit=5&page=1")
+          .then((data) => setRecentMovements((data.movements || []) as any))
+          .catch(() => setRecentMovements([]))
+      );
+      tasks.push(
+        apiFetch<{ stock: { onHand?: number; avgCost?: number; lowStock?: boolean }[] }>("/api/stock")
+          .then((data) => {
+            const rows = data.stock || [];
+            const lowStockCount = rows.reduce((sum, row) => sum + (row.lowStock ? 1 : 0), 0);
+            const stockValue = rows.reduce((sum, row) => sum + Number(row.onHand || 0) * Number(row.avgCost || 0), 0);
+            setInventorySummary({ lowStockCount, stockValue });
+          })
+          .catch(() => setInventorySummary(null))
+      );
+    } else {
+      setRecentMovements([]);
+      setInventorySummary(null);
+    }
+
+    if (ws?.enabledModules.includes("tax")) {
+      tasks.push(
+        apiFetch<{ deadlines: TaxDeadline[] }>("/api/tax/deadlines")
+          .then((data) => setTaxDeadlines(data.deadlines || []))
+          .catch(() => setTaxDeadlines([]))
+      );
+    } else {
+      setTaxDeadlines([]);
+    }
+
+    await Promise.allSettled(tasks);
+  };
+
+  useEffect(() => {
+    if (!pullY) return;
+    const t = setTimeout(() => {
+      if (!pullingRef.current) setPullY(0);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [pullY]);
 
   useEffect(() => {
     const now = new Date();
@@ -310,6 +407,56 @@ export default function DashboardPage() {
     loadDashboard(from, to);
   }, [period, workspace]);
 
+  const handlePtrTouchStart = (e: React.TouchEvent) => {
+    if (refreshing) return;
+    if (typeof window !== "undefined" && window.scrollY > 0) return;
+    if (e.touches.length !== 1) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.("input, textarea, select, [contenteditable='true'], [data-no-swipe='true']")) return;
+    const t = e.touches[0];
+    pullStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+    pullingRef.current = false;
+    setPtrDragging(false);
+  };
+
+  const handlePtrTouchMove = (e: React.TouchEvent) => {
+    if (refreshing) return;
+    const start = pullStartRef.current;
+    if (!start) return;
+    if (typeof window !== "undefined" && window.scrollY > 0) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (dy <= 0) return;
+    if (Math.abs(dx) > 40) return;
+    pullingRef.current = true;
+    setPtrDragging(true);
+    setPullY(Math.min(96, dy * 0.55));
+    e.preventDefault();
+  };
+
+  const handlePtrTouchEnd = async () => {
+    const didPull = pullingRef.current;
+    pullingRef.current = false;
+    pullStartRef.current = null;
+    setPtrDragging(false);
+    if (!didPull) return;
+    const threshold = 60;
+    if (pullY < threshold) {
+      setPullY(0);
+      return;
+    }
+    setRefreshing(true);
+    setPullY(threshold);
+    try {
+      await refreshAll();
+    } finally {
+      setRefreshing(false);
+      setPullY(0);
+    }
+  };
+
   const handleApply = () => {
     loadDashboard(fromDate, toDate);
   };
@@ -425,16 +572,31 @@ export default function DashboardPage() {
 
   return (
     <>
-      <section className="mobile-dashboard">
+      <section
+        className={`mobile-dashboard${ptrDragging || refreshing ? " ptr-active" : ""}`}
+        onTouchStart={handlePtrTouchStart}
+        onTouchMove={handlePtrTouchMove}
+        onTouchEnd={handlePtrTouchEnd}
+        style={{
+          transform: pullY ? `translateY(${pullY}px)` : undefined,
+          transition: ptrDragging ? "none" : pullY ? "none" : "transform 180ms ease-out"
+        }}
+      >
+        <div className="ptr-indicator" aria-hidden="true">
+          <div className="ptr-pill">
+            <span className={`ptr-dot${refreshing ? " spinning" : ""}`} />
+            <span>{refreshing ? "Refreshing…" : pullY >= 60 ? "Release to refresh" : "Pull to refresh"}</span>
+          </div>
+        </div>
         <div className="mobile-header">
-          <button className="icon-button" type="button" onClick={() => router.push("/settings")}>
+          <button className="icon-button" type="button" onClick={() => startViewTransition(() => router.push("/settings"))}>
             ⚙
           </button>
           <div>
             <div className="muted">Welcome back</div>
             <div className="mobile-title">{workspace?.labels?.dashboard || "Dashboard"}</div>
           </div>
-          <button className="icon-button" type="button" onClick={() => router.push("/reports")}>
+          <button className="icon-button" type="button" onClick={() => startViewTransition(() => router.push("/reports"))}>
             🔔
           </button>
         </div>
@@ -447,21 +609,21 @@ export default function DashboardPage() {
 
         <div className="mobile-action-grid">
           {workspace?.enabledModules.includes("invoices") ? (
-            <button className="mobile-action" type="button" onClick={() => router.push("/invoices/new")}>
+            <button className="mobile-action" type="button" onClick={() => startViewTransition(() => router.push("/invoices/new"))}>
               {workspace?.labels?.invoiceSingular || "Invoice"}
             </button>
           ) : null}
           {workspace?.enabledModules.includes("expenses") ? (
-            <button className="mobile-action" type="button" onClick={() => router.push("/expenses/new")}>
+            <button className="mobile-action" type="button" onClick={() => startViewTransition(() => router.push("/expenses/new"))}>
               Expense
             </button>
           ) : null}
           {workspace?.inventoryEnabled ? (
-            <button className="mobile-action" type="button" onClick={() => router.push("/inventory")}>
+            <button className="mobile-action" type="button" onClick={() => startViewTransition(() => router.push("/inventory"))}>
               Inventory
             </button>
           ) : null}
-          <button className="mobile-action" type="button" onClick={() => router.push("/reports")}>
+          <button className="mobile-action" type="button" onClick={() => startViewTransition(() => router.push("/reports"))}>
             Reports
           </button>
         </div>
@@ -469,7 +631,7 @@ export default function DashboardPage() {
         <div className="mobile-section">
           <div className="mobile-section-header">
             <div>Recent activity</div>
-            <button className="link-button" type="button" onClick={() => router.push("/invoices")}>
+            <button className="link-button" type="button" onClick={() => startViewTransition(() => router.push("/invoices"))}>
               See all
             </button>
           </div>

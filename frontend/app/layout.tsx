@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Invox",
   description: "Invoices, quotes, expenses, and projects in one workspace.",
   manifest: "/manifest.webmanifest",
-  themeColor: "#f05d23",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -28,7 +27,9 @@ export const metadata: Metadata = {
 
 export const viewport = {
   width: "device-width",
-  initialScale: 1
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f05d23"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

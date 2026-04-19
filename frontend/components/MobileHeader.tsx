@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { startViewTransition } from "@/lib/viewTransition";
 
 const iconProps = {
   width: 18,
@@ -89,12 +89,13 @@ export default function MobileHeader() {
     : canSeeSettings
     ? "/settings"
     : "/dashboard";
+  const rightLabel = rightHref === "/notifications" ? "Notifications" : rightHref === "/reports" ? "Reports" : rightHref === "/settings" ? "Settings" : "Dashboard";
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
+      startViewTransition(() => router.back());
     } else {
-      router.push("/dashboard");
+      startViewTransition(() => router.push("/dashboard"));
     }
   };
 
@@ -108,9 +109,14 @@ export default function MobileHeader() {
         <div className="mobile-header-spacer" />
       )}
       <div className="mobile-header-title">{baseTitle}</div>
-      <Link className="icon-button" aria-label="Notifications" href={rightHref}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label={rightLabel}
+        onClick={() => startViewTransition(() => router.push(rightHref))}
+      >
         <BellIcon />
-      </Link>
+      </button>
     </div>
   );
 }

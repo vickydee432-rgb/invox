@@ -293,6 +293,10 @@ export default function SettingsPage() {
   const [receiptFooterMessage, setReceiptFooterMessage] = useState("Thank you for shopping with us.");
   const [autoPrintAfterSale, setAutoPrintAfterSale] = useState(false);
   const [autoPrintMode, setAutoPrintMode] = useState<"paid" | "all">("paid");
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installInstalled, setInstallInstalled] = useState(false);
+  const [installPlatform, setInstallPlatform] = useState<"ios" | "android" | "other">("other");
+  const [installNote, setInstallNote] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -346,6 +350,67 @@ export default function SettingsPage() {
     setAutoPrintAfterSale(device.autoPrintAfterSale);
     setAutoPrintMode(device.autoPrintMode);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ua = navigator.userAgent || "";
+    const isIos = /iphone|ipad|ipod/i.test(ua);
+    const isAndroid = /android/i.test(ua);
+    setInstallPlatform(isIos ? "ios" : isAndroid ? "android" : "other");
+
+    const refreshInstalled = () => {
+      const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches;
+      const iosStandalone = (navigator as any)?.standalone === true;
+      setInstallInstalled(Boolean(standalone || iosStandalone));
+    };
+    refreshInstalled();
+
+    const onBeforeInstallPrompt = (e: any) => {
+      e.preventDefault?.();
+      setInstallPrompt(e);
+    };
+    const onInstalled = () => {
+      setInstallInstalled(true);
+      setInstallPrompt(null);
+      setInstallNote("Installed.");
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+    window.addEventListener("appinstalled", onInstalled as any);
+    window.addEventListener("visibilitychange", refreshInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+      window.removeEventListener("appinstalled", onInstalled as any);
+      window.removeEventListener("visibilitychange", refreshInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    setInstallNote("");
+    if (installInstalled) return;
+    if (!installPrompt) {
+      if (installPlatform === "ios") {
+        setInstallNote("On iPhone/iPad: open this in Safari → Share → Add to Home Screen.");
+      } else {
+        setInstallNote("Use your browser menu to install (e.g. “Install app” / “Add to Home screen”).");
+      }
+      return;
+    }
+
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice?.outcome === "accepted") {
+        setInstallNote("Installing…");
+      } else {
+        setInstallNote("Install dismissed.");
+      }
+    } catch (err: any) {
+      setInstallNote(err?.message || "Install failed.");
+    } finally {
+      setInstallPrompt(null);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -1117,6 +1182,30 @@ export default function SettingsPage() {
 
   return (
     <>
+      <section className="panel">
+        <div className="panel-title">Install App</div>
+        <div className="muted">Install Invox on your phone for a full-screen, app-like experience.</div>
+        {installInstalled ? (
+          <div className="badge" style={{ marginTop: 12 }}>
+            Installed
+          </div>
+        ) : (
+          <div className="report-actions" style={{ marginTop: 12 }}>
+            <button className="button" type="button" onClick={handleInstall}>
+              Install Invox
+            </button>
+            <div className="muted">
+              {installPrompt ? "Ready to install." : installPlatform === "ios" ? "Safari required for “Add to Home Screen”." : "Install option appears in the browser menu."}
+            </div>
+          </div>
+        )}
+        {installNote ? (
+          <div className="muted" style={{ marginTop: 10 }}>
+            {installNote}
+          </div>
+        ) : null}
+      </section>
+
       <section className="panel">
         <div className="panel-title">Subscription</div>
         {billingLoading ? (

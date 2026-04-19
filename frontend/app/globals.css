@@ -2119,15 +2119,72 @@ a {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    background: #f4f5f7;
+    position: sticky;
+    top: calc(12px + env(safe-area-inset-top));
+    z-index: 25;
+    background: rgba(244, 245, 247, 0.92);
+    backdrop-filter: blur(14px);
     border: 1px solid rgba(20, 24, 34, 0.08);
     border-radius: 24px;
     padding: 12px 14px;
     box-shadow: 0 18px 34px rgba(24, 33, 46, 0.16);
   }
 
+  .app-page {
+    animation: appPageIn 160ms ease-out;
+    touch-action: pan-y;
+  }
+
+  @keyframes appPageIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .app-footer {
+    display: none;
+  }
+
+  @supports (view-transition-name: root) {
+    ::view-transition-old(root) {
+      animation: vtFadeOut 120ms ease-out both;
+    }
+    ::view-transition-new(root) {
+      animation: vtFadeIn 160ms ease-out both;
+    }
+  }
+
+  @keyframes vtFadeOut {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  @keyframes vtFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .mobile-nav {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 10px;
     position: fixed;
     bottom: calc(16px + env(safe-area-inset-bottom));
@@ -2139,15 +2196,9 @@ a {
     box-shadow: 0 22px 42px rgba(24, 33, 46, 0.2);
     border: 1px solid rgba(20, 24, 34, 0.08);
     z-index: 20;
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow: hidden;
   }
 
-  .mobile-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mobile-nav a,
   .mobile-nav button {
     display: grid;
     gap: 6px;
@@ -2155,13 +2206,15 @@ a {
     font-size: 11px;
     font-weight: 600;
     color: #5f6671;
-    flex: 0 0 82px;
+    min-width: 0;
+    width: 100%;
     border: none;
     background: transparent;
     padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .mobile-nav a.active,
   .mobile-nav button.active {
     color: var(--ink);
   }
@@ -2176,10 +2229,89 @@ a {
     box-shadow: 0 10px 22px rgba(24, 33, 46, 0.14);
   }
 
-  .mobile-nav a.active .mobile-nav-icon,
   .mobile-nav button.active .mobile-nav-icon {
     background: rgba(240, 93, 35, 0.15);
     color: var(--brand);
+  }
+
+  .mobile-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 18, 26, 0.38);
+    z-index: 40;
+    display: grid;
+    align-items: end;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-sheet {
+    background: rgba(247, 247, 248, 0.98);
+    border: 1px solid rgba(20, 24, 34, 0.1);
+    border-radius: 24px;
+    box-shadow: 0 30px 60px rgba(24, 33, 46, 0.25);
+    padding: 12px;
+    max-height: 70vh;
+    overflow: auto;
+    transition: transform 180ms ease-out;
+    touch-action: pan-y;
+  }
+
+  .mobile-sheet.dragging {
+    transition: none;
+  }
+
+  .mobile-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 4px 10px;
+  }
+
+  .mobile-sheet-title {
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .mobile-sheet-body {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-sheet-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid rgba(20, 24, 34, 0.1);
+    background: #fff;
+    border-radius: 18px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .mobile-sheet-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    background: rgba(240, 93, 35, 0.1);
+    color: var(--brand);
+    display: grid;
+    place-items: center;
+  }
+
+  .mobile-sheet-label {
+    font-weight: 700;
+  }
+
+  .mobile-sheet-divider {
+    height: 1px;
+    background: rgba(20, 24, 34, 0.1);
+    margin: 6px 2px;
   }
 
   .edit-toggle {
@@ -2216,6 +2348,51 @@ a {
   .mobile-dashboard {
     display: grid;
     gap: 16px;
+    position: relative;
+  }
+
+  .ptr-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -64px;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .ptr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(20, 24, 34, 0.1);
+    border-radius: 999px;
+    padding: 10px 14px;
+    box-shadow: 0 18px 34px rgba(24, 33, 46, 0.16);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .ptr-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(31, 122, 107, 0.35);
+  }
+
+  .ptr-dot.spinning {
+    background: transparent;
+    border: 2px solid rgba(31, 122, 107, 0.25);
+    border-top-color: rgba(31, 122, 107, 0.9);
+    animation: ptrSpin 900ms linear infinite;
+  }
+
+  @keyframes ptrSpin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .mobile-action-grid {
@@ -2384,6 +2561,12 @@ a {
   .mobile-collapse .mobile-collapse-body {
     display: block;
     padding: 0;
+  }
+}
+
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .app-page {
+    animation: none;
   }
 }
 

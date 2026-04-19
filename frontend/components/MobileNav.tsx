@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 import { buildWorkspace, WorkspaceConfig } from "@/lib/workspace";
+import { startViewTransition } from "@/lib/viewTransition";
 
 const MODULE_ROUTES: Record<string, string> = {
   dashboard: "/dashboard",
@@ -196,6 +196,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M15 12H3" />
       <path d="M21 3v18" />
     </svg>
+  ),
+  more: (
+    <svg {...iconProps}>
+      <path d="M5 12h.01" />
+      <path d="M12 12h.01" />
+      <path d="M19 12h.01" />
+    </svg>
   )
 };
 
@@ -205,6 +212,11 @@ export default function MobileNav() {
   const [workspace, setWorkspace] = useState<WorkspaceConfig | null>(null);
   const [showPlans, setShowPlans] = useState(false);
   const [user, setUser] = useState<{ role?: "owner" | "admin" | "member" } | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const [sheetCanDrag, setSheetCanDrag] = useState(false);
+  const [sheetStart, setSheetStart] = useState<{ y: number; t: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -269,37 +281,164 @@ export default function MobileNav() {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  const handleLogout = () => {
-    clearToken();
-    router.push("/login");
+  const navigate = (href: string) => {
+    setMoreOpen(false);
+    setSheetDragY(0);
+    setSheetDragging(false);
+    if (isActive(href)) {
+      const prefersReduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      window.scrollTo({ top: 0, behavior: prefersReduced ? "auto" : "smooth" });
+      return;
+    }
+    startViewTransition(() => router.push(href));
   };
 
-  const navModules = uniqueModules;
+  const handleLogout = () => {
+    clearToken();
+    startViewTransition(() => router.push("/login"));
+  };
+
+  const primaryOrder = ["dashboard", "sales", "inventory", "reports", "settings"];
+  const primary = primaryOrder.filter((m) => uniqueModules.includes(m)).slice(0, 4);
+
+  const secondary = uniqueModules.filter((m) => !primary.includes(m));
+  if (showPlans && !primary.includes("plans") && !secondary.includes("plans")) secondary.push("plans");
+  const moreIsActive = moreOpen || secondary.some((m) => isActive(MODULE_ROUTES[m]));
+
+  useEffect(() => {
+    if (!moreOpen) {
+      setSheetDragY(0);
+      setSheetDragging(false);
+      setSheetCanDrag(false);
+      setSheetStart(null);
+    }
+  }, [moreOpen]);
+
+  const handleSheetTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const sheetEl = e.currentTarget as HTMLElement;
+    const target = e.target as HTMLElement | null;
+    const inHeader = Boolean(target?.closest?.(".mobile-sheet-header"));
+    const canDrag = inHeader || sheetEl.scrollTop <= 0;
+    const t = e.touches[0];
+    setSheetStart({ y: t.clientY, t: Date.now() });
+    setSheetCanDrag(canDrag);
+    setSheetDragging(false);
+    setSheetDragY(0);
+  };
+
+  const handleSheetTouchMove = (e: React.TouchEvent) => {
+    if (!sheetStart || !sheetCanDrag) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dy = t.clientY - sheetStart.y;
+    if (dy <= 0) return;
+    setSheetDragging(true);
+    setSheetDragY(Math.min(240, dy));
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const closeSheet = () => {
+    setMoreOpen(false);
+    setSheetDragY(0);
+    setSheetDragging(false);
+    setSheetCanDrag(false);
+    setSheetStart(null);
+  };
+
+  const handleSheetTouchEnd = () => {
+    if (!sheetStart) return;
+    const dt = Date.now() - sheetStart.t;
+    const dy = sheetDragY;
+    setSheetStart(null);
+    setSheetCanDrag(false);
+    setSheetDragging(false);
+    if (dy > 120 || (dt < 250 && dy > 60)) {
+      closeSheet();
+      return;
+    }
+    setSheetDragY(0);
+  };
 
   return (
-    <nav className="mobile-nav">
-      {navModules.map((module) => {
-        const href = MODULE_ROUTES[module];
-        const baseLabel = workspace?.labels?.[module] || module;
-        const label = module === "settings" ? "Settings" : normalizeLabel(baseLabel);
-        const icon = ICONS[module] || ICONS.dashboard;
-        return (
-          <Link key={module} href={href} className={isActive(href) ? "active" : ""}>
-            <span className="mobile-nav-icon">{icon}</span>
-            <span>{label}</span>
-          </Link>
-        );
-      })}
-      {showPlans ? (
-        <Link href="/plans" className={isActive("/plans") ? "active" : ""}>
-          <span className="mobile-nav-icon">{ICONS.plans}</span>
-          <span>Plans</span>
-        </Link>
+    <>
+      <nav className="mobile-nav" aria-label="Primary navigation">
+        {primary.map((module) => {
+          const href = MODULE_ROUTES[module];
+          const baseLabel = workspace?.labels?.[module] || module;
+          const label = module === "settings" ? "Settings" : normalizeLabel(baseLabel);
+          const icon = ICONS[module] || ICONS.dashboard;
+          return (
+            <button key={module} type="button" className={isActive(href) ? "active" : ""} onClick={() => navigate(href)}>
+              <span className="mobile-nav-icon" aria-hidden="true">
+                {icon}
+              </span>
+              <span>{label}</span>
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          className={moreIsActive ? "active" : ""}
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={moreOpen}
+        >
+          <span className="mobile-nav-icon" aria-hidden="true">
+            {ICONS.more}
+          </span>
+          <span>More</span>
+        </button>
+      </nav>
+
+      {moreOpen ? (
+        <div className="mobile-sheet-backdrop" role="presentation" onClick={() => closeSheet()}>
+          <div
+            className={`mobile-sheet${sheetDragging ? " dragging" : ""}`}
+            role="dialog"
+            aria-label="More navigation"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleSheetTouchStart}
+            onTouchMove={handleSheetTouchMove}
+            onTouchEnd={handleSheetTouchEnd}
+            style={{ transform: `translateY(${sheetDragY}px)` }}
+          >
+            <div className="mobile-sheet-header">
+              <div className="mobile-sheet-title">More</div>
+              <button className="icon-button" type="button" onClick={() => closeSheet()} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div className="mobile-sheet-body">
+              {secondary.map((module) => {
+                const href = MODULE_ROUTES[module];
+                const baseLabel = workspace?.labels?.[module] || module;
+                const label = module === "settings" ? "Settings" : module === "plans" ? "Plans" : normalizeLabel(baseLabel);
+                const icon = ICONS[module] || ICONS.dashboard;
+                return (
+                  <button key={module} type="button" className="mobile-sheet-item" onClick={() => navigate(href)}>
+                    <span className="mobile-sheet-icon" aria-hidden="true">
+                      {icon}
+                    </span>
+                    <span className="mobile-sheet-label">{label}</span>
+                  </button>
+                );
+              })}
+
+              <div className="mobile-sheet-divider" />
+
+              <button type="button" className="mobile-sheet-item" onClick={handleLogout}>
+                <span className="mobile-sheet-icon" aria-hidden="true">
+                  {ICONS.logout}
+                </span>
+                <span className="mobile-sheet-label">Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
-      <button type="button" onClick={handleLogout}>
-        <span className="mobile-nav-icon">{ICONS.logout}</span>
-        <span>Logout</span>
-      </button>
-    </nav>
+    </>
   );
 }
